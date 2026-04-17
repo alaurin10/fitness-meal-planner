@@ -1,0 +1,27 @@
+{
+  "name": "fitness-meal-planner",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "concurrently -n fit-api,fit-web,meals-api,meals-web -c blue,cyan,magenta,green \"pnpm --filter fit-server dev\" \"pnpm --filter fit-client dev\" \"pnpm --filter meals-server dev\" \"pnpm --filter meals-client dev\"",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @platform/db generate",
+    "db:migrate:dev": "pnpm --filter @platform/db migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @platform/db migrate:deploy",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@clerk/shared",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+# Documentation of the four Railway services for this monorepo.
+# Railway does not consume a repo-level railway.toml for multi-service monorepos;
+# you configure each service's root directory + build/start commands in the
+# Railway dashboard. This file exists as a single source of truth.
+
+# ----------------------------------------------------------------------
+# Service: fitness-tracker-server
+#   Root directory: apps/fit/server
+#   Build:   pnpm install --frozen-lockfile && pnpm --filter @platform/db generate && pnpm --filter fit-server build && pnpm --filter @platform/db migrate:deploy:fit
+#   Start:   pnpm --filter fit-server start
+#   Public domain: api.fit.andrewlaurin.com
+#   Env: DATABASE_URL (fit), ANTHROPIC_API_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
+#        INTERNAL_API_SECRET, MEALS_INTERNAL_URL, FIT_CLIENT_ORIGIN, PORT, NODE_ENV
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# Service: fitness-tracker-client
+#   Root directory: apps/fit/client
+#   Build:   pnpm install --frozen-lockfile && pnpm --filter fit-client build
+#   Start:   pnpm --filter fit-client start
+#   Public domain: fit.andrewlaurin.com
+#   Env: VITE_API_URL=https://api.fit.andrewlaurin.com,
+#        VITE_CLERK_PUBLISHABLE_KEY
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# Service: meal-planner-server
+#   Root directory: apps/meals/server
+#   Build:   pnpm install --frozen-lockfile && pnpm --filter @platform/db generate && pnpm --filter meals-server build && pnpm --filter @platform/db migrate:deploy:meals
+#   Start:   pnpm --filter meals-server start
+#   Public domain: api.meals.andrewlaurin.com
+#   Env: DATABASE_URL (meals), ANTHROPIC_API_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
+#        INTERNAL_API_SECRET, FIT_INTERNAL_URL, MEALS_CLIENT_ORIGIN, PORT, NODE_ENV
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# Service: meal-planner-client
+#   Root directory: apps/meals/client
+#   Build:   pnpm install --frozen-lockfile && pnpm --filter meals-client build
+#   Start:   pnpm --filter meals-client start
+#   Public domain: meals.andrewlaurin.com
+#   Env: VITE_API_URL=https://api.meals.andrewlaurin.com,
+#        VITE_CLERK_PUBLISHABLE_KEY
+# ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+# Service: platform-postgres (Railway-managed)
+#   Single Postgres instance, two databases inside: fitness_tracker_db, meal_planner_db
+# ----------------------------------------------------------------------
