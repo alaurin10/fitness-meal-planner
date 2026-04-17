@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import { Show } from "@clerk/react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardPage } from "./pages/Dashboard";
 import { GroceriesPage } from "./pages/Groceries";
@@ -14,7 +14,7 @@ export default function App() {
         path="*"
         element={
           <>
-            <SignedIn>
+            <Show when="signed-in">
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/plan" element={<PlanPage />} />
@@ -22,10 +22,10 @@ export default function App() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </SignedIn>
-            <SignedOut>
-              <RedirectToSignIn />
-            </SignedOut>
+            </Show>
+            <Show when="signed-out">
+              <Navigate to="/sign-in" replace />
+            </Show>
           </>
         }
       />
