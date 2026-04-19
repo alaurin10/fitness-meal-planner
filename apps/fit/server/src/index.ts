@@ -36,7 +36,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(status).json({ error: message });
 });
 
-const port = Number(process.env.FIT_SERVER_PORT ?? process.env.PORT ?? 3001);
+const port = Number(process.env.PORT ?? process.env.FIT_SERVER_PORT ?? 3001);
 app.listen(port, () => {
   console.log(`[fit-server] listening on :${port}`);
 });

@@ -33,7 +33,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(status).json({ error: message });
 });
 
-const port = Number(process.env.MEALS_SERVER_PORT ?? process.env.PORT ?? 3002);
+const port = Number(process.env.PORT ?? process.env.MEALS_SERVER_PORT ?? 3002);
 app.listen(port, () => {
   console.log(`[meals-server] listening on :${port}`);
 });
