@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "pnpm generate",
     "generate": "pnpm generate:fit && pnpm generate:meals",
     "generate:fit": "prisma generate --schema=prisma/fit.prisma",
     "generate:meals": "prisma generate --schema=prisma/meals.prisma",
