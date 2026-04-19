@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { PhoneHeader, Ring } from "../components/Primitives";
 import {
   useClearChecked,
   useGroceries,
@@ -22,26 +24,27 @@ export function GroceriesPage() {
 
   if (isLoading) {
     return (
-      <Layout title="Groceries">
-        <Card>Loading…</Card>
+      <Layout>
+        <div className="px-4 py-4">
+          <Card>Loading…</Card>
+        </div>
       </Layout>
     );
   }
 
   if (!list || list.items.length === 0) {
     return (
-      <Layout title="Groceries">
-        <Card>
-          <p className="text-muted text-sm">
-            No grocery list yet. Generate a meal plan first.
-          </p>
-        </Card>
+      <Layout>
+        <PhoneHeader
+          title="Market"
+          subtitle="Generate a meal plan to fill your list."
+        />
       </Layout>
     );
   }
 
   return (
-    <Layout title="Groceries">
+    <Layout>
       <ListBody
         items={list.items}
         onToggle={(id, checked) => toggle.mutate({ itemId: id, checked })}
@@ -73,52 +76,97 @@ function ListBody({
   const total = items.length;
   const checked = items.filter((i) => i.checked).length;
   const hasChecked = checked > 0;
+  const pct = total > 0 ? checked / total : 0;
 
   return (
     <>
-      <Card accent>
-        <div className="flex items-center justify-between">
-          <p className="text-sm">
-            <span className="text-text">{checked}</span>
-            <span className="text-muted"> of {total} gotten</span>
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={onClear}
-              disabled={!hasChecked}
-            >
-              Clear checked
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={onPush}
-              disabled={pushing}
-              title="Optional: push to iOS Reminders via Shortcut"
-            >
-              {pushing ? "Pushing…" : "Push to Reminders"}
-            </Button>
-          </div>
-        </div>
-        {pushedAt && (
-          <p className="text-xs text-muted mt-2">
-            Last pushed: {new Date(pushedAt).toLocaleString()}
-          </p>
-        )}
-      </Card>
+      <PhoneHeader
+        title="Market"
+        subtitle={
+          total > 0
+            ? `${total - checked} items left for the week.`
+            : "Nothing to pick up."
+        }
+      />
 
-      {GROCERY_CATEGORIES.map((category) => {
-        const entries = byCategory[category] ?? [];
-        if (entries.length === 0) return null;
-        return (
-          <CategorySection
-            key={category}
-            category={category}
-            items={entries}
-            onToggle={onToggle}
+      {/* Progress hero */}
+      <div className="px-4 pt-1">
+        <Card tone="gradient" className="flex items-center gap-4">
+          <Ring
+            value={pct}
+            size={96}
+            color="var(--moss)"
+            label={`${checked}/${total}`}
+            sublabel="Gotten"
           />
-        );
-      })}
+          <div className="flex-1 flex flex-col gap-2">
+            <div
+              className="font-display"
+              style={{
+                fontSize: 18,
+                color: "var(--ink)",
+                letterSpacing: "-0.01em",
+                lineHeight: 1.2,
+              }}
+            >
+              {pct >= 1
+                ? "Pantry stocked."
+                : pct > 0
+                  ? "A good start."
+                  : "Ready to gather."}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--sumi)" }}>
+              {checked} of {total} marked off.
+            </div>
+            {pushedAt && (
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                Synced {new Date(pushedAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="px-4 pt-3 grid grid-cols-2 gap-2">
+        <Button
+          variant="ghost"
+          onClick={onClear}
+          disabled={!hasChecked}
+          className="w-full"
+        >
+          <Icon name="check" size={14} /> Clear checked
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={onPush}
+          disabled={pushing}
+          className="w-full"
+          title="Push to iOS Reminders via Shortcut"
+        >
+          <Icon name="share" size={14} />
+          {pushing ? "Pushing…" : "Send to Reminders"}
+        </Button>
+      </div>
+
+      {/* Categories */}
+      <div className="pt-1">
+        {GROCERY_CATEGORIES.map((category) => {
+          const entries = byCategory[category] ?? [];
+          if (entries.length === 0) return null;
+          return (
+            <CategorySection
+              key={category}
+              category={category}
+              items={entries}
+              onToggle={onToggle}
+            />
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -135,52 +183,127 @@ function CategorySection({
   const [collapsed, setCollapsed] = useState(false);
   const remaining = items.filter((i) => !i.checked).length;
   return (
-    <Card>
-      <button
-        type="button"
-        className="flex w-full items-center justify-between"
-        onClick={() => setCollapsed((c) => !c)}
-      >
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-lg">{category}</h2>
-          <span className="text-xs text-muted">
-            {remaining} / {items.length}
+    <>
+      <div className="px-6 pt-4 pb-2">
+        <button
+          type="button"
+          className="tappable flex w-full items-center justify-between"
+          onClick={() => setCollapsed((c) => !c)}
+          style={{ background: "none", border: "none", padding: 0 }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <div className="eyebrow">{category}</div>
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>
+              {remaining} / {items.length}
+            </span>
+          </div>
+          <span
+            style={{
+              color: "var(--muted)",
+              display: "inline-flex",
+              transform: collapsed ? "rotate(0deg)" : "rotate(180deg)",
+              transition: "transform 200ms",
+            }}
+          >
+            <Icon name="chevron-down" size={16} />
           </span>
-        </div>
-        <span className="text-muted text-xs">{collapsed ? "▾" : "▴"}</span>
-      </button>
+        </button>
+      </div>
       {!collapsed && (
-        <ul className="mt-3 space-y-2">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className="flex items-center gap-3 border-b border-border last:border-b-0 pb-2 last:pb-0"
-            >
-              <input
-                type="checkbox"
-                checked={item.checked}
-                onChange={(e) => onToggle(item.id, e.target.checked)}
-                className="h-5 w-5 accent-accent shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm ${
-                    item.checked ? "text-muted line-through" : "text-text"
-                  }`}
+        <div className="px-4">
+          <Card flush>
+            {items.map((item, i) => (
+              <label
+                key={item.id}
+                className="tappable"
+                style={{
+                  padding: "13px 18px",
+                  borderBottom:
+                    i < items.length - 1 ? "1px solid var(--hair)" : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <CheckBox
+                  checked={item.checked}
+                  onChange={(c) => onToggle(item.id, c)}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      color: item.checked ? "var(--muted)" : "var(--ink)",
+                      fontWeight: 500,
+                      textDecoration: item.checked ? "line-through" : "none",
+                      transition: "color 180ms",
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--muted)",
+                    letterSpacing: "0.03em",
+                    fontFamily: "var(--font-mono)",
+                    flexShrink: 0,
+                  }}
                 >
-                  {item.name}
-                </p>
-              </div>
-              <span className="text-muted text-xs shrink-0">{item.qty}</span>
-            </li>
-          ))}
-        </ul>
+                  {item.qty}
+                </span>
+              </label>
+            ))}
+          </Card>
+        </div>
       )}
-    </Card>
+    </>
   );
 }
 
-function groupByCategory(items: GroceryItem[]): Record<GroceryCategory, GroceryItem[]> {
+function CheckBox({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (c: boolean) => void;
+}) {
+  return (
+    <span
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 8,
+        border: "1.5px solid " + (checked ? "var(--moss)" : "var(--hair)"),
+        background: checked ? "var(--moss)" : "transparent",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--paper)",
+        flexShrink: 0,
+        transition: "background 180ms, border-color 180ms",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{
+          position: "absolute",
+          opacity: 0,
+          pointerEvents: "none",
+        }}
+      />
+      {checked && <Icon name="check" size={13} stroke={2.5} />}
+    </span>
+  );
+}
+
+function groupByCategory(
+  items: GroceryItem[],
+): Record<GroceryCategory, GroceryItem[]> {
   const out: Record<GroceryCategory, GroceryItem[]> = {
     Produce: [],
     Protein: [],

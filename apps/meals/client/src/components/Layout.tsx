@@ -1,20 +1,33 @@
 import { UserButton } from "@clerk/react";
 import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav";
+import { Wordmark } from "./Primitives";
 
 interface Props {
-  title: string;
   children: ReactNode;
 }
 
-export function Layout({ title, children }: Props) {
+export function Layout({ children }: Props) {
   return (
-    <div className="mx-auto max-w-[480px] min-h-screen bg-bg pb-20">
-      <header className="sticky top-0 z-10 flex items-center justify-between px-4 py-4 bg-bg/90 backdrop-blur border-b border-border">
-        <h1 className="text-xl text-text">{title}</h1>
+    <div
+      className="mx-auto max-w-[480px] min-h-screen"
+      style={{
+        background: "var(--bg)",
+        paddingBottom: 110,
+        position: "relative",
+      }}
+    >
+      <header
+        className="sticky top-0 z-10 flex items-center justify-between px-5 py-3"
+        style={{
+          background: "color-mix(in srgb, var(--bg) 88%, transparent)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <Wordmark app="meals" />
         <UserButton />
       </header>
-      <main className="px-4 py-4 space-y-4">{children}</main>
+      <main>{children}</main>
       <BottomNav />
     </div>
   );

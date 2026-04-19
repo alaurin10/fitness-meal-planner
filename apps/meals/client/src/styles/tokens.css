@@ -1,14 +1,194 @@
-:root {
-  --color-bg: #0a0c0f;
-  --color-surface: #12151a;
-  --color-surface-2: #1a1f27;
-  --color-border: #252b35;
-  --color-text: #eef0f3;
-  --color-muted: #6b7385;
-  --color-accent: #00d4ff;
-  --color-success: #2ed573;
-  --color-danger: #ff4757;
-  --color-warning: #ffa502;
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — warm, earthy, minimal
+   Terracotta & moss palette
+   ──────────────────────────────────────────────────────────── */
 
-  color-scheme: dark;
+:root {
+  --p1-cream:   #F4EADB;
+  --p1-paper:   #FAF3E6;
+  --p1-clay:    #E8D8BF;
+  --p1-ink:     #3A2E24;
+  --p1-sumi:    #5D4A3A;
+  --p1-muted:   #8B7A65;
+  --p1-hair:    #DCCBB0;
+  --p1-accent:  #C77D4F;
+  --p1-accent-2:#8B5A3C;
+  --p1-moss:    #5C6B4F;
+  --p1-rose:    #B5615E;
+  --p1-honey:   #C79A4B;
+
+  --bg:       var(--p1-cream);
+  --paper:    var(--p1-paper);
+  --clay:     var(--p1-clay);
+  --ink:      var(--p1-ink);
+  --sumi:     var(--p1-sumi);
+  --muted:    var(--p1-muted);
+  --hair:     var(--p1-hair);
+  --accent:   var(--p1-accent);
+  --accent-2: var(--p1-accent-2);
+  --moss:     var(--p1-moss);
+  --rose:     var(--p1-rose);
+  --honey:    var(--p1-honey);
+
+  --radius: 20px;
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.4);
+
+  --pad-card: 20px;
+
+  --font-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  --shadow-sm: 0 1px 2px rgba(90, 60, 30, 0.04), 0 2px 6px rgba(90, 60, 30, 0.035);
+  --shadow-md: 0 2px 8px rgba(90, 60, 30, 0.06), 0 8px 24px rgba(90, 60, 30, 0.05);
+  --shadow-lg: 0 4px 16px rgba(90, 60, 30, 0.09), 0 20px 60px rgba(90, 60, 30, 0.08);
+
+  color-scheme: light;
+}
+
+/* Typography helpers */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.font-body { font-family: var(--font-body); }
+.font-mono { font-family: var(--font-mono); }
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Card surfaces */
+.card {
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: var(--pad-card);
+  position: relative;
+}
+.card-clay { background: var(--clay); }
+.card-ink  { background: var(--ink); color: var(--paper); }
+.card-gradient {
+  background: linear-gradient(135deg, var(--paper), var(--clay));
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 14px;
+  padding: 11px 18px;
+  border-radius: calc(var(--radius) * 0.7);
+  border: none;
+  cursor: pointer;
+  transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.1;
+  letter-spacing: 0.005em;
+}
+.btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.btn-primary { background: var(--ink); color: var(--paper); }
+.btn-primary:hover:not(:disabled) { background: var(--sumi); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.btn-accent { background: var(--accent); color: var(--paper); }
+.btn-accent:hover:not(:disabled) { background: var(--accent-2); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--sumi); border: 1px solid var(--hair); }
+.btn-ghost:hover:not(:disabled) { background: var(--clay); border-color: var(--muted); }
+.btn-plain { background: transparent; color: var(--sumi); padding: 8px 12px; }
+.btn-plain:hover:not(:disabled) { color: var(--ink); }
+
+/* Fields */
+.field-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--hair);
+  border-radius: calc(var(--radius) * 0.7);
+  padding: 12px 14px;
+  outline: none;
+  transition: border 150ms, background 150ms;
+}
+.field-input:focus { border-color: var(--accent); background: var(--paper); }
+.field-input::placeholder { color: var(--muted); }
+
+/* Chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; letter-spacing: 0.02em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-2);
+  font-weight: 500;
+  font-family: var(--font-body);
+}
+.chip-moss  { background: color-mix(in srgb, var(--moss) 18%, transparent); color: var(--moss); }
+.chip-honey { background: color-mix(in srgb, var(--honey) 20%, transparent); color: color-mix(in srgb, var(--honey) 80%, var(--ink)); }
+.chip-ghost { background: transparent; color: var(--muted); border: 1px solid var(--hair); }
+
+/* Progress bar */
+.prog {
+  height: 6px;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.prog > span {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--honey));
+  border-radius: 999px;
+  transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Hairline */
+.hairline { background: var(--hair); height: 1px; width: 100%; }
+
+/* Tap interaction */
+.tappable { transition: transform 120ms ease, background 150ms ease; cursor: pointer; }
+.tappable:active { transform: scale(0.97); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes checkPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.check-pop { animation: checkPop 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 30%, transparent); border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Placeholder photo (meal/exercise imagery) */
+.placeholder-photo {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 10px,
+      color-mix(in srgb, var(--muted) 14%, transparent) 10px 11px),
+    var(--clay);
+  color: var(--sumi);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
