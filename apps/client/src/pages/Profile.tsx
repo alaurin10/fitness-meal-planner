@@ -147,22 +147,25 @@ export function ProfilePage() {
         <div className="px-4">
           <Card>
             <div style={{ display: "grid", gap: 16 }}>
-              <FieldBlock label="Units">
-                <div style={twoColGrid}>
-                  {(["imperial", "metric"] as const).map((system) => {
-                    const selected = form.unitSystem === system;
-                    return (
-                      <ChoiceButton
-                        key={system}
-                        active={selected}
-                        onClick={() => upd("unitSystem", system)}
-                      >
-                        {system === "imperial" ? "Imperial" : "Metric"}
-                      </ChoiceButton>
-                    );
-                  })}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={sectionLabelStyle}>Your numbers</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                    Switch units any time.
+                  </div>
                 </div>
-              </FieldBlock>
+                <UnitToggle
+                  value={form.unitSystem}
+                  onChange={(value) => upd("unitSystem", value)}
+                />
+              </div>
 
               <div style={twoColGrid}>
                 <NumberField
@@ -430,6 +433,18 @@ export function ProfilePage() {
           <Button type="submit" className="w-full" disabled={save.isPending}>
             {save.isPending ? "Saving…" : "Save profile"}
           </Button>
+          {save.isError && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: "var(--rose)",
+                textAlign: "center",
+              }}
+            >
+              {getSaveErrorMessage(save.error)}
+            </div>
+          )}
           {toast && (
             <div
               className="fade-up"
@@ -702,6 +717,59 @@ function TargetCard({
   );
 }
 
+function UnitToggle({
+  value,
+  onChange,
+}: {
+  value: "imperial" | "metric";
+  onChange: (value: "imperial" | "metric") => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "inline-grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 4,
+        padding: 4,
+        borderRadius: 999,
+        border: "1px solid var(--hair)",
+        background: "color-mix(in srgb, var(--clay) 45%, var(--paper))",
+        flexShrink: 0,
+      }}
+    >
+      {([
+        ["imperial", "Imp"],
+        ["metric", "Met"],
+      ] as const).map(([option, label]) => {
+        const active = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className="tappable"
+            aria-pressed={active}
+            style={{
+              minWidth: 48,
+              padding: "7px 10px",
+              border: "none",
+              borderRadius: 999,
+              background: active ? "var(--ink)" : "transparent",
+              color: active ? "var(--paper)" : "var(--sumi)",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function profileToForm(profile: Profile): ProfileInput {
   return {
     unitSystem: profile.unitSystem ?? "imperial",
@@ -741,6 +809,29 @@ function toInches(feet: number | null, inches: number | null) {
 function roundTo(value: number, places: number) {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
+}
+
+function getSaveErrorMessage(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "response" in error &&
+    error.response &&
+    typeof error.response === "object" &&
+    "data" in error.response &&
+    error.response.data &&
+    typeof error.response.data === "object" &&
+    "error" in error.response.data &&
+    typeof error.response.data.error === "string"
+  ) {
+    return error.response.data.error;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "We couldn't save your profile right now.";
 }
 
 const twoColGrid: CSSProperties = {
