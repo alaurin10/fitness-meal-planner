@@ -10,16 +10,10 @@
   },
   "scripts": {
     "build": "pnpm generate",
-    "generate": "pnpm generate:fit && pnpm generate:meals",
-    "generate:fit": "prisma generate --schema=prisma/fit.prisma",
-    "generate:meals": "prisma generate --schema=prisma/meals.prisma",
-    "migrate:dev": "pnpm migrate:dev:fit && pnpm migrate:dev:meals",
-    "migrate:dev:fit": "prisma migrate dev --schema=prisma/fit.prisma",
-    "migrate:dev:meals": "prisma migrate dev --schema=prisma/meals.prisma",
-    "migrate:deploy:fit": "prisma migrate deploy --schema=prisma/fit.prisma",
-    "migrate:deploy:meals": "prisma migrate deploy --schema=prisma/meals.prisma",
-    "studio:fit": "prisma studio --schema=prisma/fit.prisma",
-    "studio:meals": "prisma studio --schema=prisma/meals.prisma",
+    "generate": "prisma generate --schema=prisma/schema.prisma",
+    "migrate:dev": "prisma migrate dev --schema=prisma/schema.prisma",
+    "migrate:deploy": "prisma migrate deploy --schema=prisma/schema.prisma",
+    "studio": "prisma studio --schema=prisma/schema.prisma",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

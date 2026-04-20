@@ -1,45 +1,30 @@
-import { PrismaClient as FitPrismaClient } from "../generated/fit/index.js";
-import { PrismaClient as MealsPrismaClient, Prisma as MealsPrisma } from "../generated/meals/index.js";
+import { PrismaClient, Prisma } from "../generated/index.js";
 
-export { MealsPrisma };
+export { Prisma };
 
 declare global {
   // eslint-disable-next-line no-var
-  var __fitPrisma: FitPrismaClient | undefined;
-  // eslint-disable-next-line no-var
-  var __mealsPrisma: MealsPrismaClient | undefined;
+  var __prisma: PrismaClient | undefined;
 }
 
-export const fitPrisma =
-  globalThis.__fitPrisma ??
-  new FitPrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
-
-export const mealsPrisma =
-  globalThis.__mealsPrisma ??
-  new MealsPrismaClient({
+export const prisma =
+  globalThis.__prisma ??
+  new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") {
-  globalThis.__fitPrisma = fitPrisma;
-  globalThis.__mealsPrisma = mealsPrisma;
+  globalThis.__prisma = prisma;
 }
 
 export type {
-  User as FitUser,
-  FitProfile,
+  User,
+  Profile,
   WeeklyPlan,
-  ProgressLog,
-} from "../generated/fit/index.js";
-
-export type {
-  User as MealsUser,
-  MealProfile,
   WeeklyMealPlan,
   GroceryList,
-} from "../generated/meals/index.js";
+  ProgressLog,
+} from "../generated/index.js";
 
 export const GROCERY_CATEGORIES = [
   "Produce",

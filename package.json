@@ -4,9 +4,9 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "concurrently -n fit-api,fit-web,meals-api,meals-web -c blue,cyan,magenta,green \"pnpm --filter fit-server dev\" \"pnpm --filter fit-client dev\" \"pnpm --filter meals-server dev\" \"pnpm --filter meals-client dev\"",
+    "dev": "concurrently -n api,web -c blue,cyan \"pnpm --filter @app/server dev\" \"pnpm --filter @app/client dev\"",
     "build": "pnpm -r build",
-    "start": "echo 'Set a Custom Start Command on the Railway service (e.g. pnpm --filter fit-client start)' && exit 1",
+    "start": "echo 'Set a Custom Start Command on the Railway service (e.g. pnpm --filter @app/client start)' && exit 1",
     "db:generate": "pnpm --filter @platform/db generate",
     "db:migrate:dev": "pnpm --filter @platform/db migrate:dev",
     "db:migrate:deploy": "pnpm --filter @platform/db migrate:deploy",

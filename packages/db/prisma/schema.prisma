@@ -1,0 +1,92 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id // Clerk user ID
+  createdAt       DateTime         @default(now())
+  profile         Profile?
+  weeklyPlans     WeeklyPlan[]
+  weeklyMealPlans WeeklyMealPlan[]
+  progressLogs    ProgressLog[]
+  groceryLists    GroceryList[]
+}
+
+model Profile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age                 Int?
+  sex                 String? // "male" | "female"
+  weightLbs           Float?
+  heightIn            Float?
+  experienceLevel     String // "beginner" | "intermediate" | "advanced"
+  trainingDaysPerWeek Int
+  goal                String // "build_muscle" | "lose_fat" | "maintain"
+  caloricTarget       Int?
+  proteinTargetG      Int?
+  dietaryNotes        String?
+  updatedAt           DateTime @updatedAt
+}
+
+model WeeklyPlan {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate DateTime
+  planJson      Json
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([userId, isActive])
+  @@index([userId, weekStartDate])
+}
+
+model WeeklyMealPlan {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate DateTime
+  planJson      Json
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  groceryLists  GroceryList[]
+
+  @@index([userId, isActive])
+  @@index([userId, weekStartDate])
+}
+
+// items JSON shape: [{ id, name, qty, category, checked, pushed }]
+// category ∈ Produce | Protein | Dairy | Pantry | Frozen | Other
+model GroceryList {
+  id                  String          @id @default(cuid())
+  userId              String
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyMealPlanId    String?
+  weeklyMealPlan      WeeklyMealPlan? @relation(fields: [weeklyMealPlanId], references: [id], onDelete: SetNull)
+  items               Json
+  pushedToRemindersAt DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model ProgressLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedAt  DateTime @default(now())
+  weightLbs Float?
+  note      String?
+  liftPRs   Json?
+
+  @@index([userId, loggedAt])
+}
