@@ -23,6 +23,7 @@ model Profile {
   id                  String   @id @default(cuid())
   userId              String   @unique
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitSystem          String   @default("imperial") // "imperial" | "metric"
   age                 Int?
   sex                 String? // "male" | "female"
   weightLbs           Float?

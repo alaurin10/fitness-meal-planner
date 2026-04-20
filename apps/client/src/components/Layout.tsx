@@ -1,5 +1,7 @@
 import { UserButton } from "@clerk/react";
-import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, type ReactNode } from "react";
+import { useApi } from "../lib/api";
 import { BottomNav } from "./BottomNav";
 import { Wordmark } from "./Primitives";
 
@@ -8,6 +10,40 @@ interface Props {
 }
 
 export function Layout({ children }: Props) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const warmNavigation = async () => {
+      await Promise.all([
+        queryClient.prefetchQuery({
+          queryKey: ["profile"],
+          queryFn: async () => (await api.get("/api/profile")).data,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: ["workouts", "current"],
+          queryFn: async () => (await api.get("/api/workouts/current")).data.plan,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: ["meals", "current"],
+          queryFn: async () => (await api.get("/api/meals/current")).data.plan,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: ["groceries"],
+          queryFn: async () => (await api.get("/api/groceries/current")).data.list,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: ["progress"],
+          queryFn: async () => (await api.get("/api/progress")).data.logs,
+        }),
+      ]);
+    };
+
+    void warmNavigation().catch(() => {
+      // Ignore prefetch misses and let the page-level queries handle errors.
+    });
+  }, [api, queryClient]);
+
   return (
     <div
       className="mx-auto max-w-[480px] min-h-screen"

@@ -7,6 +7,7 @@ import { computeTargets } from "../services/targets.js";
 const router = Router();
 
 const profileSchema = z.object({
+  unitSystem: z.enum(["imperial", "metric"]).default("imperial"),
   age: z.number().int().min(10).max(100).nullable().optional(),
   sex: z.enum(["male", "female"]).nullable().optional(),
   weightLbs: z.number().positive().nullable().optional(),
@@ -66,11 +67,11 @@ router.put("/", requireAuth, async (req, res) => {
     ...parsed.data,
     caloricTarget:
       parsed.data.caloricTarget === undefined
-        ? suggested.caloricTarget
+        ? suggested?.caloricTarget ?? null
         : parsed.data.caloricTarget,
     proteinTargetG:
       parsed.data.proteinTargetG === undefined
-        ? suggested.proteinTargetG
+        ? suggested?.proteinTargetG ?? null
         : parsed.data.proteinTargetG,
   };
 

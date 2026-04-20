@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon, type IconName } from "../components/Icon";
@@ -7,11 +7,16 @@ import { Chip, PhoneHeader } from "../components/Primitives";
 import {
   useProfile,
   useSaveProfile,
+  type Profile,
   type ProfileInput,
-  type SuggestedTargets,
 } from "../hooks/useProfile";
+import { computeSuggestedTargets } from "../lib/targets";
+
+const KG_PER_LB = 0.45359237;
+const CM_PER_IN = 2.54;
 
 const EMPTY: ProfileInput = {
+  unitSystem: "imperial",
   age: null,
   sex: null,
   weightLbs: null,
@@ -49,26 +54,41 @@ export function ProfilePage() {
   const query = useProfile();
   const save = useSaveProfile();
   const [form, setForm] = useState<ProfileInput>(EMPTY);
-  const [suggested, setSuggested] = useState<SuggestedTargets | null>(null);
+  const [useSuggestedCalories, setUseSuggestedCalories] = useState(true);
+  const [useSuggestedProtein, setUseSuggestedProtein] = useState(true);
   const [toast, setToast] = useState(false);
 
+  const liveSuggested = useMemo(
+    () =>
+      computeSuggestedTargets({
+        sex: form.sex,
+        age: form.age,
+        weightLbs: form.weightLbs,
+        heightIn: form.heightIn,
+        trainingDaysPerWeek: form.trainingDaysPerWeek,
+        goal: form.goal,
+      }),
+    [
+      form.age,
+      form.goal,
+      form.heightIn,
+      form.sex,
+      form.trainingDaysPerWeek,
+      form.weightLbs,
+    ],
+  );
+
   useEffect(() => {
-    if (query.data?.profile) {
-      const p = query.data.profile;
-      setForm({
-        age: p.age,
-        sex: p.sex,
-        weightLbs: p.weightLbs,
-        heightIn: p.heightIn,
-        experienceLevel: p.experienceLevel,
-        trainingDaysPerWeek: p.trainingDaysPerWeek,
-        goal: p.goal,
-        caloricTarget: p.caloricTarget,
-        proteinTargetG: p.proteinTargetG,
-        dietaryNotes: p.dietaryNotes,
-      });
-    }
-    if (query.data?.suggested) setSuggested(query.data.suggested);
+    if (!query.data?.profile) return;
+
+    const nextForm = profileToForm(query.data.profile);
+    setForm(nextForm);
+    setUseSuggestedCalories(
+      shouldUseSuggested(query.data.profile.caloricTarget, query.data.suggested?.caloricTarget),
+    );
+    setUseSuggestedProtein(
+      shouldUseSuggested(query.data.profile.proteinTargetG, query.data.suggested?.proteinTargetG),
+    );
   }, [query.data]);
 
   const upd = <K extends keyof ProfileInput>(k: K, v: ProfileInput[K]) =>
@@ -80,11 +100,14 @@ export function ProfilePage() {
     upd("dietaryNotes", current ? `${current}, ${note}` : note);
   };
 
-  const numRows: Array<{ label: string; unit: string; k: "age" | "weightLbs" | "heightIn" }> = [
-    { label: "Age", unit: "yrs", k: "age" },
-    { label: "Weight", unit: "lb", k: "weightLbs" },
-    { label: "Height", unit: "in", k: "heightIn" },
-  ];
+  const heightFeet = useMemo(() => toFeetInches(form.heightIn).feet, [form.heightIn]);
+  const heightInches = useMemo(() => toFeetInches(form.heightIn).inches, [form.heightIn]);
+  const displayWeight = form.weightLbs == null
+    ? ""
+    : form.unitSystem === "metric"
+      ? roundTo(form.weightLbs * KG_PER_LB, 1)
+      : roundTo(form.weightLbs, 1);
+  const displayHeightCm = form.heightIn == null ? "" : roundTo(form.heightIn * CM_PER_IN, 1);
 
   return (
     <Layout>
@@ -96,141 +119,140 @@ export function ProfilePage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          save.mutate(form, {
+
+          const payload: ProfileInput = {
+            ...form,
+            caloricTarget: useSuggestedCalories ? undefined : form.caloricTarget,
+            proteinTargetG: useSuggestedProtein ? undefined : form.proteinTargetG,
+          };
+
+          save.mutate(payload, {
             onSuccess: (data) => {
-              setSuggested(data.suggested);
+              setForm(profileToForm(data.profile));
+              setUseSuggestedCalories(
+                shouldUseSuggested(data.profile.caloricTarget, data.suggested?.caloricTarget),
+              );
+              setUseSuggestedProtein(
+                shouldUseSuggested(data.profile.proteinTargetG, data.suggested?.proteinTargetG),
+              );
               setToast(true);
               setTimeout(() => setToast(false), 1800);
             },
           });
         }}
       >
-        {/* Numbers */}
         <div className="px-6 pt-4 pb-2">
           <div className="eyebrow">Your numbers</div>
         </div>
         <div className="px-4">
-          <Card flush>
-            {numRows.map((r, i) => (
-              <div
-                key={r.k}
-                style={{
-                  padding: "14px 18px",
-                  borderBottom:
-                    i < numRows.length - 1 ? "1px solid var(--hair)" : "none",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontSize: 13.5, color: "var(--sumi)" }}>{r.label}</span>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                  <input
-                    type="number"
-                    value={form[r.k] ?? ""}
-                    onChange={(e) =>
-                      upd(
-                        r.k,
-                        e.target.value === "" ? null : Number(e.target.value),
-                      )
-                    }
-                    style={{
-                      width: 64,
-                      textAlign: "right",
-                      border: "none",
-                      background: "transparent",
-                      fontFamily: "var(--font-display)",
-                      fontSize: 18,
-                      color: "var(--ink)",
-                      outline: "none",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "var(--muted)",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    {r.unit}
-                  </span>
+          <Card>
+            <div style={{ display: "grid", gap: 16 }}>
+              <FieldBlock label="Units">
+                <div style={twoColGrid}>
+                  {(["imperial", "metric"] as const).map((system) => {
+                    const selected = form.unitSystem === system;
+                    return (
+                      <ChoiceButton
+                        key={system}
+                        active={selected}
+                        onClick={() => upd("unitSystem", system)}
+                      >
+                        {system === "imperial" ? "Imperial" : "Metric"}
+                      </ChoiceButton>
+                    );
+                  })}
                 </div>
+              </FieldBlock>
+
+              <div style={twoColGrid}>
+                <NumberField
+                  label="Age"
+                  unit="yrs"
+                  value={form.age ?? ""}
+                  onChange={(value) => upd("age", value)}
+                  min={10}
+                  max={100}
+                />
+                <FieldBlock label="Sex">
+                  <div style={twoColGrid}>
+                    {(["male", "female"] as const).map((value) => (
+                      <ChoiceButton
+                        key={value}
+                        active={form.sex === value}
+                        onClick={() => upd("sex", value)}
+                        compact
+                      >
+                        {value}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                </FieldBlock>
               </div>
-            ))}
-            <div
-              style={{
-                padding: "14px 18px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ fontSize: 13.5, color: "var(--sumi)" }}>Sex</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                {(["male", "female"] as const).map((v) => {
-                  const sel = form.sex === v;
-                  return (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => upd("sex", v)}
-                      className="tappable"
-                      style={{
-                        padding: "7px 14px",
-                        border: "1px solid " + (sel ? "var(--ink)" : "var(--hair)"),
-                        background: sel ? "var(--ink)" : "transparent",
-                        color: sel ? "var(--paper)" : "var(--sumi)",
-                        borderRadius: "calc(var(--radius) * 0.6)",
-                        fontFamily: "var(--font-body)",
-                        fontSize: 12,
-                        fontWeight: 500,
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {v}
-                    </button>
-                  );
-                })}
+
+              <div style={twoColGrid}>
+                <NumberField
+                  label="Weight"
+                  unit={form.unitSystem === "metric" ? "kg" : "lb"}
+                  value={displayWeight}
+                  onChange={(value) =>
+                    upd(
+                      "weightLbs",
+                      value == null
+                        ? null
+                        : form.unitSystem === "metric"
+                          ? roundTo(value / KG_PER_LB, 2)
+                          : value,
+                    )
+                  }
+                  step={form.unitSystem === "metric" ? 0.1 : 1}
+                  min={form.unitSystem === "metric" ? 30 : 65}
+                />
+                {form.unitSystem === "metric" ? (
+                  <NumberField
+                    label="Height"
+                    unit="cm"
+                    value={displayHeightCm}
+                    onChange={(value) =>
+                      upd("heightIn", value == null ? null : roundTo(value / CM_PER_IN, 2))
+                    }
+                    step={0.1}
+                    min={120}
+                  />
+                ) : (
+                  <ImperialHeightField
+                    feet={heightFeet}
+                    inches={heightInches}
+                    onFeetChange={(feet) =>
+                      upd("heightIn", feet == null && heightInches == null ? null : toInches(feet, heightInches))
+                    }
+                    onInchesChange={(inches) =>
+                      upd("heightIn", heightFeet == null && inches == null ? null : toInches(heightFeet, inches))
+                    }
+                  />
+                )}
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Training */}
         <div className="px-6 pt-5 pb-2">
           <div className="eyebrow">Training</div>
         </div>
         <div className="px-4">
           <Card>
             <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 12.5, color: "var(--sumi)", marginBottom: 8 }}>
-                Experience
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {EXPERIENCE.map(([v, l]) => {
-                  const sel = form.experienceLevel === v;
-                  return (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => upd("experienceLevel", v)}
-                      className="tappable"
-                      style={{
-                        flex: 1,
-                        padding: "9px 6px",
-                        border: "1px solid " + (sel ? "var(--ink)" : "var(--hair)"),
-                        background: sel ? "var(--ink)" : "transparent",
-                        color: sel ? "var(--paper)" : "var(--sumi)",
-                        borderRadius: "calc(var(--radius) * 0.6)",
-                        fontFamily: "var(--font-body)",
-                        fontSize: 11.5,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {l}
-                    </button>
-                  );
-                })}
+              <div style={sectionLabelStyle}>Experience</div>
+              <div style={{ ...twoColGrid, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+                {EXPERIENCE.map(([value, label]) => (
+                  <ChoiceButton
+                    key={value}
+                    active={form.experienceLevel === value}
+                    onClick={() => upd("experienceLevel", value)}
+                    compact
+                  >
+                    {label}
+                  </ChoiceButton>
+                ))}
               </div>
             </div>
 
@@ -240,76 +262,70 @@ export function ProfilePage() {
                   display: "flex",
                   justifyContent: "space-between",
                   marginBottom: 8,
+                  alignItems: "center",
                 }}
               >
-                <span style={{ fontSize: 12.5, color: "var(--sumi)" }}>
-                  Training days / week
-                </span>
+                <span style={sectionLabelStyle}>Training days / week</span>
                 <span
                   className="font-display"
-                  style={{ fontSize: 16, color: "var(--accent)" }}
+                  style={{ fontSize: 18, color: "var(--accent)" }}
                 >
                   {form.trainingDaysPerWeek}
                 </span>
               </div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[1, 2, 3, 4, 5, 6, 7].map((n) => {
-                  const on = form.trainingDaysPerWeek >= n;
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => upd("trainingDaysPerWeek", n)}
-                      className="tappable"
-                      style={{
-                        flex: 1,
-                        padding: "10px 0",
-                        border:
-                          "1px solid " + (on ? "var(--accent)" : "var(--hair)"),
-                        background: on
-                          ? "color-mix(in srgb, var(--accent) 20%, transparent)"
-                          : "transparent",
-                        color: on ? "var(--accent-2)" : "var(--muted)",
-                        borderRadius: "calc(var(--radius) * 0.5)",
-                        fontFamily: "var(--font-display)",
-                        fontSize: 13,
-                      }}
-                    >
-                      {n}
-                    </button>
-                  );
-                })}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => upd("trainingDaysPerWeek", n)}
+                    className="tappable"
+                    style={{
+                      minWidth: 40,
+                      padding: "10px 0",
+                      border: "1px solid " + (form.trainingDaysPerWeek === n ? "var(--accent)" : "var(--hair)"),
+                      background:
+                        form.trainingDaysPerWeek === n
+                          ? "color-mix(in srgb, var(--accent) 18%, transparent)"
+                          : "var(--paper)",
+                      color: form.trainingDaysPerWeek === n ? "var(--accent-2)" : "var(--sumi)",
+                      borderRadius: "calc(var(--radius) * 0.55)",
+                      fontFamily: "var(--font-display)",
+                      fontSize: 14,
+                      flex: 1,
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: 12.5, color: "var(--sumi)", marginBottom: 8 }}>
-                Goal
-              </div>
+              <div style={sectionLabelStyle}>Goal</div>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: 6,
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 8,
                 }}
               >
-                {GOALS.map(([v, l, icon]) => {
-                  const sel = form.goal === v;
+                {GOALS.map(([value, label, icon]) => {
+                  const selected = form.goal === value;
                   return (
                     <button
-                      key={v}
+                      key={value}
                       type="button"
-                      onClick={() => upd("goal", v)}
+                      onClick={() => upd("goal", value)}
                       className="tappable"
                       style={{
-                        padding: "14px 8px 10px",
-                        border:
-                          "1px solid " + (sel ? "var(--accent)" : "var(--hair)"),
-                        background: sel
-                          ? "color-mix(in srgb, var(--accent) 10%, transparent)"
-                          : "transparent",
-                        color: sel ? "var(--accent-2)" : "var(--sumi)",
-                        borderRadius: "calc(var(--radius) * 0.6)",
+                        padding: "15px 10px 12px",
+                        border: "1px solid " + (selected ? "var(--accent)" : "var(--hair)"),
+                        background: selected
+                          ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+                          : "var(--paper)",
+                        color: selected ? "var(--accent-2)" : "var(--sumi)",
+                        borderRadius: "calc(var(--radius) * 0.7)",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
@@ -320,7 +336,7 @@ export function ProfilePage() {
                       }}
                     >
                       <Icon name={icon} size={18} />
-                      {l}
+                      {label}
                     </button>
                   );
                 })}
@@ -329,132 +345,36 @@ export function ProfilePage() {
           </Card>
         </div>
 
-        {/* Daily targets */}
         <div className="px-6 pt-5 pb-2">
           <div className="eyebrow">Daily targets</div>
         </div>
-        <div className="px-4 grid grid-cols-2 gap-2.5">
-          <Card>
-            <div
-              style={{
-                fontSize: 11.5,
-                color: "var(--muted)",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              Calories
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 4,
-                marginTop: 8,
-              }}
-            >
-              <input
-                type="number"
-                min={800}
-                max={6000}
-                value={form.caloricTarget ?? ""}
-                onChange={(e) =>
-                  upd(
-                    "caloricTarget",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                placeholder="—"
-                className="font-display"
-                style={{
-                  width: "100%",
-                  border: "none",
-                  background: "transparent",
-                  fontSize: 26,
-                  color: "var(--ink)",
-                  outline: "none",
-                  padding: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--muted)",
-                  letterSpacing: "0.05em",
-                  flexShrink: 0,
-                }}
-              >
-                kcal
-              </span>
-            </div>
-            {suggested && (
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>
-                Suggested: {suggested.caloricTarget}kcal
-              </div>
-            )}
-          </Card>
-          <Card>
-            <div
-              style={{
-                fontSize: 11.5,
-                color: "var(--muted)",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              Protein
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 4,
-                marginTop: 8,
-              }}
-            >
-              <input
-                type="number"
-                min={20}
-                max={500}
-                value={form.proteinTargetG ?? ""}
-                onChange={(e) =>
-                  upd(
-                    "proteinTargetG",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                placeholder="—"
-                className="font-display"
-                style={{
-                  width: "100%",
-                  border: "none",
-                  background: "transparent",
-                  fontSize: 26,
-                  color: "var(--ink)",
-                  outline: "none",
-                  padding: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--muted)",
-                  letterSpacing: "0.05em",
-                  flexShrink: 0,
-                }}
-              >
-                g
-              </span>
-            </div>
-            {suggested && (
-              <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 6 }}>
-                Suggested: {suggested.proteinTargetG}g
-              </div>
-            )}
-          </Card>
+        <div className="px-4 space-y-2.5">
+          <TargetCard
+            title="Calories"
+            unit="kcal"
+            helper="Estimated from your body size, training days, and goal."
+            value={form.caloricTarget ?? ""}
+            suggestedValue={liveSuggested?.caloricTarget ?? null}
+            useSuggested={useSuggestedCalories}
+            onToggle={() => setUseSuggestedCalories((current) => !current)}
+            onChange={(value) => upd("caloricTarget", value)}
+            min={1200}
+            max={6000}
+          />
+          <TargetCard
+            title="Protein"
+            unit="g"
+            helper="Estimated to support recovery and your current goal."
+            value={form.proteinTargetG ?? ""}
+            suggestedValue={liveSuggested?.proteinTargetG ?? null}
+            useSuggested={useSuggestedProtein}
+            onToggle={() => setUseSuggestedProtein((current) => !current)}
+            onChange={(value) => upd("proteinTargetG", value)}
+            min={40}
+            max={300}
+          />
         </div>
 
-        {/* Dietary notes */}
         <div className="px-6 pt-5 pb-2">
           <div className="eyebrow">Dietary notes</div>
         </div>
@@ -531,3 +451,316 @@ export function ProfilePage() {
     </Layout>
   );
 }
+
+function FieldBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div style={sectionLabelStyle}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function ChoiceButton({
+  active,
+  children,
+  compact = false,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  compact?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="tappable"
+      style={{
+        padding: compact ? "10px 10px" : "12px 12px",
+        border: "1px solid " + (active ? "var(--ink)" : "var(--hair)"),
+        background: active ? "var(--ink)" : "var(--paper)",
+        color: active ? "var(--paper)" : "var(--sumi)",
+        borderRadius: "calc(var(--radius) * 0.6)",
+        fontFamily: "var(--font-body)",
+        fontSize: compact ? 12 : 13,
+        fontWeight: 500,
+        textTransform: "capitalize",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NumberField({
+  label,
+  unit,
+  value,
+  onChange,
+  step = 1,
+  min,
+  max,
+}: {
+  label: string;
+  unit: string;
+  value: number | "";
+  onChange: (value: number | null) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <FieldBlock label={label}>
+      <div style={{ position: "relative" }}>
+        <input
+          type="number"
+          inputMode="decimal"
+          className="field-input"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+          style={{ paddingRight: 44 }}
+        />
+        <span style={unitStyle}>{unit}</span>
+      </div>
+    </FieldBlock>
+  );
+}
+
+function ImperialHeightField({
+  feet,
+  inches,
+  onFeetChange,
+  onInchesChange,
+}: {
+  feet: number | null;
+  inches: number | null;
+  onFeetChange: (value: number | null) => void;
+  onInchesChange: (value: number | null) => void;
+}) {
+  return (
+    <FieldBlock label="Height">
+      <div style={twoColGrid}>
+        <div style={{ position: "relative" }}>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="field-input"
+            value={feet ?? ""}
+            min={3}
+            max={8}
+            onChange={(e) => onFeetChange(e.target.value === "" ? null : Number(e.target.value))}
+            style={{ paddingRight: 34 }}
+          />
+          <span style={unitStyle}>ft</span>
+        </div>
+        <div style={{ position: "relative" }}>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="field-input"
+            value={inches ?? ""}
+            min={0}
+            max={11}
+            onChange={(e) =>
+              onInchesChange(
+                e.target.value === ""
+                  ? null
+                  : Math.max(0, Math.min(11, Number(e.target.value))),
+              )
+            }
+            style={{ paddingRight: 34 }}
+          />
+          <span style={unitStyle}>in</span>
+        </div>
+      </div>
+    </FieldBlock>
+  );
+}
+
+function TargetCard({
+  title,
+  unit,
+  helper,
+  value,
+  suggestedValue,
+  useSuggested,
+  onToggle,
+  onChange,
+  min,
+  max,
+}: {
+  title: string;
+  unit: string;
+  helper: string;
+  value: number | "";
+  suggestedValue: number | null;
+  useSuggested: boolean;
+  onToggle: () => void;
+  onChange: (value: number | null) => void;
+  min: number;
+  max: number;
+}) {
+  return (
+    <Card tone={useSuggested ? "gradient" : "paper"}>
+      <div className="flex items-start justify-between gap-3">
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--muted)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {title}
+          </div>
+          {useSuggested ? (
+            <>
+              <div
+                className="font-display"
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 6,
+                  marginTop: 8,
+                  color: "var(--ink)",
+                }}
+              >
+                <span style={{ fontSize: suggestedValue == null ? 24 : 32 }}>
+                  {suggestedValue ?? "Waiting on your stats"}
+                </span>
+                {suggestedValue != null && (
+                  <span style={{ fontSize: 12, color: "var(--muted)" }}>{unit}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--sumi)", marginTop: 6 }}>
+                {suggestedValue == null
+                  ? "Add age, sex, weight, and height for a tailored estimate."
+                  : helper}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--sumi)", marginTop: 8 }}>
+              Override the estimate if you already have a goal from a coach or tracker.
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className="tappable"
+          style={{
+            border: "1px solid var(--hair)",
+            background: useSuggested ? "var(--paper)" : "var(--ink)",
+            color: useSuggested ? "var(--sumi)" : "var(--paper)",
+            borderRadius: 999,
+            padding: "8px 12px",
+            fontSize: 12,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {useSuggested ? "Customize" : "Use suggestion"}
+        </button>
+      </div>
+
+      {!useSuggested && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ position: "relative" }}>
+            <input
+              type="number"
+              min={min}
+              max={max}
+              className="field-input font-display"
+              value={value}
+              onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+              placeholder={suggestedValue == null ? "" : String(suggestedValue)}
+              style={{ fontSize: 24, paddingRight: 54 }}
+            />
+            <span style={unitStyle}>{unit}</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+            {suggestedValue == null
+              ? "We can suggest this once the core stats above are filled in."
+              : `Suggested: ${suggestedValue} ${unit}`}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function profileToForm(profile: Profile): ProfileInput {
+  return {
+    unitSystem: profile.unitSystem ?? "imperial",
+    age: profile.age,
+    sex: profile.sex,
+    weightLbs: profile.weightLbs,
+    heightIn: profile.heightIn,
+    experienceLevel: profile.experienceLevel,
+    trainingDaysPerWeek: profile.trainingDaysPerWeek,
+    goal: profile.goal,
+    caloricTarget: profile.caloricTarget,
+    proteinTargetG: profile.proteinTargetG,
+    dietaryNotes: profile.dietaryNotes,
+  };
+}
+
+function shouldUseSuggested(savedValue: number | null, suggestedValue?: number | null) {
+  if (suggestedValue == null) return savedValue == null;
+  return savedValue === suggestedValue;
+}
+
+function toFeetInches(heightIn: number | null) {
+  if (heightIn == null) return { feet: null, inches: null };
+  const rounded = Math.max(0, Math.round(heightIn));
+  return {
+    feet: Math.floor(rounded / 12),
+    inches: rounded % 12,
+  };
+}
+
+function toInches(feet: number | null, inches: number | null) {
+  const safeFeet = feet ?? 0;
+  const safeInches = inches ?? 0;
+  return safeFeet * 12 + safeInches;
+}
+
+function roundTo(value: number, places: number) {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
+const twoColGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 12,
+};
+
+const sectionLabelStyle: CSSProperties = {
+  fontSize: 12.5,
+  color: "var(--sumi)",
+  marginBottom: 8,
+};
+
+const unitStyle: CSSProperties = {
+  position: "absolute",
+  right: 14,
+  top: "50%",
+  transform: "translateY(-50%)",
+  fontSize: 12,
+  color: "var(--muted)",
+  letterSpacing: "0.03em",
+};

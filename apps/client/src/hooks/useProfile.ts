@@ -4,6 +4,7 @@ import { useApi } from "../lib/api";
 export interface Profile {
   id: string;
   userId: string;
+  unitSystem: "imperial" | "metric";
   age: number | null;
   sex: "male" | "female" | null;
   weightLbs: number | null;
@@ -18,6 +19,7 @@ export interface Profile {
 }
 
 export interface ProfileInput {
+  unitSystem: Profile["unitSystem"];
   age: number | null;
   sex: "male" | "female" | null;
   weightLbs: number | null;
@@ -58,7 +60,7 @@ export function useSaveProfile() {
     mutationFn: async (input: ProfileInput) => {
       const { data } = await api.put<{
         profile: Profile;
-        suggested: SuggestedTargets;
+        suggested: SuggestedTargets | null;
       }>("/api/profile", input);
       return data;
     },
