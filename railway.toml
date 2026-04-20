@@ -9,7 +9,7 @@
 #   Build:   pnpm install --frozen-lockfile && pnpm --filter @platform/db generate && pnpm --filter @app/server build && pnpm --filter @platform/db migrate:deploy
 #   Start:   pnpm --filter @app/server start
 #   Public domain: api.app.andrewlaurin.com
-#   Env: DATABASE_URL, ANTHROPIC_API_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
+#   Env: DATABASE_URL, GEMINI_API_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY,
 #        CLIENT_ORIGIN=https://app.andrewlaurin.com, NODE_ENV=production
 #        (PORT is injected by Railway.)
 # ----------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import type { Profile } from "@platform/db";
-import { ANTHROPIC_MODEL, getAnthropicClient, stripJsonFences } from "./anthropic.js";
+import { GEMINI_MODEL, getGeminiClient, stripJsonFences } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./mealPlanPrompt.js";
 import { mealPlanSchema, type MealPlanJson } from "./mealPlanSchema.js";
 import type { TrainingSchedule } from "./schedule.js";
@@ -8,25 +8,28 @@ export async function generateMealPlan(args: {
   profile: Profile;
   schedule: TrainingSchedule;
 }): Promise<MealPlanJson> {
-  const response = await getAnthropicClient().messages.create({
-    model: ANTHROPIC_MODEL,
-    max_tokens: 4000,
-    system: buildSystemPrompt(),
-    messages: [{ role: "user", content: buildUserPrompt(args) }],
+  const response = await getGeminiClient().models.generateContent({
+    model: GEMINI_MODEL,
+    config: {
+      maxOutputTokens: 4000,
+      responseMimeType: "application/json",
+      systemInstruction: buildSystemPrompt(),
+    },
+    contents: buildUserPrompt(args),
   });
 
-  const firstBlock = response.content[0];
-  if (!firstBlock || firstBlock.type !== "text") {
-    throw new Error("Anthropic returned no text content");
+  const text = response.text;
+  if (!text) {
+    throw new Error("Gemini returned no text content");
   }
 
-  const raw = stripJsonFences(firstBlock.text);
+  const raw = stripJsonFences(text);
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
     throw new Error(
-      `Anthropic returned invalid JSON: ${(err as Error).message}\n---\n${raw.slice(0, 500)}`,
+      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${raw.slice(0, 500)}`,
     );
   }
 

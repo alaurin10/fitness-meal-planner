@@ -23,7 +23,7 @@ Each app has a static client (`apps/<app>/client`) and an Express API (`apps/<ap
 # 1. Install deps
 pnpm install
 
-# 2. Copy env template and fill in Clerk + Anthropic keys
+# 2. Copy env template and fill in Clerk + Gemini keys
 cp .env.example .env
 cp apps/fit/client/.env.example apps/fit/client/.env
 cp apps/meals/client/.env.example apps/meals/client/.env
@@ -81,7 +81,7 @@ pnpm --filter meals-client build
 
 - Cross-app data is fetched over Railway's private network via `/internal/*` endpoints, guarded by `INTERNAL_API_SECRET`.
 - Both clients use the **same Clerk application** so a sign-in on one subdomain is recognized on the other.
-- All Anthropic calls happen server-side. The API key is never shipped to the browser.
+- All Gemini calls happen server-side. The API key is never shipped to the browser.
 
 ---
 
@@ -118,7 +118,7 @@ In production, Railway runs `pnpm --filter @platform/db migrate:deploy:<app>` as
    - `meal-planner-client` → `apps/meals/client`
 4. Copy build + start commands from `railway.toml`.
 5. Set environment variables per service (see `.env.example` and `railway.toml`).
-6. In Railway project settings → Shared Variables, add `ANTHROPIC_API_KEY`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `INTERNAL_API_SECRET`.
+6. In Railway project settings → Shared Variables, add `GEMINI_API_KEY`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `INTERNAL_API_SECRET`.
 7. Add custom domains:
    - `fit.andrewlaurin.com` → fit client
    - `api.fit.andrewlaurin.com` → fit server
@@ -156,7 +156,7 @@ fitness-meal-planner/
 ├── apps/
 │   ├── fit/
 │   │   ├── client/           # React + Vite + Tailwind
-│   │   └── server/           # Express + Clerk + Anthropic
+│   │   └── server/           # Express + Clerk + Gemini
 │   └── meals/
 │       ├── client/
 │       └── server/
