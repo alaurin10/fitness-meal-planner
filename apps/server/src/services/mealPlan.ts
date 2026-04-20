@@ -1,7 +1,17 @@
 import type { Profile } from "@platform/db";
 import { GEMINI_MODEL, getGeminiClient, stripJsonFences } from "./gemini.js";
-import { buildSystemPrompt, buildUserPrompt } from "./mealPlanPrompt.js";
-import { mealPlanSchema, type MealPlanJson } from "./mealPlanSchema.js";
+import {
+  buildSingleMealSystemPrompt,
+  buildSingleMealUserPrompt,
+  buildSystemPrompt,
+  buildUserPrompt,
+} from "./mealPlanPrompt.js";
+import {
+  mealPlanSchema,
+  mealSchema,
+  type MealJson,
+  type MealPlanJson,
+} from "./mealPlanSchema.js";
 import type { TrainingSchedule } from "./schedule.js";
 
 export async function generateMealPlan(args: {
@@ -37,6 +47,47 @@ export async function generateMealPlan(args: {
   if (!validated.success) {
     throw new Error(
       `Generated meal plan failed validation: ${validated.error.message}`,
+    );
+  }
+  return validated.data;
+}
+
+export async function generateSingleMeal(args: {
+  profile: Profile;
+  slot: "breakfast" | "lunch" | "dinner" | "snack";
+  targetCalories?: number;
+  targetProteinG?: number;
+  avoidNames?: string[];
+}): Promise<MealJson> {
+  const response = await getGeminiClient().models.generateContent({
+    model: GEMINI_MODEL,
+    config: {
+      maxOutputTokens: 1200,
+      responseMimeType: "application/json",
+      systemInstruction: buildSingleMealSystemPrompt(),
+    },
+    contents: buildSingleMealUserPrompt(args),
+  });
+
+  const text = response.text;
+  if (!text) {
+    throw new Error("Gemini returned no text content");
+  }
+
+  const raw = stripJsonFences(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${raw.slice(0, 500)}`,
+    );
+  }
+
+  const validated = mealSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(
+      `Generated meal failed validation: ${validated.error.message}`,
     );
   }
   return validated.data;

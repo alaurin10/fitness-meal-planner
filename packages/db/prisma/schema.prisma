@@ -18,6 +18,7 @@ model User {
   weeklyMealPlans WeeklyMealPlan[]
   progressLogs    ProgressLog[]
   groceryLists    GroceryList[]
+  recipes         Recipe[]
 }
 
 model UserSettings {
@@ -99,4 +100,34 @@ model ProgressLog {
   liftPRs   Json?
 
   @@index([userId, loggedAt])
+}
+
+// ingredientsJson shape: Array<{ name, quantity: { amount, unit, display? }, category?, note? }>
+// stepsJson shape: Array<{ order, text, durationMinutes? }>
+// source ∈ MANUAL | AI
+model Recipe {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  slotHint        String? // "breakfast" | "lunch" | "dinner" | "snack"
+  servings        Int      @default(1)
+  prepMinutes     Int?
+  cookMinutes     Int?
+  totalMinutes    Int?
+  calories        Int
+  proteinG        Int
+  carbsG          Int?
+  fatG            Int?
+  ingredientsJson Json
+  stepsJson       Json
+  tags            String[] @default([])
+  source          String   @default("MANUAL") // "MANUAL" | "AI"
+  notes           String?
+  isFavorite      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, isFavorite])
+  @@index([userId, createdAt])
 }

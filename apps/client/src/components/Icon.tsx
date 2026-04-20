@@ -25,7 +25,8 @@ export type IconName =
   | "x"
   | "swap"
   | "share"
-  | "fork";
+  | "fork"
+  | "ellipsis";
 
 interface Props {
   name: IconName;
@@ -224,6 +225,14 @@ export function Icon({ name, size = 20, stroke = 1.75, style, className }: Props
       return (
         <svg viewBox="0 0 24 24" style={s} className={className}>
           <path {...common} d="M7 3v6a3 3 0 003 3M17 3v6a3 3 0 01-3 3M12 12v9M5 3v3M19 3v3" />
+        </svg>
+      );
+    case "ellipsis":
+      return (
+        <svg viewBox="0 0 24 24" style={s} className={className}>
+          <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
         </svg>
       );
     default:

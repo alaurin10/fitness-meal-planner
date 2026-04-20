@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
-import type { GroceryList } from "../lib/types";
+import type { GroceryCategory, GroceryItem, GroceryList } from "../lib/types";
 
 export function useGroceries() {
   const api = useApi();
@@ -11,6 +11,14 @@ export function useGroceries() {
       return data.list;
     },
   });
+}
+
+export interface GroceryItemPatch {
+  checked?: boolean;
+  name?: string;
+  qty?: string;
+  category?: GroceryCategory;
+  note?: string;
 }
 
 export function useToggleItem() {
@@ -43,6 +51,83 @@ export function useToggleItem() {
       }
     },
     onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export function useUpdateGroceryItem() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      patch,
+    }: {
+      itemId: string;
+      patch: GroceryItemPatch;
+    }) => {
+      const { data } = await api.patch<{ list: GroceryList }>(
+        `/api/groceries/items/${itemId}`,
+        patch,
+      );
+      return data.list;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export function useAddGroceryItem() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      qty?: string;
+      category: GroceryCategory;
+      note?: string;
+    }) => {
+      const { data } = await api.post<{ list: GroceryList; item: GroceryItem }>(
+        "/api/groceries/items",
+        input,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export function useDeleteGroceryItem() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (itemId: string) => {
+      const { data } = await api.delete<{ list: GroceryList }>(
+        `/api/groceries/items/${itemId}`,
+      );
+      return data.list;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export function useRebuildGroceries() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<{ list: GroceryList }>(
+        "/api/groceries/rebuild",
+      );
+      return data.list;
+    },
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groceries"] });
     },
   });

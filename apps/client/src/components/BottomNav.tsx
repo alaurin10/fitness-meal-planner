@@ -5,6 +5,7 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
   { to: "/", label: "Home", icon: "home", end: true },
   { to: "/workouts", label: "Workouts", icon: "dumbbell" },
   { to: "/meals", label: "Meals", icon: "leaf" },
+  { to: "/recipes", label: "Recipes", icon: "fork" },
   { to: "/groceries", label: "Groceries", icon: "groceries" },
   { to: "/profile", label: "Profile", icon: "profile" },
 ];
@@ -20,7 +21,7 @@ export function BottomNav() {
         padding: "8px 10px calc(env(safe-area-inset-bottom, 16px) + 10px)",
       }}
     >
-      <ul className="grid grid-cols-5 gap-0.5">
+      <ul className="grid grid-cols-6 gap-0.5">
         {items.map((item) => (
           <li key={item.to}>
             <NavLink

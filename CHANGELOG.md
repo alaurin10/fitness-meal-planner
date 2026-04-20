@@ -2,8 +2,48 @@
 
 ## [Unreleased]
 
+### Added
+
+- Editable grocery list: tap any item to rename, change quantity, change category, or delete; "+ Add to {category}" inline form per section, plus a collapsible "Add to another category…" affordance for empty categories
+- Manual grocery items persist across plan regenerations and slot mutations and render with a "Manual" badge
+- "Rebuild from plan" button on the Groceries page that re-derives auto items while preserving manual items and previously-checked rows
+- Empty grocery list is now usable: items can be added even when no meal plan exists yet (a list is created on first add)
+- `POST /api/groceries/items`, `DELETE /api/groceries/items/:itemId`, `POST /api/groceries/rebuild` endpoints; `PATCH /api/groceries/items/:itemId` now accepts `{checked, name, qty, category, note}`
+- `GroceryItem` shape extended with optional `source: "auto"|"manual"`, `amount`, `unit`, `note`
+- `useAddGroceryItem`, `useUpdateGroceryItem`, `useDeleteGroceryItem`, `useRebuildGroceries` React Query hooks
+- Manual meal planning: per-meal overflow menu on the Meals page with **Regenerate**, **Swap from book**, and **Remove** actions
+- "Add a meal" placeholder card under each day that opens the recipe picker, with the next free slot (breakfast → lunch → dinner → snack) suggested automatically
+- "Start blank week" button on the Meals page (and in the empty-state) that creates a 7-day plan with no meals so the user can build it from scratch
+- `RecipePickerModal` component — searches the recipe book and surfaces slot-matching recipes first
+- Single-meal Gemini regeneration: new `generateSingleMeal()` service uses dedicated `buildSingleMealSystemPrompt()` / `buildSingleMealUserPrompt()` builders that carry profile dietary notes, target calories/protein, and an avoid list
+- New `/api/meals/empty`, `/api/meals/slot/regenerate`, `PUT /api/meals/slot`, `POST /api/meals/slot/add`, `DELETE /api/meals/slot` endpoints, all schema-validated with Zod
+- `useCreateEmptyPlan`, `useRegenerateSlot`, `useReplaceSlot`, `useAddSlot`, `useDeleteSlot` React Query hooks
+- `mergeGroceryItems()` helper that rebuilds auto items after slot mutations while preserving `checked` state and any future manual items
+- `recipeToMeal` adapter shared between the recipe viewer and the swap-from-book flow
+- `ellipsis` icon for the per-meal options button
+- Recipe Book at `/recipes` with searchable list, favorite/manual/AI filter chips, and an empty-state CTA
+- Manual recipe editor at `/recipes/new` and `/recipes/:id/edit` with repeatable ingredient rows (amount, unit, name, category) and reorderable step rows with optional per-step duration
+- Recipe view at `/recipes/:id` with favorite toggle, edit, and delete actions
+- "Save to recipe book" action on planned-meal detail pages; saved meals are stored with `source: "AI"` and link directly to the new book entry
+- `Recipe` Prisma model + migration with `userId`, `name`, `slotHint`, `servings`, prep/cook/total minutes, per-serving macros (calories/proteinG/carbsG/fatG), JSON ingredients & steps, `tags`, `source` (`MANUAL`/`AI`), `notes`, `isFavorite`
+- `useRecipes` / `useRecipe` / `useCreateRecipe` / `useUpdateRecipe` / `useDeleteRecipe` / `useSaveMealAsRecipe` React Query hooks
+- `/api/recipes` REST endpoints (list with `?search=&favorite=&source=&tag=`, get one, create, patch, delete, plus `POST /from-meal` to snapshot a planned meal into the book)
+- Shared `MealDetailView` component drives both the planned-meal route and the recipe book viewer (servings stepper, ingredient checklist, ordered steps, cooking mode)
+- Recipe detail page at `/meals/:day/:index` with hero macros, ingredient checklist, ordered cooking steps, and per-step duration chips
+- Cooking Mode: full-screen step-by-step view with progress bar, optional countdown timer per step, and contextual ingredient chips
+- Servings stepper on recipe detail that scales ingredient amounts and macros
+- Structured cooking quantities (`{ amount, unit }`) on every meal ingredient with canonical units (g/kg/oz/lb/ml/L/tsp/tbsp/cup/fl oz/piece/slice/clove/can/pinch/to taste)
+- `formatQuantity()` helper that converts mass and large-volume units between metric and imperial based on user settings, and renders common decimals as fractions
+- `formatMinutes()` helper for prep/cook time display
+- Server-side `mealPlanNormalizer` that upgrades legacy `planJson` rows (string `qty`, no steps, no servings) to the new shape on read
+
 ### Changed
 
+- Slot mutations rebuild the active grocery list while preserving previously-checked items by normalized name + category
+- Bottom navigation expanded from 5 to 6 items to surface "Recipes" between Meals and Groceries
+- Gemini meal-plan schema and prompt now require structured ingredients, ordered steps, prep/cook/total minutes, servings, slot, and per-serving carbs/fat for every meal
+- Meal cards on the Meals page are tappable, navigate to the new detail view, and show prep+cook time and step-count chips
+- Grocery aggregator merges quantities by category + name and sums compatible units (mass↔mass, volume↔volume), falling back to a `+`-joined display for incompatible mixes
 - Migrate AI provider from Anthropic (Claude) to Google Gemini (`gemini-2.5-flash`)
 - Replace `@anthropic-ai/sdk` with `@google/genai` in server dependencies
 - Rename environment variable `ANTHROPIC_API_KEY` → `GEMINI_API_KEY`

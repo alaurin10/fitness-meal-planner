@@ -24,6 +24,7 @@ export type {
   WeeklyMealPlan,
   GroceryList,
   ProgressLog,
+  Recipe,
 } from "../generated/index.js";
 
 export const GROCERY_CATEGORIES = [
@@ -37,6 +38,15 @@ export const GROCERY_CATEGORIES = [
 
 export type GroceryCategory = (typeof GROCERY_CATEGORIES)[number];
 
+export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
+export type MealSlot = (typeof MEAL_SLOTS)[number];
+
+export interface Quantity {
+  amount: number;
+  unit: string;
+  display?: string;
+}
+
 export interface GroceryItem {
   id: string;
   name: string;
@@ -44,4 +54,8 @@ export interface GroceryItem {
   category: GroceryCategory;
   checked: boolean;
   pushed: boolean;
+  source?: "auto" | "manual";
+  amount?: number;
+  unit?: string;
+  note?: string;
 }

@@ -5,6 +5,10 @@ import { GroceriesPage } from "./pages/Groceries";
 import { MealsPage } from "./pages/Meals";
 import { ProfilePage } from "./pages/Profile";
 import { ProgressPage } from "./pages/Progress";
+import { RecipeDetailPage } from "./pages/RecipeDetail";
+import { RecipeEditorPage } from "./pages/RecipeEditor";
+import { RecipeViewPage } from "./pages/RecipeView";
+import { RecipesPage } from "./pages/Recipes";
 import { SettingsPage } from "./pages/Settings";
 import { SignInPage } from "./pages/SignIn";
 import { SignUpPage } from "./pages/SignUp";
@@ -24,6 +28,11 @@ export default function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/workouts" element={<WorkoutsPage />} />
                 <Route path="/meals" element={<MealsPage />} />
+                <Route path="/meals/:day/:index" element={<RecipeDetailPage />} />
+                <Route path="/recipes" element={<RecipesPage />} />
+                <Route path="/recipes/new" element={<RecipeEditorPage />} />
+                <Route path="/recipes/:id" element={<RecipeViewPage />} />
+                <Route path="/recipes/:id/edit" element={<RecipeEditorPage />} />
                 <Route path="/groceries" element={<GroceriesPage />} />
                 <Route path="/progress" element={<ProgressPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
