@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
+import { getAnthropicErrorMessage } from "../services/anthropic.js";
 import { generateMealPlan } from "../services/mealPlan.js";
 import { getTrainingSchedule } from "../services/schedule.js";
 import { buildGroceryItems } from "../services/groceryAggregator.js";
@@ -56,7 +57,7 @@ router.post("/generate", requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = getAnthropicErrorMessage(err);
     console.error("[meals] generate failed:", message);
     res.status(502).json({ error: "Failed to generate plan", detail: message });
   }
