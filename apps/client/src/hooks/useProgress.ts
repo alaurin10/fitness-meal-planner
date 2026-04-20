@@ -35,8 +35,14 @@ export function useLogProgress() {
       const { data } = await api.post<{ log: ProgressLog }>("/api/progress", input);
       return data.log;
     },
-    onSuccess: () => {
+    onSuccess: (_log, variables) => {
       qc.invalidateQueries({ queryKey: ["progress"] });
+      // When a weight is logged, the server syncs it to the profile (and
+      // recomputes calorie/protein targets if still on suggested), so the
+      // profile cache needs to refetch.
+      if (variables.weightLbs != null) {
+        qc.invalidateQueries({ queryKey: ["profile"] });
+      }
     },
   });
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
+import { computeTargets } from "../services/targets.js";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.post("/", requireAuth, async (req, res) => {
     update: {},
     create: { id: userId },
   });
+
   const log = await prisma.progressLog.create({
     data: {
       userId,
@@ -41,7 +43,55 @@ router.post("/", requireAuth, async (req, res) => {
       liftPRs: parsed.data.liftPRs ?? undefined,
     },
   });
-  res.json({ log });
+
+  // Sync weight back to the profile so calorie/protein targets stay accurate.
+  // If the user's stored targets currently match the suggested values for their
+  // OLD weight, they're on "suggested" mode — recompute targets at the new
+  // weight. Otherwise they've explicitly overridden the targets, so preserve.
+  let profile = null;
+  if (parsed.data.weightLbs != null) {
+    const current = await prisma.profile.findUnique({ where: { userId } });
+    if (current) {
+      const oldSuggested = computeTargets({
+        sex: current.sex,
+        age: current.age,
+        weightLbs: current.weightLbs,
+        heightIn: current.heightIn,
+        trainingDaysPerWeek: current.trainingDaysPerWeek,
+        goal: current.goal,
+      });
+      const newSuggested = computeTargets({
+        sex: current.sex,
+        age: current.age,
+        weightLbs: parsed.data.weightLbs,
+        heightIn: current.heightIn,
+        trainingDaysPerWeek: current.trainingDaysPerWeek,
+        goal: current.goal,
+      });
+
+      const onSuggestedCalories =
+        oldSuggested != null && current.caloricTarget === oldSuggested.caloricTarget;
+      const onSuggestedProtein =
+        oldSuggested != null && current.proteinTargetG === oldSuggested.proteinTargetG;
+
+      profile = await prisma.profile.update({
+        where: { userId },
+        data: {
+          weightLbs: parsed.data.weightLbs,
+          caloricTarget:
+            onSuggestedCalories && newSuggested
+              ? newSuggested.caloricTarget
+              : current.caloricTarget,
+          proteinTargetG:
+            onSuggestedProtein && newSuggested
+              ? newSuggested.proteinTargetG
+              : current.proteinTargetG,
+        },
+      });
+    }
+  }
+
+  res.json({ log, profile });
 });
 
 export default router;
