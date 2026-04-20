@@ -13,7 +13,14 @@ import {
 } from "../hooks/useProfile";
 import { useSettings } from "../hooks/useSettings";
 import { computeSuggestedTargets } from "../lib/targets";
-import { cmToInches, inchesToCm, kgToPounds, poundsToKg, roundTo } from "../lib/units";
+import {
+  cmToInches,
+  inchesToCm,
+  kgToPounds,
+  poundsToKg,
+  roundTo,
+  type UnitSystem,
+} from "../lib/units";
 
 const EMPTY: ProfileInput = {
   unitSystem: "imperial",
@@ -41,6 +48,24 @@ const GOALS: Array<[ProfileInput["goal"], string, IconName]> = [
   ["maintain", "Maintain", "heart"],
 ];
 
+const GOAL_LABEL: Record<ProfileInput["goal"], string> = {
+  build_muscle: "Build muscle",
+  lose_fat: "Lean out",
+  maintain: "Maintain",
+};
+
+const GOAL_ICON: Record<ProfileInput["goal"], IconName> = {
+  build_muscle: "dumbbell",
+  lose_fat: "flame",
+  maintain: "heart",
+};
+
+const EXPERIENCE_LABEL: Record<ProfileInput["experienceLevel"], string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+
 const QUICK_NOTES = [
   "Vegetarian",
   "No dairy",
@@ -58,6 +83,11 @@ export function ProfilePage() {
   const [useSuggestedCalories, setUseSuggestedCalories] = useState(true);
   const [useSuggestedProtein, setUseSuggestedProtein] = useState(true);
   const [toast, setToast] = useState(false);
+  // Edit mode is only true when the user explicitly opts in, or when there's no
+  // saved profile yet (first-time setup). Once query loads we flip this based
+  // on whether a profile exists.
+  const [isEditing, setIsEditing] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const liveSuggested = useMemo(
     () =>
@@ -80,17 +110,28 @@ export function ProfilePage() {
   );
 
   useEffect(() => {
-    if (!query.data?.profile) return;
+    if (query.isLoading) return;
 
-    const nextForm = profileToForm(query.data.profile);
-    setForm(nextForm);
-    setUseSuggestedCalories(
-      shouldUseSuggested(query.data.profile.caloricTarget, query.data.suggested?.caloricTarget),
-    );
-    setUseSuggestedProtein(
-      shouldUseSuggested(query.data.profile.proteinTargetG, query.data.suggested?.proteinTargetG),
-    );
-  }, [query.data]);
+    if (query.data?.profile) {
+      const nextForm = profileToForm(query.data.profile);
+      setForm(nextForm);
+      setUseSuggestedCalories(
+        shouldUseSuggested(query.data.profile.caloricTarget, query.data.suggested?.caloricTarget),
+      );
+      setUseSuggestedProtein(
+        shouldUseSuggested(query.data.profile.proteinTargetG, query.data.suggested?.proteinTargetG),
+      );
+      // On first load with a saved profile, default to read-only view.
+      if (!hydrated) {
+        setIsEditing(!isProfileComplete(query.data.profile));
+        setHydrated(true);
+      }
+    } else if (!hydrated) {
+      // No saved profile — drop the user straight into setup.
+      setIsEditing(true);
+      setHydrated(true);
+    }
+  }, [query.isLoading, query.data, hydrated]);
 
   useEffect(() => {
     if (!settingsQuery.data?.unitSystem) return;
@@ -115,29 +156,174 @@ export function ProfilePage() {
       : roundTo(form.weightLbs, 1);
   const displayHeightCm = form.heightIn == null ? "" : roundTo(inchesToCm(form.heightIn), 1);
 
+  const headerRight = (
+    <Link to="/settings" aria-label="Settings" className="tappable">
+      <span
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 999,
+          border: "1px solid var(--hair)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--sumi)",
+        }}
+      >
+        <Icon name="settings" size={18} />
+      </span>
+    </Link>
+  );
+
+  // Read-only summary view — shown once a profile is saved and the user isn't
+  // actively editing. Weight logged from the Progress page still updates the
+  // profile on the server, so this view stays in sync via the cache.
+  if (!isEditing && query.data?.profile) {
+    const p = query.data.profile;
+    const suggested = query.data.suggested;
+    const unitSystem: UnitSystem = p.unitSystem ?? form.unitSystem ?? "imperial";
+    const caloriesAreSuggested = shouldUseSuggested(p.caloricTarget, suggested?.caloricTarget);
+    const proteinIsSuggested = shouldUseSuggested(p.proteinTargetG, suggested?.proteinTargetG);
+
+    return (
+      <Layout>
+        <PhoneHeader
+          title="Profile"
+          subtitle="Shapes your weekly plans and daily targets."
+          right={headerRight}
+        />
+
+        <div className="px-6 pt-4 pb-2">
+          <div className="eyebrow">Your numbers</div>
+        </div>
+        <div className="px-4">
+          <Card>
+            <SummaryRow label="Age" value={p.age != null ? `${p.age} yrs` : "—"} />
+            <SummaryRow
+              label="Sex"
+              value={p.sex ? capitalize(p.sex) : "—"}
+            />
+            <SummaryRow
+              label="Weight"
+              value={formatWeightDisplay(p.weightLbs, unitSystem)}
+            />
+            <SummaryRow
+              label="Height"
+              value={formatHeightDisplay(p.heightIn, unitSystem)}
+              last
+            />
+          </Card>
+        </div>
+
+        <div className="px-6 pt-5 pb-2">
+          <div className="eyebrow">Training</div>
+        </div>
+        <div className="px-4">
+          <Card>
+            <SummaryRow label="Experience" value={EXPERIENCE_LABEL[p.experienceLevel]} />
+            <SummaryRow
+              label="Training days / week"
+              value={String(p.trainingDaysPerWeek)}
+            />
+            <SummaryRow
+              label="Goal"
+              value={
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Icon name={GOAL_ICON[p.goal]} size={14} />
+                  {GOAL_LABEL[p.goal]}
+                </span>
+              }
+              last
+            />
+          </Card>
+        </div>
+
+        <div className="px-6 pt-5 pb-2">
+          <div className="eyebrow">Daily targets</div>
+        </div>
+        <div className="px-4 space-y-2.5">
+          <TargetSummaryCard
+            title="Calories"
+            unit="kcal"
+            value={p.caloricTarget}
+            isSuggested={caloriesAreSuggested}
+          />
+          <TargetSummaryCard
+            title="Protein"
+            unit="g"
+            value={p.proteinTargetG}
+            isSuggested={proteinIsSuggested}
+          />
+        </div>
+
+        {p.dietaryNotes && p.dietaryNotes.trim() !== "" && (
+          <>
+            <div className="px-6 pt-5 pb-2">
+              <div className="eyebrow">Dietary notes</div>
+            </div>
+            <div className="px-4">
+              <Card>
+                <div style={{ fontSize: 13.5, color: "var(--sumi)", lineHeight: 1.5 }}>
+                  {p.dietaryNotes}
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
+
+        <div className="px-4 pt-5">
+          <Button
+            type="button"
+            className="w-full"
+            variant="ghost"
+            onClick={() => setIsEditing(true)}
+          >
+            Edit profile
+          </Button>
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11.5,
+              color: "var(--muted)",
+              textAlign: "center",
+            }}
+          >
+            Weight updates automatically when you log it on the Progress page.
+          </div>
+          {toast && (
+            <div
+              className="fade-up"
+              style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: "var(--moss)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="check" size={14} /> Saved.
+            </div>
+          )}
+        </div>
+      </Layout>
+    );
+  }
+
+  // Edit / first-time-setup form.
+  const hasSavedProfile = Boolean(query.data?.profile);
+
   return (
     <Layout>
       <PhoneHeader
         title="Profile"
-        subtitle="Shapes your weekly plans and daily targets."
-        right={
-          <Link to="/settings" aria-label="Settings" className="tappable">
-            <span
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 999,
-                border: "1px solid var(--hair)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--sumi)",
-              }}
-            >
-              <Icon name="settings" size={18} />
-            </span>
-          </Link>
+        subtitle={
+          hasSavedProfile
+            ? "Update the details that shape your plans and targets."
+            : "A one-time setup to tailor your plans and targets."
         }
+        right={headerRight}
       />
 
       <form
@@ -159,6 +345,7 @@ export function ProfilePage() {
               setUseSuggestedProtein(
                 shouldUseSuggested(data.profile.proteinTargetG, data.suggested?.proteinTargetG),
               );
+              setIsEditing(false);
               setToast(true);
               setTimeout(() => setToast(false), 1800);
             },
@@ -436,8 +623,38 @@ export function ProfilePage() {
 
         <div className="px-4 pt-5">
           <Button type="submit" className="w-full" disabled={save.isPending}>
-            {save.isPending ? "Saving…" : "Save profile"}
+            {save.isPending ? "Saving…" : hasSavedProfile ? "Save changes" : "Save profile"}
           </Button>
+          {hasSavedProfile && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              style={{ marginTop: 8 }}
+              disabled={save.isPending}
+              onClick={() => {
+                // Revert form state to the last saved values and exit edit mode.
+                if (query.data?.profile) {
+                  setForm(profileToForm(query.data.profile));
+                  setUseSuggestedCalories(
+                    shouldUseSuggested(
+                      query.data.profile.caloricTarget,
+                      query.data.suggested?.caloricTarget,
+                    ),
+                  );
+                  setUseSuggestedProtein(
+                    shouldUseSuggested(
+                      query.data.profile.proteinTargetG,
+                      query.data.suggested?.proteinTargetG,
+                    ),
+                  );
+                }
+                setIsEditing(false);
+              }}
+            >
+              Cancel
+            </Button>
+          )}
           {save.isError && (
             <div
               style={{
@@ -450,25 +667,107 @@ export function ProfilePage() {
               {getSaveErrorMessage(save.error)}
             </div>
           )}
-          {toast && (
-            <div
-              className="fade-up"
-              style={{
-                marginTop: 10,
-                fontSize: 12,
-                color: "var(--moss)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="check" size={14} /> Saved.
-            </div>
-          )}
         </div>
       </form>
     </Layout>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  last = false,
+}: {
+  label: string;
+  value: ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 12,
+        padding: "10px 0",
+        borderBottom: last ? "none" : "1px solid var(--hair)",
+      }}
+    >
+      <span style={{ fontSize: 12.5, color: "var(--muted)" }}>{label}</span>
+      <span
+        style={{
+          fontSize: 14,
+          color: "var(--ink)",
+          fontWeight: 500,
+          textAlign: "right",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function TargetSummaryCard({
+  title,
+  unit,
+  value,
+  isSuggested,
+}: {
+  title: string;
+  unit: string;
+  value: number | null;
+  isSuggested: boolean;
+}) {
+  return (
+    <Card tone={isSuggested ? "gradient" : "paper"}>
+      <div className="flex items-start justify-between gap-3">
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--muted)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {title}
+          </div>
+          <div
+            className="font-display"
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 6,
+              marginTop: 8,
+              color: "var(--ink)",
+            }}
+          >
+            <span style={{ fontSize: value == null ? 22 : 32 }}>
+              {value ?? "Not set"}
+            </span>
+            {value != null && (
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{unit}</span>
+            )}
+          </div>
+        </div>
+        <span
+          style={{
+            border: "1px solid var(--hair)",
+            background: isSuggested ? "var(--paper)" : "var(--ink)",
+            color: isSuggested ? "var(--sumi)" : "var(--paper)",
+            borderRadius: 999,
+            padding: "6px 10px",
+            fontSize: 11,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {isSuggested ? "Suggested" : "Custom"}
+        </span>
+      </div>
+    </Card>
   );
 }
 
@@ -741,6 +1040,36 @@ function profileToForm(profile: Profile): ProfileInput {
 function shouldUseSuggested(savedValue: number | null, suggestedValue?: number | null) {
   if (suggestedValue == null) return savedValue == null;
   return savedValue === suggestedValue;
+}
+
+function isProfileComplete(profile: Profile) {
+  return (
+    profile.age != null &&
+    profile.sex != null &&
+    profile.weightLbs != null &&
+    profile.heightIn != null
+  );
+}
+
+function formatWeightDisplay(weightLbs: number | null, unitSystem: UnitSystem) {
+  if (weightLbs == null) return "—";
+  if (unitSystem === "metric") {
+    return `${roundTo(poundsToKg(weightLbs), 1)} kg`;
+  }
+  return `${roundTo(weightLbs, 1)} lb`;
+}
+
+function formatHeightDisplay(heightIn: number | null, unitSystem: UnitSystem) {
+  if (heightIn == null) return "—";
+  if (unitSystem === "metric") {
+    return `${roundTo(inchesToCm(heightIn), 1)} cm`;
+  }
+  const { feet, inches } = toFeetInches(heightIn);
+  return `${feet ?? 0}′ ${inches ?? 0}″`;
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function toFeetInches(heightIn: number | null) {
