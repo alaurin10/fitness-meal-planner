@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { useApi } from "../lib/api";
 import { BottomNav } from "./BottomNav";
+import { SideNav } from "./SideNav";
 import { Wordmark } from "./Primitives";
 
 interface Props {
@@ -49,26 +50,25 @@ export function Layout({ children }: Props) {
   }, [api, queryClient]);
 
   return (
-    <div
-      className="mx-auto max-w-[480px] min-h-screen"
-      style={{
-        background: "var(--bg)",
-        paddingBottom: 110,
-        position: "relative",
-      }}
-    >
-      <header
-        className="sticky top-0 z-10 flex items-center justify-between px-5 py-3"
-        style={{
-          background: "color-mix(in srgb, var(--bg) 88%, transparent)",
-          backdropFilter: "blur(10px)",
-        }}
+    <>
+      <SideNav />
+      <div
+        className="mx-auto max-w-[480px] min-h-screen relative pb-[110px] md:max-w-none md:ml-[220px] md:pb-6"
+        style={{ background: "var(--bg)" }}
       >
-        <Wordmark />
-        <UserButton />
-      </header>
-      <main>{children}</main>
-      <BottomNav />
-    </div>
+        <header
+          className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 md:hidden"
+          style={{
+            background: "color-mix(in srgb, var(--bg) 88%, transparent)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <Wordmark />
+          <UserButton />
+        </header>
+        <main className="md:max-w-[960px] md:mx-auto">{children}</main>
+        <BottomNav />
+      </div>
+    </>
   );
 }

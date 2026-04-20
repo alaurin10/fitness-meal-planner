@@ -214,6 +214,7 @@ export function MealDetailView({
           )}
         </Card>
 
+        <div className="md:grid md:grid-cols-2 md:gap-3 space-y-3 md:space-y-0">
         <Card>
           <div className="eyebrow" style={{ marginBottom: 10 }}>
             Ingredients
@@ -234,6 +235,7 @@ export function MealDetailView({
           </ul>
         </Card>
 
+        <div className="space-y-3">
         <Card>
           <div
             style={{
@@ -343,6 +345,8 @@ export function MealDetailView({
             Start cooking
           </Button>
         )}
+        </div>
+        </div>
 
         {meal.notes && (
           <Card>

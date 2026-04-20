@@ -113,7 +113,7 @@ export function DashboardPage() {
       />
 
       {/* Today's workout */}
-      <div className="px-4 pt-1">
+      <div className="px-4 pt-1 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         <Card tone="gradient" className="fade-up">
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">Today's workout</div>
@@ -172,10 +172,8 @@ export function DashboardPage() {
             </>
           )}
         </Card>
-      </div>
 
-      {/* Today's meals */}
-      <div className="px-4 pt-3">
+        {/* Today's meals */}
         <Card tone="clay" className="fade-up">
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">Today's meals</div>
@@ -244,11 +242,9 @@ export function DashboardPage() {
             </>
           )}
         </Card>
-      </div>
 
-      {/* Log weight shortcut */}
-      <div className="px-4 pt-3">
-        <Link to="/progress" className="block">
+        {/* Log weight shortcut */}
+        <Link to="/progress" className="block md:col-span-2">
           <Card className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div

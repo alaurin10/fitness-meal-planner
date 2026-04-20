@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { useIsDesktop } from "../hooks/useIsDesktop";
 import { useSettings } from "../hooks/useSettings";
 import {
   useCurrentWorkoutPlan,
@@ -23,6 +24,7 @@ export function WorkoutsPage() {
   const [activeDay, setActiveDay] = useState<TrainingDay["day"]>(
     DAYS[todayIdx] ?? "Mon",
   );
+  const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
 
@@ -102,8 +104,9 @@ export function WorkoutsPage() {
         right={headerRight}
       />
 
-      <div style={{ padding: "4px 16px 8px", overflowX: "auto" }}>
-        <div style={{ display: "flex", gap: 6 }}>
+      <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
+      <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
+        <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
             const count = day?.exercises.length ?? 0;
@@ -115,8 +118,8 @@ export function WorkoutsPage() {
                 onClick={() => setActiveDay(d)}
                 className="tappable"
                 style={{
-                  flex: 1,
-                  minWidth: 56,
+                  flex: isDesktop ? "none" : 1,
+                  minWidth: isDesktop ? undefined : 56,
                   border: "none",
                   background: isActive ? "var(--ink)" : "var(--paper)",
                   color: isActive ? "var(--paper)" : "var(--ink)",
@@ -164,6 +167,7 @@ export function WorkoutsPage() {
         </div>
       </div>
 
+      <div>
       <div className="px-4 pt-2">
         <Card>
           <div className="flex items-end justify-between gap-3">
@@ -285,6 +289,8 @@ export function WorkoutsPage() {
           <Icon name="sparkle" size={16} />
           {generate.isPending ? "Regenerating…" : "Regenerate plan"}
         </Button>
+      </div>
+      </div>
       </div>
     </Layout>
   );

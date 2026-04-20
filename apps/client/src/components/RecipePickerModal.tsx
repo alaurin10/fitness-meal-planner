@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRecipes } from "../hooks/useRecipes";
+import { useIsDesktop } from "../hooks/useIsDesktop";
 import type { MealSlot, RecipeRecord } from "../lib/types";
 import { formatMinutes } from "../lib/units";
 import { Button } from "./Button";
@@ -14,6 +15,7 @@ interface Props {
 
 export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
   const [search, setSearch] = useState("");
+  const isDesktop = useIsDesktop();
   const { data: recipes, isLoading } = useRecipes({
     search: search.trim() || undefined,
   });
@@ -41,7 +43,7 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
         background: "rgba(0,0,0,0.35)",
         zIndex: 60,
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: isDesktop ? "center" : "flex-end",
         justifyContent: "center",
       }}
     >
@@ -49,14 +51,15 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: 480,
-          maxHeight: "85vh",
+          maxWidth: isDesktop ? 560 : 480,
+          maxHeight: isDesktop ? "70vh" : "85vh",
           background: "var(--bg)",
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
+          borderRadius: isDesktop ? 24 : undefined,
+          borderTopLeftRadius: isDesktop ? undefined : 24,
+          borderTopRightRadius: isDesktop ? undefined : 24,
           display: "flex",
           flexDirection: "column",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 12px)",
+          paddingBottom: isDesktop ? 12 : "calc(env(safe-area-inset-bottom, 16px) + 12px)",
         }}
       >
         <div

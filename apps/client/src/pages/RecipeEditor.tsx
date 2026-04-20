@@ -380,6 +380,7 @@ export function RecipeEditorPage() {
           </Row>
         </Card>
 
+        <div className="md:grid md:grid-cols-2 md:gap-3 space-y-3 md:space-y-0">
         <Card>
           <div
             style={{
@@ -588,6 +589,7 @@ export function RecipeEditorPage() {
             ))}
           </div>
         </Card>
+        </div>
 
         <Card>
           <Field label="Tags (comma separated)">

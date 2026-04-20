@@ -4,6 +4,19 @@
 
 ### Added
 
+- Responsive desktop layout with `md:` (≥768px) breakpoint
+- `SideNav` component — fixed left sidebar with vertical navigation, Wordmark, and Clerk UserButton; hidden on mobile
+- `useIsDesktop` hook — reactive `matchMedia` wrapper for JS-level responsive logic
+- Desktop shell in `Layout` — sidebar + widened content area with 960px max-width; mobile header and bottom nav hidden on desktop
+- Dashboard cards arranged in a 2-column grid on desktop
+- MealDetailView ingredients and steps displayed side-by-side on desktop
+- Meals and Workouts day tabs rendered as a vertical sidebar column on desktop (horizontal scroll on mobile)
+- Recipes page uses a 2-column card grid on desktop
+- Groceries categories laid out in 2 columns on desktop
+- Profile read-only view shows "Your numbers" and "Training" cards side-by-side on desktop
+- RecipeEditor ingredients and steps sections placed side-by-side on desktop
+- RecipePickerModal presented as a centered dialog on desktop instead of a bottom sheet
+
 - Learning grocery categorizer: when you manually set an item's category (via tap-to-edit or the per-category add form), the system remembers the name → category mapping and uses it for future auto-categorization
 - `GroceryCategoryOverride` Prisma model + migration — stores per-user learned name → category pairs; checked before the regex rules on every auto-classify
 - `classifyCategoryForUser(userId, name)` and `learnCategory(userId, name, category)` in the categorizer service

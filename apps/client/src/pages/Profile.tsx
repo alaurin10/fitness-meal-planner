@@ -193,10 +193,12 @@ export function ProfilePage() {
           right={headerRight}
         />
 
-        <div className="px-6 pt-4 pb-2">
+        <div className="md:grid md:grid-cols-2 md:gap-4 md:px-4">
+        <div>
+        <div className="px-6 pt-4 pb-2 md:px-0">
           <div className="eyebrow">Your numbers</div>
         </div>
-        <div className="px-4">
+        <div className="px-4 md:px-0">
           <Card>
             <SummaryRow label="Age" value={p.age != null ? `${p.age} yrs` : "—"} />
             <SummaryRow
@@ -214,11 +216,13 @@ export function ProfilePage() {
             />
           </Card>
         </div>
+        </div>
 
-        <div className="px-6 pt-5 pb-2">
+        <div>
+        <div className="px-6 pt-5 pb-2 md:px-0 md:pt-4">
           <div className="eyebrow">Training</div>
         </div>
-        <div className="px-4">
+        <div className="px-4 md:px-0">
           <Card>
             <SummaryRow label="Experience" value={EXPERIENCE_LABEL[p.experienceLevel]} />
             <SummaryRow
@@ -236,6 +240,8 @@ export function ProfilePage() {
               last
             />
           </Card>
+        </div>
+        </div>
         </div>
 
         <div className="px-6 pt-5 pb-2">

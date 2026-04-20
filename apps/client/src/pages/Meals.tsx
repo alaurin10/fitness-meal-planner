@@ -6,6 +6,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
+import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
   useAddSlot,
   useCreateEmptyPlan,
@@ -37,6 +38,7 @@ export function MealsPage() {
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
   const todayIdx = (new Date().getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState<MealDay["day"]>(
     DAYS[todayIdx] ?? "Mon",
@@ -145,8 +147,9 @@ export function MealsPage() {
     <Layout>
       <PhoneHeader title="Meals" subtitle={plan.planJson.summary} />
 
-      <div style={{ padding: "4px 16px 8px", overflowX: "auto" }}>
-        <div style={{ display: "flex", gap: 6 }}>
+      <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
+      <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
+        <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
             const count = day?.meals.length ?? 0;
@@ -158,8 +161,8 @@ export function MealsPage() {
                 onClick={() => setActiveDay(d)}
                 className="tappable"
                 style={{
-                  flex: 1,
-                  minWidth: 56,
+                  flex: isDesktop ? "none" : 1,
+                  minWidth: isDesktop ? undefined : 56,
                   border: "none",
                   background: isActive ? "var(--ink)" : "var(--paper)",
                   color: isActive ? "var(--paper)" : "var(--ink)",
@@ -207,6 +210,7 @@ export function MealsPage() {
         </div>
       </div>
 
+      <div>
       <div className="px-4 pt-2">
         <Card tone="clay">
           <div className="flex items-end justify-between gap-3">
@@ -410,6 +414,8 @@ export function MealsPage() {
               : "Something went wrong. Try again."}
           </p>
         )}
+      </div>
+      </div>
       </div>
 
       <RecipePickerModal

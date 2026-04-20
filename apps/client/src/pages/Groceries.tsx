@@ -258,7 +258,7 @@ function ListBody({
       </div>
 
       {/* Categories */}
-      <div className="pt-1">
+      <div className="pt-1 md:grid md:grid-cols-2 md:gap-x-4 md:px-4">
         {GROCERY_CATEGORIES.map((category) => {
           const entries = byCategory[category] ?? [];
           // Always show category if it has items OR if it's the one being added to.

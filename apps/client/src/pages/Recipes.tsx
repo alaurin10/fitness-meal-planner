@@ -94,10 +94,10 @@ export function RecipesPage() {
         })}
       </div>
 
-      <div className="px-4 pt-3 space-y-2.5">
+      <div className="px-4 pt-3 space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
         {isLoading && <Card>Loading…</Card>}
         {!isLoading && (recipes?.length ?? 0) === 0 && (
-          <Card tone="clay">
+          <Card tone="clay" className="md:col-span-2">
             <div className="eyebrow">Empty shelf</div>
             <div
               className="font-display"
