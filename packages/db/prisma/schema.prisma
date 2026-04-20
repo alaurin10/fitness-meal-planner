@@ -13,10 +13,19 @@ model User {
   id              String           @id // Clerk user ID
   createdAt       DateTime         @default(now())
   profile         Profile?
+  settings        UserSettings?
   weeklyPlans     WeeklyPlan[]
   weeklyMealPlans WeeklyMealPlan[]
   progressLogs    ProgressLog[]
   groceryLists    GroceryList[]
+}
+
+model UserSettings {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitSystem String   @default("imperial") // "imperial" | "metric"
+  updatedAt  DateTime @updatedAt
 }
 
 model Profile {

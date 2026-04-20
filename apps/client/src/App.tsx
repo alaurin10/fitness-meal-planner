@@ -5,6 +5,7 @@ import { GroceriesPage } from "./pages/Groceries";
 import { MealsPage } from "./pages/Meals";
 import { ProfilePage } from "./pages/Profile";
 import { ProgressPage } from "./pages/Progress";
+import { SettingsPage } from "./pages/Settings";
 import { SignInPage } from "./pages/SignIn";
 import { SignUpPage } from "./pages/SignUp";
 import { WorkoutsPage } from "./pages/Workouts";
@@ -26,6 +27,7 @@ export default function App() {
                 <Route path="/groceries" element={<GroceriesPage />} />
                 <Route path="/progress" element={<ProgressPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Show>

@@ -21,6 +21,10 @@ export function Layout({ children }: Props) {
           queryFn: async () => (await api.get("/api/profile")).data,
         }),
         queryClient.prefetchQuery({
+          queryKey: ["settings"],
+          queryFn: async () => (await api.get("/api/settings")).data.settings,
+        }),
+        queryClient.prefetchQuery({
           queryKey: ["workouts", "current"],
           queryFn: async () => (await api.get("/api/workouts/current")).data.plan,
         }),

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon, type IconName } from "../components/Icon";
@@ -10,10 +11,9 @@ import {
   type Profile,
   type ProfileInput,
 } from "../hooks/useProfile";
+import { useSettings } from "../hooks/useSettings";
 import { computeSuggestedTargets } from "../lib/targets";
-
-const KG_PER_LB = 0.45359237;
-const CM_PER_IN = 2.54;
+import { cmToInches, inchesToCm, kgToPounds, poundsToKg, roundTo } from "../lib/units";
 
 const EMPTY: ProfileInput = {
   unitSystem: "imperial",
@@ -52,6 +52,7 @@ const QUICK_NOTES = [
 
 export function ProfilePage() {
   const query = useProfile();
+  const settingsQuery = useSettings();
   const save = useSaveProfile();
   const [form, setForm] = useState<ProfileInput>(EMPTY);
   const [useSuggestedCalories, setUseSuggestedCalories] = useState(true);
@@ -91,6 +92,11 @@ export function ProfilePage() {
     );
   }, [query.data]);
 
+  useEffect(() => {
+    if (!settingsQuery.data?.unitSystem) return;
+    setForm((current) => ({ ...current, unitSystem: settingsQuery.data?.unitSystem ?? "imperial" }));
+  }, [settingsQuery.data?.unitSystem]);
+
   const upd = <K extends keyof ProfileInput>(k: K, v: ProfileInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -105,15 +111,33 @@ export function ProfilePage() {
   const displayWeight = form.weightLbs == null
     ? ""
     : form.unitSystem === "metric"
-      ? roundTo(form.weightLbs * KG_PER_LB, 1)
+      ? roundTo(poundsToKg(form.weightLbs), 1)
       : roundTo(form.weightLbs, 1);
-  const displayHeightCm = form.heightIn == null ? "" : roundTo(form.heightIn * CM_PER_IN, 1);
+  const displayHeightCm = form.heightIn == null ? "" : roundTo(inchesToCm(form.heightIn), 1);
 
   return (
     <Layout>
       <PhoneHeader
         title="Profile"
         subtitle="Shapes your weekly plans and daily targets."
+        right={
+          <Link to="/settings" aria-label="Settings" className="tappable">
+            <span
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 999,
+                border: "1px solid var(--hair)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--sumi)",
+              }}
+            >
+              <Icon name="settings" size={18} />
+            </span>
+          </Link>
+        }
       />
 
       <form
@@ -183,7 +207,7 @@ export function ProfilePage() {
                       value == null
                         ? null
                         : form.unitSystem === "metric"
-                          ? roundTo(value / KG_PER_LB, 2)
+                          ? roundTo(kgToPounds(value), 2)
                           : value,
                     )
                   }
@@ -196,7 +220,7 @@ export function ProfilePage() {
                     unit="cm"
                     value={displayHeightCm}
                     onChange={(value) =>
-                      upd("heightIn", value == null ? null : roundTo(value / CM_PER_IN, 2))
+                      upd("heightIn", value == null ? null : roundTo(cmToInches(value), 2))
                     }
                     step={0.1}
                     min={120}
@@ -215,24 +239,6 @@ export function ProfilePage() {
                 )}
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                  paddingTop: 4,
-                  borderTop: "1px solid var(--hair)",
-                }}
-              >
-                <div>
-                  <div style={sectionLabelStyle}>Units</div>
-                </div>
-                <UnitToggle
-                  value={form.unitSystem}
-                  onChange={(value) => upd("unitSystem", value)}
-                />
-              </div>
             </div>
           </Card>
         </div>
@@ -716,59 +722,6 @@ function TargetCard({
   );
 }
 
-function UnitToggle({
-  value,
-  onChange,
-}: {
-  value: "imperial" | "metric";
-  onChange: (value: "imperial" | "metric") => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "inline-grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: 4,
-        padding: 4,
-        borderRadius: 999,
-        border: "1px solid var(--hair)",
-        background: "color-mix(in srgb, var(--clay) 45%, var(--paper))",
-        flexShrink: 0,
-      }}
-    >
-      {([
-        ["imperial", "Imp"],
-        ["metric", "Met"],
-      ] as const).map(([option, label]) => {
-        const active = value === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onChange(option)}
-            className="tappable"
-            aria-pressed={active}
-            style={{
-              minWidth: 48,
-              padding: "7px 10px",
-              border: "none",
-              borderRadius: 999,
-              background: active ? "var(--ink)" : "transparent",
-              color: active ? "var(--paper)" : "var(--sumi)",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function profileToForm(profile: Profile): ProfileInput {
   return {
     unitSystem: profile.unitSystem ?? "imperial",
@@ -803,11 +756,6 @@ function toInches(feet: number | null, inches: number | null) {
   const safeFeet = feet ?? 0;
   const safeInches = inches ?? 0;
   return safeFeet * 12 + safeInches;
-}
-
-function roundTo(value: number, places: number) {
-  const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
 }
 
 function getSaveErrorMessage(error: unknown) {

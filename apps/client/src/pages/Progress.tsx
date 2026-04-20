@@ -5,13 +5,18 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader, Sparkline } from "../components/Primitives";
 import { useLogProgress, useProgress } from "../hooks/useProgress";
+import { useSettings } from "../hooks/useSettings";
+import { formatWeight, kgToPounds, weightUnitLabel } from "../lib/units";
 
 export function ProgressPage() {
   const { data: logs, isLoading } = useProgress();
+  const settingsQuery = useSettings();
   const log = useLogProgress();
   const [weight, setWeight] = useState("");
   const [note, setNote] = useState("");
   const [toast, setToast] = useState(false);
+  const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
+  const unitLabel = weightUnitLabel(unitSystem);
 
   const { series, latest, delta } = useMemo(() => {
     const sorted = [...(logs ?? [])].sort(
@@ -19,12 +24,12 @@ export function ProgressPage() {
     );
     const ws = sorted
       .filter((l) => l.weightLbs != null)
-      .map((l) => l.weightLbs as number);
+      .map((l) => formatWeight(l.weightLbs as number, unitSystem));
     const last = ws.length ? ws[ws.length - 1] : null;
     const first = ws.length ? ws[0] : null;
     const d = last != null && first != null ? last - first : null;
     return { series: ws, latest: last, delta: d };
-  }, [logs]);
+  }, [logs, unitSystem]);
 
   return (
     <Layout>
@@ -33,7 +38,7 @@ export function ProgressPage() {
         subtitle={
           latest != null
             ? delta != null && delta !== 0
-              ? `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta).toFixed(1)} lb over ${series.length} entries`
+              ? `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta).toFixed(1)} ${unitLabel} over ${series.length} entries`
               : "Keep logging to see your trend."
             : "Log your first weight to start a trend line."
         }
@@ -59,7 +64,7 @@ export function ProgressPage() {
                 >
                   {latest != null ? latest.toFixed(1) : "—"}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>lb</span>
+                <span style={{ fontSize: 13, color: "var(--muted)" }}>{unitLabel}</span>
                 {delta != null && delta !== 0 && (
                   <Chip
                     variant={delta < 0 ? "moss" : "honey"}
@@ -103,7 +108,11 @@ export function ProgressPage() {
               e.preventDefault();
               log.mutate(
                 {
-                  weightLbs: weight ? Number(weight) : null,
+                  weightLbs: weight
+                    ? unitSystem === "metric"
+                      ? kgToPounds(Number(weight))
+                      : Number(weight)
+                    : null,
                   note: note || undefined,
                 },
                 {
@@ -138,7 +147,7 @@ export function ProgressPage() {
                     color: "var(--muted)",
                   }}
                 >
-                  lb
+                  {unitLabel}
                 </span>
               </div>
               <Button
@@ -231,7 +240,7 @@ export function ProgressPage() {
                       className="font-display"
                       style={{ fontSize: 17, color: "var(--sumi)" }}
                     >
-                      {l.weightLbs}
+                      {formatWeight(l.weightLbs, unitSystem)}
                       <span
                         style={{
                           fontSize: 11,
@@ -239,7 +248,7 @@ export function ProgressPage() {
                           marginLeft: 2,
                         }}
                       >
-                        lb
+                        {unitLabel}
                       </span>
                     </div>
                   )}

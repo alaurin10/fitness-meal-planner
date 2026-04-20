@@ -6,6 +6,7 @@ import workoutsRouter from "./routes/workouts.js";
 import mealsRouter from "./routes/meals.js";
 import groceriesRouter from "./routes/groceries.js";
 import progressRouter from "./routes/progress.js";
+import settingsRouter from "./routes/settings.js";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.get("/healthz", (_req, res) => {
 
 app.use(clerkAuth);
 app.use("/api/profile", profileRouter);
+app.use("/api/settings", settingsRouter);
 app.use("/api/workouts", workoutsRouter);
 app.use("/api/meals", mealsRouter);
 app.use("/api/groceries", groceriesRouter);

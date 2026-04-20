@@ -5,21 +5,26 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { useSettings } from "../hooks/useSettings";
 import {
   useCurrentWorkoutPlan,
   useGenerateWorkoutPlan,
   type TrainingDay,
 } from "../hooks/useWorkoutPlan";
+import { formatLoad, weightUnitLabel } from "../lib/units";
 
 const DAYS: TrainingDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function WorkoutsPage() {
   const { data: plan, isLoading } = useCurrentWorkoutPlan();
+  const settingsQuery = useSettings();
   const generate = useGenerateWorkoutPlan();
   const todayIdx = (new Date().getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState<TrainingDay["day"]>(
     DAYS[todayIdx] ?? "Mon",
   );
+  const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
+  const unitLabel = weightUnitLabel(unitSystem);
 
   if (isLoading) {
     return (
@@ -230,7 +235,7 @@ export function WorkoutsPage() {
                       {ex.name}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                      {ex.loadLbs !== null ? `${ex.loadLbs} lb` : "Bodywt"}
+                      {ex.loadLbs !== null ? `${formatLoad(ex.loadLbs, unitSystem)} ${unitLabel}` : "Bodywt"}
                     </div>
                   </div>
                   <div
