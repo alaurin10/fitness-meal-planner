@@ -4,7 +4,11 @@
 
 ### Added
 
-- Editable grocery list: tap any item to rename, change quantity, change category, or delete; "+ Add to {category}" inline form per section, plus a collapsible "Add to another category…" affordance for empty categories
+- Learning grocery categorizer: when you manually set an item's category (via tap-to-edit or the per-category add form), the system remembers the name → category mapping and uses it for future auto-categorization
+- `GroceryCategoryOverride` Prisma model + migration — stores per-user learned name → category pairs; checked before the regex rules on every auto-classify
+- `classifyCategoryForUser(userId, name)` and `learnCategory(userId, name, category)` in the categorizer service
+- Auto-categorized quick add on the Groceries page: a single "Quick add" bar takes a name (+ optional qty) and the server classifies the item into a category from its name; tap any row to override the guess
+- Editable grocery list: tap any item to rename, change quantity, change category, or delete; "+ Add to {category}" inline form per section, plus a collapsible "Add to a specific category…" disclosure for empty categories
 - Manual grocery items persist across plan regenerations and slot mutations and render with a "Manual" badge
 - "Rebuild from plan" button on the Groceries page that re-derives auto items while preserving manual items and previously-checked rows
 - Empty grocery list is now usable: items can be added even when no meal plan exists yet (a list is created on first add)

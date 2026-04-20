@@ -19,6 +19,7 @@ model User {
   progressLogs    ProgressLog[]
   groceryLists    GroceryList[]
   recipes         Recipe[]
+  groceryCategoryOverrides GroceryCategoryOverride[]
 }
 
 model UserSettings {
@@ -130,4 +131,18 @@ model Recipe {
 
   @@index([userId, isFavorite])
   @@index([userId, createdAt])
+}
+
+// Learned name → category mappings. When a user manually categorizes an item
+// the system remembers it for future auto-categorization.
+model GroceryCategoryOverride {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   // normalized lowercase item name
+  category  String   // one of the GroceryCategory values
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }

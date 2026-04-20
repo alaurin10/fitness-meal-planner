@@ -9,6 +9,10 @@ import {
 } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { buildGroceryItems } from "../services/groceryAggregator.js";
+import {
+  classifyCategoryForUser,
+  learnCategory,
+} from "../services/groceryCategorizer.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
 
@@ -29,7 +33,8 @@ const patchSchema = z
 const createSchema = z.object({
   name: z.string().min(1).max(120),
   qty: z.string().max(80).optional().default(""),
-  category: z.enum(GROCERY_CATEGORIES),
+  // Optional: when omitted, the server classifies from the item name.
+  category: z.enum(GROCERY_CATEGORIES).optional(),
   note: z.string().max(200).optional(),
 });
 
@@ -84,16 +89,23 @@ router.post("/items", requireAuth, async (req, res) => {
       },
     });
   }
+  const trimmedName = parsed.data.name.trim();
+  const resolvedCategory =
+    parsed.data.category ?? (await classifyCategoryForUser(userId, trimmedName));
   const newItem: GroceryItem = {
     id: randomUUID(),
-    name: parsed.data.name.trim(),
+    name: trimmedName,
     qty: (parsed.data.qty ?? "").trim(),
-    category: parsed.data.category,
+    category: resolvedCategory,
     checked: false,
     pushed: false,
     source: "manual",
     note: parsed.data.note?.trim() || undefined,
   };
+  // If the user explicitly chose a category, learn it for next time.
+  if (parsed.data.category) {
+    await learnCategory(userId, trimmedName, parsed.data.category);
+  }
   const items = sortItems([...readItems(list.items), newItem]);
   const updated = await prisma.groceryList.update({
     where: { id: list.id },
@@ -135,6 +147,14 @@ router.patch("/items/:itemId", requireAuth, async (req, res) => {
   if (!touched) {
     res.status(404).json({ error: "Item not found" });
     return;
+  }
+  // When the user explicitly changes the category, remember it so the same
+  // item name gets auto-sorted correctly next time.
+  if (parsed.data.category) {
+    const editedItem = next.find((i) => i.id === id);
+    if (editedItem) {
+      await learnCategory(userId, editedItem.name, parsed.data.category);
+    }
   }
   const updated = await prisma.groceryList.update({
     where: { id: list.id },

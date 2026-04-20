@@ -86,7 +86,8 @@ export function useAddGroceryItem() {
     mutationFn: async (input: {
       name: string;
       qty?: string;
-      category: GroceryCategory;
+      // Omit `category` to let the server auto-classify from the item name.
+      category?: GroceryCategory;
       note?: string;
     }) => {
       const { data } = await api.post<{ list: GroceryList; item: GroceryItem }>(

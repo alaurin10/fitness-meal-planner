@@ -1,6 +1,7 @@
 import {
   GROCERY_CATEGORIES,
   type GroceryCategory,
+  prisma,
 } from "@platform/db";
 
 const RULES: Array<[GroceryCategory, RegExp]> = [
@@ -26,11 +27,51 @@ const RULES: Array<[GroceryCategory, RegExp]> = [
   ],
 ];
 
+/**
+ * Classify an item into a grocery category using the static regex rules.
+ * For user-aware classification that checks learned overrides first, use
+ * {@link classifyCategoryForUser}.
+ */
 export function classifyCategory(name: string): GroceryCategory {
   for (const [category, pattern] of RULES) {
     if (pattern.test(name)) return category;
   }
   return "Other";
+}
+
+/**
+ * User-aware categorizer: checks the user's learned overrides first, then
+ * falls back to the static regex rules.
+ */
+export async function classifyCategoryForUser(
+  userId: string,
+  name: string,
+): Promise<GroceryCategory> {
+  const key = name.trim().toLowerCase();
+  const override = await prisma.groceryCategoryOverride.findUnique({
+    where: { userId_name: { userId, name: key } },
+  });
+  if (override) {
+    const cat = normalizeCategory(override.category);
+    if (cat) return cat;
+  }
+  return classifyCategory(name);
+}
+
+/**
+ * Store (or update) a user's learned name → category mapping.
+ */
+export async function learnCategory(
+  userId: string,
+  name: string,
+  category: GroceryCategory,
+): Promise<void> {
+  const key = name.trim().toLowerCase();
+  await prisma.groceryCategoryOverride.upsert({
+    where: { userId_name: { userId, name: key } },
+    update: { category },
+    create: { userId, name: key, category },
+  });
 }
 
 export function normalizeCategory(raw: unknown): GroceryCategory | null {

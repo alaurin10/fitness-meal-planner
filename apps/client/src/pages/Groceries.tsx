@@ -75,7 +75,7 @@ interface ListBodyProps {
   onAdd: (input: {
     name: string;
     qty?: string;
-    category: GroceryCategory;
+    category?: GroceryCategory;
   }) => void;
   onClear: () => void;
   onPush: () => void;
@@ -104,6 +104,16 @@ function ListBody({
   const hasChecked = checked > 0;
   const pct = total > 0 ? checked / total : 0;
   const [openAdd, setOpenAdd] = useState<GroceryCategory | null>(null);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddQty, setQuickAddQty] = useState("");
+
+  function handleQuickAdd() {
+    const name = quickAddName.trim();
+    if (!name) return;
+    onAdd({ name, qty: quickAddQty.trim() || undefined });
+    setQuickAddName("");
+    setQuickAddQty("");
+  }
 
   return (
     <>
@@ -195,6 +205,58 @@ function ListBody({
         </Button>
       </div>
 
+      {/* Quick add — auto-categorized from item name */}
+      <div className="px-4 pt-3">
+        <Card flush>
+          <div
+            style={{
+              padding: "10px 12px",
+              display: "grid",
+              gridTemplateColumns: "1fr 80px auto",
+              gap: 6,
+              alignItems: "center",
+            }}
+          >
+            <input
+              className="field-input"
+              placeholder="Quick add — e.g. avocado"
+              value={quickAddName}
+              onChange={(e) => setQuickAddName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleQuickAdd();
+              }}
+            />
+            <input
+              className="field-input"
+              placeholder="Qty"
+              value={quickAddQty}
+              onChange={(e) => setQuickAddQty(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleQuickAdd();
+              }}
+            />
+            <Button
+              onClick={handleQuickAdd}
+              disabled={!quickAddName.trim()}
+              style={{ padding: "8px 12px" }}
+              title="Auto-sorted into a category from the item name"
+            >
+              <Icon name="plus" size={13} />
+            </Button>
+          </div>
+          <div
+            style={{
+              padding: "0 14px 8px",
+              fontSize: 10.5,
+              color: "var(--muted)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Sorted into a category automatically. Tap a row to change it.
+          </div>
+        </Card>
+      </div>
+
       {/* Categories */}
       <div className="pt-1">
         {GROCERY_CATEGORIES.map((category) => {
@@ -221,8 +283,7 @@ function ListBody({
         })}
       </div>
 
-      {/* "Add to other category" affordance — surfaces categories that are
-          currently empty so the user can put new items anywhere. */}
+      {/* Disclosure to explicitly target an empty category. */}
       <div className="px-4 pt-3 pb-2">
         <details>
           <summary
@@ -234,7 +295,7 @@ function ListBody({
               padding: "8px 4px",
             }}
           >
-            + Add to another category…
+            + Add to a specific category…
           </summary>
           <div
             style={{
