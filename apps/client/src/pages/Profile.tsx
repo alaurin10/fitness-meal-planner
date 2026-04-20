@@ -147,26 +147,6 @@ export function ProfilePage() {
         <div className="px-4">
           <Card>
             <div style={{ display: "grid", gap: 16 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <div style={sectionLabelStyle}>Your numbers</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                    Switch units any time.
-                  </div>
-                </div>
-                <UnitToggle
-                  value={form.unitSystem}
-                  onChange={(value) => upd("unitSystem", value)}
-                />
-              </div>
-
               <div style={twoColGrid}>
                 <NumberField
                   label="Age"
@@ -233,6 +213,25 @@ export function ProfilePage() {
                     }
                   />
                 )}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  paddingTop: 4,
+                  borderTop: "1px solid var(--hair)",
+                }}
+              >
+                <div>
+                  <div style={sectionLabelStyle}>Units</div>
+                </div>
+                <UnitToggle
+                  value={form.unitSystem}
+                  onChange={(value) => upd("unitSystem", value)}
+                />
               </div>
             </div>
           </Card>
