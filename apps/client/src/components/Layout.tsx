@@ -1,4 +1,4 @@
-import { UserButton } from "@clerk/react";
+import { useAuth, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { useApi } from "../lib/api";
@@ -13,8 +13,11 @@ interface Props {
 export function Layout({ children }: Props) {
   const api = useApi();
   const queryClient = useQueryClient();
+  const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
     const warmNavigation = async () => {
       await Promise.all([
         queryClient.prefetchQuery({
@@ -47,7 +50,7 @@ export function Layout({ children }: Props) {
     void warmNavigation().catch(() => {
       // Ignore prefetch misses and let the page-level queries handle errors.
     });
-  }, [api, queryClient]);
+  }, [api, queryClient, isLoaded, isSignedIn]);
 
   return (
     <>
