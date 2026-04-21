@@ -1,5 +1,5 @@
 import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
-import { GEMINI_MODEL, getGeminiClient, stripJsonFences } from "./gemini.js";
+import { generateWithRetry, getGeminiClient, stripJsonFences } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
 
@@ -8,20 +8,19 @@ export async function generateWeeklyPlan(args: {
   recentProgress: ProgressLog[];
   previousPlan: WeeklyPlan | null;
 }): Promise<WeeklyPlanJson> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    config: {
-      maxOutputTokens: 2500,
-      responseMimeType: "application/json",
-      systemInstruction: buildSystemPrompt(),
-    },
-    contents: buildUserPrompt(args),
+  const text = await generateWithRetry(async (model) => {
+    const response = await getGeminiClient().models.generateContent({
+      model,
+      config: {
+        maxOutputTokens: 2500,
+        responseMimeType: "application/json",
+        systemInstruction: buildSystemPrompt(),
+      },
+      contents: buildUserPrompt(args),
+    });
+    if (!response.text) throw new Error("Gemini returned no text content");
+    return response.text;
   });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned no text content");
-  }
 
   const raw = stripJsonFences(text);
   let parsed: unknown;

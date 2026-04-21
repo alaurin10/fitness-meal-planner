@@ -1,5 +1,5 @@
 import type { Profile } from "@platform/db";
-import { GEMINI_MODEL, getGeminiClient, stripJsonFences } from "./gemini.js";
+import { generateWithRetry, getGeminiClient, stripJsonFences } from "./gemini.js";
 import {
   buildSingleMealSystemPrompt,
   buildSingleMealUserPrompt,
@@ -18,20 +18,19 @@ export async function generateMealPlan(args: {
   profile: Profile;
   schedule: TrainingSchedule;
 }): Promise<MealPlanJson> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    config: {
-      maxOutputTokens: 4000,
-      responseMimeType: "application/json",
-      systemInstruction: buildSystemPrompt(),
-    },
-    contents: buildUserPrompt(args),
+  const text = await generateWithRetry(async (model) => {
+    const response = await getGeminiClient().models.generateContent({
+      model,
+      config: {
+        maxOutputTokens: 4000,
+        responseMimeType: "application/json",
+        systemInstruction: buildSystemPrompt(),
+      },
+      contents: buildUserPrompt(args),
+    });
+    if (!response.text) throw new Error("Gemini returned no text content");
+    return response.text;
   });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned no text content");
-  }
 
   const raw = stripJsonFences(text);
   let parsed: unknown;
@@ -59,20 +58,19 @@ export async function generateSingleMeal(args: {
   targetProteinG?: number;
   avoidNames?: string[];
 }): Promise<MealJson> {
-  const response = await getGeminiClient().models.generateContent({
-    model: GEMINI_MODEL,
-    config: {
-      maxOutputTokens: 1200,
-      responseMimeType: "application/json",
-      systemInstruction: buildSingleMealSystemPrompt(),
-    },
-    contents: buildSingleMealUserPrompt(args),
+  const text = await generateWithRetry(async (model) => {
+    const response = await getGeminiClient().models.generateContent({
+      model,
+      config: {
+        maxOutputTokens: 1200,
+        responseMimeType: "application/json",
+        systemInstruction: buildSingleMealSystemPrompt(),
+      },
+      contents: buildSingleMealUserPrompt(args),
+    });
+    if (!response.text) throw new Error("Gemini returned no text content");
+    return response.text;
   });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned no text content");
-  }
 
   const raw = stripJsonFences(text);
   let parsed: unknown;

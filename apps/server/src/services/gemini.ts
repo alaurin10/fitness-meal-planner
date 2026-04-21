@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
 
 let client: GoogleGenAI | null = null;
 
@@ -11,6 +12,30 @@ export function getGeminiClient(): GoogleGenAI {
     client = new GoogleGenAI({ apiKey });
   }
   return client;
+}
+
+function is503(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : JSON.stringify(error);
+  return msg.includes("503") || msg.toLowerCase().includes("unavailable");
+}
+
+export async function generateWithRetry(
+  fn: (model: string) => Promise<string>,
+): Promise<string> {
+  const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await fn(model);
+      } catch (err) {
+        const isLast = model === models[models.length - 1] && attempt === 2;
+        if (isLast) throw err;
+        if (!is503(err)) throw err;
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      }
+    }
+  }
+  throw new Error("Gemini request failed after all retries");
 }
 
 export function stripJsonFences(text: string): string {
