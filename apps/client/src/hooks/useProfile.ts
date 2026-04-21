@@ -59,16 +59,19 @@ export function useSaveProfile() {
   return useMutation({
     mutationFn: async (input: ProfileInput) => {
       const { data } = await api.put<{
-        profile: Profile;
+        profile: Profile | null | undefined;
         suggested: SuggestedTargets | null;
       }>("/api/profile", input);
-      // Ensure unitSystem is present (fallback to imperial if missing)
+      // Ensure profile exists and has unitSystem
+      if (!data || !data.profile) {
+        throw new Error("Server did not return a profile");
+      }
       return {
         ...data,
         profile: {
           ...data.profile,
           unitSystem: data.profile.unitSystem ?? "imperial",
-        },
+        } as Profile,
       };
     },
     onSuccess: () => {
