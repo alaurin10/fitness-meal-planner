@@ -178,9 +178,10 @@ export function ProfilePage() {
   // Read-only summary view — shown once a profile is saved and the user isn't
   // actively editing. Weight logged from the Progress page still updates the
   // profile on the server, so this view stays in sync via the cache.
-  if (!isEditing && query.data?.profile) {
-    const p = query.data.profile;
-    const suggested = query.data.suggested;
+  const savedProfile = query.data?.profile ?? null;
+  if (!isEditing && savedProfile != null) {
+    const p = savedProfile;
+    const suggested = query.data?.suggested ?? null;
     const unitSystem: UnitSystem = p.unitSystem ?? form.unitSystem ?? "imperial";
     const caloriesAreSuggested = shouldUseSuggested(p.caloricTarget, suggested?.caloricTarget);
     const proteinIsSuggested = shouldUseSuggested(p.proteinTargetG, suggested?.proteinTargetG);
@@ -344,13 +345,15 @@ export function ProfilePage() {
 
           save.mutate(payload, {
             onSuccess: (data) => {
-              setForm(profileToForm(data.profile));
-              setUseSuggestedCalories(
-                shouldUseSuggested(data.profile.caloricTarget, data.suggested?.caloricTarget),
-              );
-              setUseSuggestedProtein(
-                shouldUseSuggested(data.profile.proteinTargetG, data.suggested?.proteinTargetG),
-              );
+              if (data.profile != null) {
+                setForm(profileToForm(data.profile));
+                setUseSuggestedCalories(
+                  shouldUseSuggested(data.profile.caloricTarget, data.suggested?.caloricTarget),
+                );
+                setUseSuggestedProtein(
+                  shouldUseSuggested(data.profile.proteinTargetG, data.suggested?.proteinTargetG),
+                );
+              }
               setIsEditing(false);
               setToast(true);
               setTimeout(() => setToast(false), 1800);
