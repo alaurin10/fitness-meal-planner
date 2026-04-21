@@ -12,10 +12,10 @@ export const weekdaySchema = z.enum([
 
 export const exerciseSchema = z.object({
   name: z.string().min(1),
-  sets: z.number().int().positive(),
-  reps: z.string().min(1),
-  loadLbs: z.number().nullable(),
-  restSeconds: z.number().int().nonnegative(),
+  sets: z.number().int().positive().catch(3),
+  reps: z.string().min(1).catch("—"),
+  loadLbs: z.number().nullable().catch(null),
+  restSeconds: z.number().int().nonnegative().catch(60),
   notes: z.string().optional(),
 });
 
