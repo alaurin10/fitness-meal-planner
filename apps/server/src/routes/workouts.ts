@@ -72,7 +72,7 @@ router.post("/generate", requireAuth, async (req, res) => {
   } catch (err) {
     const message = getGeminiErrorMessage(err);
     console.error("[workouts] generate failed:", message);
-    res.status(502).json({ error: "Failed to generate plan", detail: message });
+    res.status(503).json({ error: "Failed to generate plan", detail: message });
   }
 });
 
