@@ -62,7 +62,14 @@ export function useSaveProfile() {
         profile: Profile;
         suggested: SuggestedTargets | null;
       }>("/api/profile", input);
-      return data;
+      // Ensure unitSystem is present (fallback to imperial if missing)
+      return {
+        ...data,
+        profile: {
+          ...data.profile,
+          unitSystem: data.profile.unitSystem ?? "imperial",
+        },
+      };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
