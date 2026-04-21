@@ -81,6 +81,9 @@ importers:
       express:
         specifier: ^4.21.1
         version: 4.22.1
+      jsonrepair:
+        specifier: ^3.14.0
+        version: 3.14.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -1452,6 +1455,10 @@ packages:
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
+    hasBin: true
+
+  jsonrepair@3.14.0:
+    resolution: {integrity: sha512-tWPGKMZf/8UPim+fcW2EfcQ/d/7aKUrP6IECz9G3Tu6Q5dX0orSleqJ9z6sSw7qrQkjF8/Edo4DvsWBZ8H+HNg==}
     hasBin: true
 
   jwa@2.0.1:
@@ -3331,6 +3338,8 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json5@2.2.3: {}
+
+  jsonrepair@3.14.0: {}
 
   jwa@2.0.1:
     dependencies:

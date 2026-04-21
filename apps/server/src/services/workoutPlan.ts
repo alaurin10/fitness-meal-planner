@@ -1,5 +1,5 @@
 import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
-import { generateWithRetry, getGeminiClient, stripJsonFences } from "./gemini.js";
+import { generateWithRetry, getGeminiClient, parseGeminiJson } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
 
@@ -22,13 +22,12 @@ export async function generateWeeklyPlan(args: {
     return response.text;
   });
 
-  const raw = stripJsonFences(text);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = parseGeminiJson(text);
   } catch (err) {
     throw new Error(
-      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${raw.slice(0, 500)}`,
+      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${text.slice(0, 500)}`,
     );
   }
 

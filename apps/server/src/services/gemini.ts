@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { jsonrepair } from "jsonrepair";
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
@@ -58,6 +59,15 @@ export function stripJsonFences(text: string): string {
       .trim();
   }
   return trimmed;
+}
+
+export function parseGeminiJson(text: string): unknown {
+  const raw = stripJsonFences(text);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return JSON.parse(jsonrepair(raw));
+  }
 }
 
 export function getGeminiErrorMessage(error: unknown): string {
