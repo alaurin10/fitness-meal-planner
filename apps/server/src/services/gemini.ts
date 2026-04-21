@@ -14,9 +14,14 @@ export function getGeminiClient(): GoogleGenAI {
   return client;
 }
 
-function is503(error: unknown): boolean {
+function isRetryable(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : JSON.stringify(error);
   return msg.includes("503") || msg.toLowerCase().includes("unavailable");
+}
+
+function isQuotaExhausted(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : JSON.stringify(error);
+  return msg.includes("429") || msg.toLowerCase().includes("resource_exhausted") || msg.toLowerCase().includes("quota");
 }
 
 export async function generateWithRetry(
@@ -29,13 +34,19 @@ export async function generateWithRetry(
         return await fn(model);
       } catch (err) {
         const isLast = model === models[models.length - 1] && attempt === 2;
+        if (isQuotaExhausted(err)) {
+          // Quota exhausted — no point retrying immediately, move to next model
+          break;
+        }
         if (isLast) throw err;
-        if (!is503(err)) throw err;
+        if (!isRetryable(err)) throw err;
         await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
       }
     }
   }
-  throw new Error("Gemini request failed after all retries");
+  throw new Error(
+    "Plan generation is temporarily unavailable. Please try again in a few minutes.",
+  );
 }
 
 export function stripJsonFences(text: string): string {
