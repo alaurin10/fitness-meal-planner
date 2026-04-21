@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { jsonrepair } from "jsonrepair";
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
+const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
 
 let client: GoogleGenAI | null = null;
 
@@ -28,7 +28,7 @@ function isQuotaExhausted(error: unknown): boolean {
 export async function generateWithRetry(
   fn: (model: string) => Promise<string>,
 ): Promise<string> {
-  const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
+  const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
