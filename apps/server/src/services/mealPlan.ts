@@ -22,7 +22,7 @@ export async function generateMealPlan(args: {
     const response = await getGeminiClient().models.generateContent({
       model,
       config: {
-        maxOutputTokens: 4000,
+        maxOutputTokens: 32768,
         responseMimeType: "application/json",
         systemInstruction: buildSystemPrompt(),
       },

@@ -404,12 +404,13 @@ export function MealsPage() {
           <Icon name="plus" size={16} />
           {createEmpty.isPending ? "Starting…" : "Start blank week"}
         </Button>
-        {(regenSlot.isError || replaceSlot.isError || deleteSlot.isError) && (
+        {(generate.isError || regenSlot.isError || replaceSlot.isError || deleteSlot.isError) && (
           <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 6 }}>
-            {(regenSlot.error ||
+            {(generate.error ||
+              regenSlot.error ||
               replaceSlot.error ||
               deleteSlot.error) instanceof Error
-              ? (regenSlot.error || replaceSlot.error || deleteSlot.error)!
+              ? (generate.error || regenSlot.error || replaceSlot.error || deleteSlot.error)!
                   .message
               : "Something went wrong. Try again."}
           </p>
