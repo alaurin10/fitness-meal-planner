@@ -12,7 +12,7 @@ export async function generateWeeklyPlan(args: {
     const response = await getGeminiClient().models.generateContent({
       model,
       config: {
-        maxOutputTokens: 2500,
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
         systemInstruction: buildSystemPrompt(),
       },
