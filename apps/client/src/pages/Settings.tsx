@@ -10,13 +10,17 @@ export function SettingsPage() {
   const settingsQuery = useSettings();
   const save = useSaveSettings();
   const [unitSystem, setUnitSystem] = useState<"imperial" | "metric">("imperial");
+  const [hydrationGoal, setHydrationGoal] = useState(8);
   const [toast, setToast] = useState(false);
 
   useEffect(() => {
     if (settingsQuery.data?.unitSystem) {
       setUnitSystem(settingsQuery.data.unitSystem);
     }
-  }, [settingsQuery.data?.unitSystem]);
+    if (settingsQuery.data?.hydrationGoal != null) {
+      setHydrationGoal(settingsQuery.data.hydrationGoal);
+    }
+  }, [settingsQuery.data?.unitSystem, settingsQuery.data?.hydrationGoal]);
 
   return (
     <Layout>
@@ -46,7 +50,7 @@ export function SettingsPage() {
             className="w-full mt-5"
             onClick={() =>
               save.mutate(
-                { unitSystem },
+                { unitSystem, hydrationGoal },
                 {
                   onSuccess: () => {
                     setToast(true);
@@ -82,6 +86,80 @@ export function SettingsPage() {
               <Icon name="check" size={14} /> Settings saved.
             </div>
           )}
+        </Card>
+      </div>
+
+      <div className="px-4 pt-3">
+        <Card>
+          <div className="eyebrow">Hydration</div>
+          <div
+            className="font-display"
+            style={{ fontSize: 24, color: "var(--ink)", marginTop: 6 }}
+          >
+            Daily cup goal
+          </div>
+          <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
+            How many cups or drinks you want to aim for each day.
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <button
+              type="button"
+              className="tappable"
+              onClick={() => setHydrationGoal((g) => Math.max(1, g - 1))}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "1px solid var(--hair)",
+                background: "var(--paper)",
+                color: "var(--ink)",
+                fontSize: 20,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              aria-label="Decrease goal"
+            >
+              &minus;
+            </button>
+            <span
+              className="font-display"
+              style={{ fontSize: 28, color: "var(--ink)", minWidth: 36, textAlign: "center" }}
+            >
+              {hydrationGoal}
+            </span>
+            <button
+              type="button"
+              className="tappable"
+              onClick={() => setHydrationGoal((g) => Math.min(20, g + 1))}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "1px solid var(--hair)",
+                background: "var(--paper)",
+                color: "var(--ink)",
+                fontSize: 20,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              aria-label="Increase goal"
+            >
+              +
+            </button>
+            <span style={{ fontSize: 13, color: "var(--sumi)" }}>cups / day</span>
+          </div>
         </Card>
       </div>
     </Layout>

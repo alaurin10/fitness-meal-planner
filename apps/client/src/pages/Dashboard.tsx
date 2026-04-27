@@ -8,6 +8,8 @@ import { Chip, PhoneHeader } from "../components/Primitives";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
+import { useHydration, useLogHydration } from "../hooks/useHydration";
+import { useSettings } from "../hooks/useSettings";
 import {
   localDayKey,
   useMealCompletions,
@@ -88,6 +90,9 @@ export function DashboardPage() {
     workoutQuery.data?.id,
     localDayKey(),
   );
+  const hydrationQuery = useHydration();
+  const logHydration = useLogHydration();
+  const settingsQuery = useSettings();
 
   if (profileQuery.isLoading || workoutQuery.isLoading || mealQuery.isLoading) {
     return (
@@ -390,6 +395,94 @@ export function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* Hydration tracker */}
+      <HydrationCard
+        cups={hydrationQuery.data?.cups ?? 0}
+        goal={settingsQuery.data?.hydrationGoal ?? 8}
+        onAdd={() => logHydration.mutate()}
+        loading={hydrationQuery.isLoading}
+      />
     </Layout>
+  );
+}
+
+function HydrationCard({
+  cups,
+  goal,
+  onAdd,
+  loading,
+}: {
+  cups: number;
+  goal: number;
+  onAdd: () => void;
+  loading: boolean;
+}) {
+  const reached = cups >= goal;
+  return (
+    <div className="px-4 pt-3 fade-up">
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <div className="eyebrow">Hydration</div>
+          <Icon name="water" size={20} style={{ color: "var(--accent)" }} />
+        </div>
+
+        <div className="flex items-center gap-4">
+          <ProgressRing
+            value={goal > 0 ? Math.min(cups / goal, 1) : 0}
+            size={64}
+            strokeWidth={5}
+            fillColor={reached ? "var(--moss)" : "var(--accent)"}
+          >
+            <span
+              className="font-display"
+              style={{
+                fontSize: 18,
+                color: reached ? "var(--moss)" : "var(--ink)",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {cups}
+            </span>
+          </ProgressRing>
+
+          <div className="flex-1">
+            <div
+              className="font-display"
+              style={{ fontSize: 20, color: "var(--ink)", letterSpacing: "-0.01em" }}
+            >
+              {reached ? "Goal reached" : `${cups} / ${goal} cups`}
+            </div>
+            <p style={{ fontSize: 13, color: "var(--sumi)", marginTop: 4 }}>
+              {reached ? "Well hydrated — keep it up." : "Tap to log a drink."}
+            </p>
+          </div>
+
+          {!loading && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="tappable"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                border: "none",
+                background: reached ? "var(--clay)" : "var(--accent)",
+                color: reached ? "var(--sumi)" : "var(--paper)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                cursor: "pointer",
+              }}
+              aria-label="Add cup"
+            >
+              <Icon name="plus" size={20} stroke={2.5} />
+            </button>
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }

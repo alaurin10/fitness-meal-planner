@@ -20,14 +20,16 @@ model User {
   groceryLists    GroceryList[]
   recipes         Recipe[]
   groceryCategoryOverrides GroceryCategoryOverride[]
+  hydrationLogs   HydrationLog[]
 }
 
 model UserSettings {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unitSystem String   @default("imperial") // "imperial" | "metric"
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitSystem     String   @default("imperial") // "imperial" | "metric"
+  hydrationGoal  Int      @default(8)
+  updatedAt      DateTime @updatedAt
 }
 
 model Profile {
@@ -139,6 +141,18 @@ model Recipe {
 
   @@index([userId, isFavorite])
   @@index([userId, createdAt])
+}
+
+model HydrationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime // start-of-day UTC
+  cups      Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 // Learned name → category mappings. When a user manually categorizes an item
