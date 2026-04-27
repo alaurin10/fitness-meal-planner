@@ -107,7 +107,7 @@ function ListBody({
     GroceryCategory | "auto"
   >("auto");
   const [quickAddFocused, setQuickAddFocused] = useState(false);
-  const blurTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleFocus = useCallback(() => {
     if (blurTimeout.current) clearTimeout(blurTimeout.current);
