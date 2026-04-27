@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { jsonrepair } from "jsonrepair";
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash"];
 
 let client: GoogleGenAI | null = null;
 
@@ -20,6 +20,11 @@ function isRetryable(error: unknown): boolean {
   return msg.includes("503") || msg.toLowerCase().includes("unavailable");
 }
 
+function isModelUnavailable(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : JSON.stringify(error);
+  return msg.includes("404") || msg.toLowerCase().includes("not_found") || msg.toLowerCase().includes("not found");
+}
+
 function isQuotaExhausted(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : JSON.stringify(error);
   return msg.includes("429") || msg.toLowerCase().includes("resource_exhausted") || msg.toLowerCase().includes("quota");
@@ -35,8 +40,8 @@ export async function generateWithRetry(
         return await fn(model);
       } catch (err) {
         const isLast = model === models[models.length - 1] && attempt === 2;
-        if (isQuotaExhausted(err)) {
-          // Quota exhausted — no point retrying immediately, move to next model
+        if (isQuotaExhausted(err) || isModelUnavailable(err)) {
+          // Quota exhausted or model removed — move to next model
           break;
         }
         if (isLast) throw err;
