@@ -257,8 +257,9 @@ function ListBody({
         </Card>
       </div>
 
-      {/* Categories */}
-      <div className="pt-1 md:grid md:grid-cols-2 md:gap-x-4 md:px-4">
+      {/* Categories — single column on every breakpoint, since varying
+          category lengths leave awkward gaps in a grid. */}
+      <div className="pt-1 md:max-w-[640px] md:mx-auto">
         {GROCERY_CATEGORIES.map((category) => {
           const entries = byCategory[category] ?? [];
           // Always show category if it has items OR if it's the one being added to.
@@ -486,34 +487,33 @@ function ItemRow({
   onToggle: (c: boolean) => void;
   onEdit: () => void;
 }) {
+  // Whole row is the toggle target — much easier to tap. Edit moves to
+  // a small icon button on the right; clicks there stop propagation so
+  // they don't also flip the checkbox.
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onToggle(!item.checked)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle(!item.checked);
+        }
+      }}
+      className="tappable"
       style={{
-        padding: "13px 18px",
+        padding: "13px 14px 13px 18px",
         borderBottom: isLast ? "none" : "1px solid var(--hair)",
         display: "flex",
         alignItems: "center",
         gap: 12,
+        cursor: "pointer",
+        userSelect: "none",
       }}
     >
-      <CheckBox
-        checked={item.checked}
-        onChange={(c) => onToggle(c)}
-      />
-      <button
-        type="button"
-        onClick={onEdit}
-        className="tappable"
-        style={{
-          flex: 1,
-          minWidth: 0,
-          textAlign: "left",
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-        }}
-      >
+      <CheckBoxVisual checked={item.checked} />
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
             display: "flex",
@@ -567,7 +567,7 @@ function ItemRow({
             {item.note}
           </div>
         )}
-      </button>
+      </div>
       <span
         style={{
           fontSize: 11.5,
@@ -579,6 +579,31 @@ function ItemRow({
       >
         {item.qty}
       </span>
+      <button
+        type="button"
+        aria-label={`Edit ${item.name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit();
+        }}
+        className="tappable"
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "var(--muted)",
+          padding: 6,
+          marginLeft: 2,
+          marginRight: -2,
+          borderRadius: 8,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Icon name="ellipsis" size={16} />
+      </button>
     </div>
   );
 }
@@ -703,18 +728,11 @@ function ItemEditor({
   );
 }
 
-function CheckBox({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (c: boolean) => void;
-}) {
+function CheckBoxVisual({ checked }: { checked: boolean }) {
+  // Pure visual — the row's role="button" handles toggling.
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      aria-label={checked ? "Mark unchecked" : "Mark checked"}
+    <span
+      aria-hidden
       style={{
         width: 22,
         height: 22,
@@ -726,13 +744,11 @@ function CheckBox({
         justifyContent: "center",
         color: "var(--paper)",
         flexShrink: 0,
-        padding: 0,
-        cursor: "pointer",
         transition: "background 180ms, border-color 180ms",
       }}
     >
       {checked && <Icon name="check" size={13} stroke={2.5} />}
-    </button>
+    </span>
   );
 }
 
@@ -749,6 +765,11 @@ function groupByCategory(
   };
   for (const item of items) {
     out[item.category].push(item);
+  }
+  // Push checked items to the bottom of each category while preserving
+  // the relative order within each group (stable sort).
+  for (const cat of GROCERY_CATEGORIES) {
+    out[cat].sort((a, b) => Number(a.checked) - Number(b.checked));
   }
   return out;
 }
