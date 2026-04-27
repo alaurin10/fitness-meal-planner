@@ -36,6 +36,7 @@ export function buildSystemPrompt(): string {
     "          durationMinutes?: number;  // include only when the step actually has a wait/cook time",
     "        }>;",
     "        tags?: string[];             // e.g. ['high-protein','one-pan','vegetarian']",
+    "        isLeftover?: boolean;        // true when this meal is leftovers from a previous cook",
     "      }>",
     "    }>;",
     "  }",
@@ -44,10 +45,12 @@ export function buildSystemPrompt(): string {
     "  Prefer metric weights for proteins/produce ('g','kg') and standard cooking volumes ('tsp','tbsp','cup') for liquids and small amounts. Use 'piece' for whole-item items (eggs, lemons).",
     "  For 'to taste' items use { amount: 0, unit: 'to taste' }.",
     "- Keep ingredient names consistent across meals (lowercase, singular) so quantities can be aggregated for the grocery list.",
+    "- Ingredient names must describe the RAW/uncooked form of the item. Do NOT prefix with cooking states such as 'cooked', 'grilled', 'roasted', 'steamed', 'boiled', 'sautéed', 'baked', etc. For example, use 'chicken breast' not 'cooked chicken breast', 'rice' not 'cooked rice'. Preparation/cooking details belong in the recipe steps, not in the ingredient name.",
     "- Steps must be concrete and ordered: each step is one action a cook can follow without re-reading earlier steps. 4–10 steps per meal is typical.",
     "- Provide 3 meals per day (breakfast, lunch, dinner) unless the user's target clearly needs a snack to hit calories. If you add a snack, set slot:'snack'.",
     "- All macros (calories/proteinG/carbsG/fatG) are PER SERVING.",
     "- Respect dietary notes strictly.",
+    "- LEFTOVERS: When the meal plan reuses a meal from a previous day as leftovers, mark the leftover entry with `\"isLeftover\": true`. The leftover meal should still have a full ingredients list (same as the original) and steps, but will be excluded from the grocery list. On the ORIGINAL cooking day, set `servings` to the total number of servings needed (e.g. 2 if one serving is eaten that day and one is saved). The ingredient quantities must be PER SERVING (the grocery list will multiply by `servings` automatically). Include a `notes` field like 'Make 2 servings — save 1 for [Day] [slot].' so the user knows not to eat everything.",
   ].join("\n");
 }
 
@@ -135,6 +138,7 @@ export function buildSingleMealSystemPrompt(): string {
     "  }",
     "- Use ONLY these units: 'g','kg','oz','lb','ml','L','tsp','tbsp','cup','fl oz','piece','slice','clove','can','pinch','to taste',''.",
     "- Lowercase singular ingredient names so they aggregate cleanly with other meals.",
+    "- Ingredient names must describe the RAW/uncooked form (e.g. 'chicken breast' not 'cooked chicken breast').",
     "- 4–10 concrete imperative steps.",
     "- Respect dietary notes and the requested slot exactly.",
   ].join("\n");

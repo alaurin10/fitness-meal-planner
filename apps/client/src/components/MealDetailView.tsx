@@ -96,6 +96,22 @@ export function MealDetailView({
           >
             {meal.name}
           </div>
+          {meal.isLeftover && (
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                color: "var(--accent)",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Icon name="swap" size={12} />
+              Leftovers — no additional groceries needed
+            </div>
+          )}
           {(resolvedSlot || total) && (
             <div
               style={{

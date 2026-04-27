@@ -88,6 +88,7 @@ export interface Meal {
   steps: RecipeStep[];
   tags?: string[];
   notes?: string;
+  isLeftover?: boolean;
 }
 
 export interface MealDay {

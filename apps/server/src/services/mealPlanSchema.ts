@@ -55,6 +55,7 @@ export const mealSchema = z.object({
   steps: z.array(stepSchema).min(1),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  isLeftover: z.boolean().optional(),
 });
 
 export const daySchema = z.object({

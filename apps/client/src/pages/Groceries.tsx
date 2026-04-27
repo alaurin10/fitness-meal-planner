@@ -14,11 +14,13 @@ import {
   useToggleItem,
   useUpdateGroceryItem,
 } from "../hooks/useGroceries";
+import { useSettings } from "../hooks/useSettings";
 import {
   GROCERY_CATEGORIES,
   type GroceryCategory,
   type GroceryItem,
 } from "../lib/types";
+import { formatQuantity, type UnitSystem } from "../lib/units";
 
 export function GroceriesPage() {
   const { data: list, isLoading } = useGroceries();
@@ -29,6 +31,8 @@ export function GroceriesPage() {
   const clear = useClearChecked();
   const push = usePushToReminders();
   const rebuild = useRebuildGroceries();
+  const { data: settings } = useSettings();
+  const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
 
   if (isLoading) {
     return (
@@ -48,6 +52,7 @@ export function GroceriesPage() {
         items={items}
         pushedAt={list?.pushedToRemindersAt ?? null}
         hasList={!!list}
+        unitSystem={unitSystem}
         onToggle={(id, checked) => toggle.mutate({ itemId: id, checked })}
         onUpdate={(itemId, patch) => update.mutate({ itemId, patch })}
         onDelete={(itemId) => remove.mutate(itemId)}
@@ -66,6 +71,7 @@ interface ListBodyProps {
   items: GroceryItem[];
   pushedAt: string | null;
   hasList: boolean;
+  unitSystem: UnitSystem;
   onToggle: (id: string, checked: boolean) => void;
   onUpdate: (
     itemId: string,
@@ -88,6 +94,7 @@ function ListBody({
   items,
   pushedAt,
   hasList,
+  unitSystem,
   onToggle,
   onUpdate,
   onDelete,
@@ -294,6 +301,7 @@ function ListBody({
               key={category}
               category={category}
               items={entries}
+              unitSystem={unitSystem}
               onToggle={onToggle}
               onUpdate={onUpdate}
               onDelete={onDelete}
@@ -361,6 +369,7 @@ function ListBody({
 interface CategorySectionProps {
   category: GroceryCategory;
   items: GroceryItem[];
+  unitSystem: UnitSystem;
   onToggle: (id: string, checked: boolean) => void;
   onUpdate: (
     itemId: string,
@@ -380,6 +389,7 @@ interface CategorySectionProps {
 function CategorySection({
   category,
   items,
+  unitSystem,
   onToggle,
   onUpdate,
   onDelete,
@@ -450,6 +460,7 @@ function CategorySection({
                   key={item.id}
                   item={item}
                   isLast={isLast}
+                  unitSystem={unitSystem}
                   onToggle={(c) => onToggle(item.id, c)}
                   onEdit={() => setEditingId(item.id)}
                 />
@@ -504,14 +515,22 @@ function CategorySection({
 function ItemRow({
   item,
   isLast,
+  unitSystem,
   onToggle,
   onEdit,
 }: {
   item: GroceryItem;
   isLast: boolean;
+  unitSystem: UnitSystem;
   onToggle: (c: boolean) => void;
   onEdit: () => void;
 }) {
+  // If the item has structured amount/unit, use formatQuantity for unit conversion.
+  // Otherwise fall back to the pre-formatted qty string.
+  const displayQty =
+    item.amount != null && item.unit != null
+      ? formatQuantity({ amount: item.amount, unit: item.unit }, unitSystem)
+      : item.qty;
   // Whole row is the toggle target — much easier to tap. Edit moves to
   // a small icon button on the right; clicks there stop propagation so
   // they don't also flip the checkbox.
@@ -602,7 +621,7 @@ function ItemRow({
           flexShrink: 0,
         }}
       >
-        {item.qty}
+        {displayQty}
       </span>
       <button
         type="button"

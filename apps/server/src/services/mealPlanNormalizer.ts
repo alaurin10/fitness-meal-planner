@@ -89,5 +89,6 @@ function normalizeMeal(m: LegacyMeal, idx: number): MealJson {
     steps,
     tags: m.tags,
     notes: m.notes,
+    isLeftover: (m as Record<string, unknown>).isLeftover === true ? true : undefined,
   };
 }

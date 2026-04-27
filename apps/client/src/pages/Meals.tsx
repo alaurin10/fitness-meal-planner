@@ -277,6 +277,11 @@ export function MealsPage() {
                 <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
                   <div className="eyebrow">
                     {mealSlotLabel(m, i)} · {m.calories} kcal
+                    {m.isLeftover && (
+                      <span style={{ color: "var(--accent)", marginLeft: 6 }}>
+                        · Leftovers
+                      </span>
+                    )}
                   </div>
                   <div
                     className="font-display"
@@ -291,6 +296,11 @@ export function MealsPage() {
                   </div>
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     <Chip variant="moss">{m.proteinG}g protein</Chip>
+                    {m.isLeftover && (
+                      <Chip variant="ghost">
+                        <Icon name="swap" size={11} /> Leftovers
+                      </Chip>
+                    )}
                     {total ? (
                       <Chip variant="ghost">
                         <Icon name="timer" size={11} /> {formatMinutes(total)}
