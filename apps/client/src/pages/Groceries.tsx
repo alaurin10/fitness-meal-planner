@@ -366,7 +366,7 @@ function CategorySection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const remaining = items.filter((i) => !i.checked).length;
   return (
-    <>
+    <div>
       <div className="px-6 pt-4 pb-2">
         <button
           type="button"
@@ -471,7 +471,7 @@ function CategorySection({
           </Card>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

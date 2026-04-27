@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
@@ -66,28 +67,31 @@ export function WorkoutsPage() {
           right={headerRight}
         />
         <div className="px-4 pt-2">
-          <Card tone="gradient">
-            <div className="eyebrow">This week</div>
-            <div
-              className="font-display mt-1"
-              style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-            >
-              No active plan
-            </div>
-            <Button
-              className="w-full mt-5"
-              onClick={() => generate.mutate()}
-              disabled={generate.isPending}
-            >
-              <Icon name="sparkle" size={16} />
-              {generate.isPending ? "Generating…" : "Generate plan"}
-            </Button>
-            {generate.isError && (
-              <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
-                {(generate.error as Error).message}
-              </p>
-            )}
-          </Card>
+          {generate.isPending ? (
+            <GeneratingProgress kind="workout" estimatedSeconds={45} />
+          ) : (
+            <Card tone="gradient">
+              <div className="eyebrow">This week</div>
+              <div
+                className="font-display mt-1"
+                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
+              >
+                No active plan
+              </div>
+              <Button
+                className="w-full mt-5"
+                onClick={() => generate.mutate()}
+              >
+                <Icon name="sparkle" size={16} />
+                Generate plan
+              </Button>
+              {generate.isError && (
+                <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
+                  {(generate.error as Error).message}
+                </p>
+              )}
+            </Card>
+          )}
         </div>
       </Layout>
     );
@@ -279,7 +283,10 @@ export function WorkoutsPage() {
         </div>
       )}
 
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 space-y-3">
+        {generate.isPending && (
+          <GeneratingProgress kind="workout" estimatedSeconds={45} />
+        )}
         <Button
           variant="ghost"
           className="w-full"
@@ -289,6 +296,11 @@ export function WorkoutsPage() {
           <Icon name="sparkle" size={16} />
           {generate.isPending ? "Regenerating…" : "Regenerate plan"}
         </Button>
+        {generate.isError && (
+          <p style={{ color: "var(--rose)", fontSize: 12.5 }}>
+            {(generate.error as Error).message}
+          </p>
+        )}
       </div>
       </div>
       </div>

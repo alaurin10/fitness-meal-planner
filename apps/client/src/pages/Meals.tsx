@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
@@ -64,37 +65,40 @@ export function MealsPage() {
           subtitle="Generate a plan, or build one yourself meal by meal."
         />
         <div className="px-4 pt-2 space-y-3">
-          <Card tone="gradient">
-            <div className="eyebrow">This week</div>
-            <div
-              className="font-display mt-1"
-              style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-            >
-              No active plan
-            </div>
-            <Button
-              className="w-full mt-5"
-              onClick={() => generate.mutate()}
-              disabled={generate.isPending}
-            >
-              <Icon name="sparkle" size={16} />
-              {generate.isPending ? "Generating…" : "Generate plan"}
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full mt-2"
-              onClick={() => createEmpty.mutate()}
-              disabled={createEmpty.isPending}
-            >
-              <Icon name="plus" size={16} />
-              {createEmpty.isPending ? "Starting…" : "Start blank week"}
-            </Button>
-            {generate.isError && (
-              <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
-                {(generate.error as Error).message}
-              </p>
-            )}
-          </Card>
+          {generate.isPending ? (
+            <GeneratingProgress kind="meal" estimatedSeconds={60} />
+          ) : (
+            <Card tone="gradient">
+              <div className="eyebrow">This week</div>
+              <div
+                className="font-display mt-1"
+                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
+              >
+                No active plan
+              </div>
+              <Button
+                className="w-full mt-5"
+                onClick={() => generate.mutate()}
+              >
+                <Icon name="sparkle" size={16} />
+                Generate plan
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full mt-2"
+                onClick={() => createEmpty.mutate()}
+                disabled={createEmpty.isPending}
+              >
+                <Icon name="plus" size={16} />
+                {createEmpty.isPending ? "Starting…" : "Start blank week"}
+              </Button>
+              {generate.isError && (
+                <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
+                  {(generate.error as Error).message}
+                </p>
+              )}
+            </Card>
+          )}
         </div>
       </Layout>
     );
@@ -378,6 +382,9 @@ export function MealsPage() {
       </div>
 
       <div className="px-4 pt-4 space-y-2">
+        {generate.isPending && (
+          <GeneratingProgress kind="meal" estimatedSeconds={60} />
+        )}
         <Button
           variant="ghost"
           className="w-full"
