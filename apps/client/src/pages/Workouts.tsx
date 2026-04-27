@@ -6,6 +6,7 @@ import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { WorkoutMode } from "../components/WorkoutMode";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -25,6 +26,7 @@ export function WorkoutsPage() {
   const [activeDay, setActiveDay] = useState<TrainingDay["day"]>(
     DAYS[todayIdx] ?? "Mon",
   );
+  const [workoutInProgress, setWorkoutInProgress] = useState(false);
   const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
@@ -99,6 +101,17 @@ export function WorkoutsPage() {
 
   const dayEntry = plan.planJson.days.find((d) => d.day === activeDay);
   const exercises = dayEntry?.exercises ?? [];
+
+  if (workoutInProgress && exercises.length > 0) {
+    return (
+      <WorkoutMode
+        exercises={exercises}
+        dayLabel={longDay(activeDay)}
+        unitSystem={unitSystem}
+        onExit={() => setWorkoutInProgress(false)}
+      />
+    );
+  }
 
   return (
     <Layout>
@@ -280,6 +293,19 @@ export function WorkoutsPage() {
               </div>
             ))}
           </Card>
+        </div>
+      )}
+
+      {exercises.length > 0 && (
+        <div className="px-4 pt-3">
+          <Button
+            className="w-full"
+            variant="accent"
+            onClick={() => setWorkoutInProgress(true)}
+          >
+            <Icon name="dumbbell" size={16} />
+            Start workout
+          </Button>
         </div>
       )}
 
