@@ -178,10 +178,54 @@
 
 @keyframes checkPop {
   0%   { transform: scale(0.4); opacity: 0; }
-  60%  { transform: scale(1.15); opacity: 1; }
+  50%  { transform: scale(1.2); opacity: 1; }
+  70%  { transform: scale(0.95); }
   100% { transform: scale(1); }
 }
-.check-pop { animation: checkPop 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.check-pop { animation: checkPop 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Ring glow for completed state */
+@keyframes ringGlow {
+  0%   { filter: drop-shadow(0 0 0px transparent); }
+  50%  { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 40%, transparent)); }
+  100% { filter: drop-shadow(0 0 0px transparent); }
+}
+.ring-done { animation: ringGlow 1.2s ease-in-out; }
+
+/* Heatmap grid */
+.heatmap { display: grid; gap: 3px; }
+.heatmap-cell {
+  border-radius: 3px;
+  transition: background 200ms ease;
+}
+.heatmap-cell:hover { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+
+/* Weekly bar chart */
+.weekly-bars { display: flex; gap: 6px; align-items: flex-end; }
+.weekly-bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  transition: height 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  min-height: 2px;
+}
+.weekly-bar-today {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px 6px 0 0;
+}
+
+/* Streak card */
+.streak-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 1px solid var(--hair);
+  text-align: center;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

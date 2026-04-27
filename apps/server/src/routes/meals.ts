@@ -15,6 +15,13 @@ import {
   type MealPlanJson,
 } from "../services/mealPlanSchema.js";
 
+const mealCompletionSchema = z.object({
+  planId: z.string().min(1),
+  dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  indices: z.array(z.number().int().nonnegative()),
+  totalMeals: z.number().int().nonnegative(),
+});
+
 const router = Router();
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -377,6 +384,59 @@ async function rebuildGroceries(userId: string, planId: string) {
     },
   });
 }
+
+// ── Meal Completion Tracking ─────────────────────────────────────────
+
+router.get("/completions", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const dayKey = typeof req.query.dayKey === "string" ? req.query.dayKey : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
+
+  const plan = await prisma.weeklyMealPlan.findFirst({
+    where: { userId, isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!plan) {
+    res.json({ completion: null });
+    return;
+  }
+
+  const completion = await prisma.mealCompletion.findUnique({
+    where: { userId_planId_dayKey: { userId, planId: plan.id, dayKey } },
+  });
+  res.json({ completion });
+});
+
+router.put("/completions", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = mealCompletionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { planId, dayKey, indices, totalMeals } = parsed.data;
+
+  // Verify plan belongs to user
+  const plan = await prisma.weeklyMealPlan.findFirst({
+    where: { id: planId, userId },
+  });
+  if (!plan) {
+    res.status(404).json({ error: "Plan not found" });
+    return;
+  }
+
+  const completedAt = totalMeals > 0 && indices.length >= totalMeals ? new Date() : null;
+
+  const completion = await prisma.mealCompletion.upsert({
+    where: { userId_planId_dayKey: { userId, planId, dayKey } },
+    update: { indicesJson: indices, completedAt },
+    create: { userId, planId, dayKey, indicesJson: indices, completedAt },
+  });
+  res.json({ completion });
+});
 
 function startOfWeek(date: Date): Date {
   const copy = new Date(date);

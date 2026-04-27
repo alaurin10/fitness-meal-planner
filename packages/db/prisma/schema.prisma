@@ -22,6 +22,8 @@ model User {
   groceryCategoryOverrides GroceryCategoryOverride[]
   hydrationLogs   HydrationLog[]
   activityLogs    ActivityLog[]
+  workoutCompletions WorkoutCompletion[]
+  mealCompletions    MealCompletion[]
 }
 
 model UserSettings {
@@ -65,6 +67,7 @@ model WeeklyPlan {
   planJson      Json
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
+  workoutCompletions WorkoutCompletion[]
 
   @@index([userId, isActive])
   @@index([userId, weekStartDate])
@@ -79,6 +82,7 @@ model WeeklyMealPlan {
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   groceryLists  GroceryList[]
+  mealCompletions MealCompletion[]
 
   @@index([userId, isActive])
   @@index([userId, weekStartDate])
@@ -183,4 +187,36 @@ model GroceryCategoryOverride {
 
   @@unique([userId, name])
   @@index([userId])
+}
+
+// Per-day workout completion tracking with set-level granularity.
+// setsJson shape: Record<number, number[]> — maps exerciseIdx → completed set numbers (1-based).
+model WorkoutCompletion {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId      String
+  plan        WeeklyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayKey      String    // YYYY-MM-DD local date
+  setsJson    Json      // Record<exerciseIdx, completedSetNumbers[]>
+  completedAt DateTime? // set when all sets for the day are done
+
+  @@unique([userId, planId, dayKey])
+  @@index([userId, dayKey])
+}
+
+// Per-day meal completion tracking.
+// indicesJson shape: number[] — indices of completed meals in the day's array.
+model MealCompletion {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId      String
+  plan        WeeklyMealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayKey      String    // YYYY-MM-DD local date
+  indicesJson Json      // number[] of completed meal indices
+  completedAt DateTime? // set when all meals for the day are done
+
+  @@unique([userId, planId, dayKey])
+  @@index([userId, dayKey])
 }

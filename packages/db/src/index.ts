@@ -25,6 +25,9 @@ export type {
   GroceryList,
   ProgressLog,
   Recipe,
+  WorkoutCompletion,
+  MealCompletion,
+  HydrationLog,
 } from "../generated/index.js";
 
 export const GROCERY_CATEGORIES = [

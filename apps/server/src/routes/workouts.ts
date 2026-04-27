@@ -18,6 +18,13 @@ const updateLoadSchema = z.object({
   note: z.string().max(280).optional(),
 });
 
+const completionSchema = z.object({
+  planId: z.string().min(1),
+  dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  setsJson: z.record(z.array(z.number().int().positive())),
+  totalExercises: z.number().int().nonnegative(),
+});
+
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
   const plan = await prisma.weeklyPlan.findFirst({
@@ -149,6 +156,76 @@ router.patch("/exercise", requireAuth, async (req, res) => {
   });
 
   res.json(result);
+});
+
+// ── Workout Completion Tracking ──────────────────────────────────────
+
+router.get("/completions", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const dayKey = typeof req.query.dayKey === "string" ? req.query.dayKey : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
+
+  const plan = await prisma.weeklyPlan.findFirst({
+    where: { userId, isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!plan) {
+    res.json({ completion: null });
+    return;
+  }
+
+  const completion = await prisma.workoutCompletion.findUnique({
+    where: { userId_planId_dayKey: { userId, planId: plan.id, dayKey } },
+  });
+  res.json({ completion });
+});
+
+router.put("/completions", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = completionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { planId, dayKey, setsJson, totalExercises } = parsed.data;
+
+  // Verify plan belongs to user
+  const plan = await prisma.weeklyPlan.findFirst({
+    where: { id: planId, userId },
+  });
+  if (!plan) {
+    res.status(404).json({ error: "Plan not found" });
+    return;
+  }
+
+  // Determine if all sets for every exercise are complete by checking plan data
+  const validated = weeklyPlanSchema.safeParse(plan.planJson);
+  let completedAt: Date | null = null;
+  if (validated.success) {
+    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+    // Derive which day-of-week from the dayKey
+    const date = new Date(dayKey + "T12:00:00");
+    const dayIdx = (date.getDay() + 6) % 7;
+    const dayLabel = DAYS[dayIdx];
+    const dayEntry = validated.data.days.find((d) => d.day === dayLabel);
+    if (dayEntry) {
+      const allDone = dayEntry.exercises.every((ex, idx) => {
+        const completedSets = (setsJson as Record<string, number[]>)[String(idx)] ?? [];
+        return completedSets.length >= ex.sets;
+      });
+      if (allDone) completedAt = new Date();
+    }
+  }
+
+  const completion = await prisma.workoutCompletion.upsert({
+    where: { userId_planId_dayKey: { userId, planId, dayKey } },
+    update: { setsJson, completedAt },
+    create: { userId, planId, dayKey, setsJson, completedAt },
+  });
+  res.json({ completion });
 });
 
 function startOfWeek(date: Date): Date {

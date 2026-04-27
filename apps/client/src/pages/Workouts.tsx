@@ -268,6 +268,9 @@ export function WorkoutsPage() {
         onProgress={workoutSession.saveSession}
         onSessionClear={workoutSession.clearSession}
         onExit={() => setWorkoutInProgress(false)}
+        onSetComplete={
+          viewingToday ? completion.markSetComplete : undefined
+        }
         onComplete={
           // Only auto-mark complete when the user is doing today's session.
           // Browsing a future/past day is just preview.
@@ -415,7 +418,11 @@ export function WorkoutsPage() {
       {exercises.length > 0 && (
         <div className="px-4 pt-3">
           <Card flush>
-            {exercises.map((ex, i) => (
+            {exercises.map((ex, i) => {
+              const exerciseSets = completion.setsJson[String(i)] ?? [];
+              const exerciseDone = exerciseSets.length >= ex.sets;
+              const hasPartial = exerciseSets.length > 0 && !exerciseDone;
+              return (
               <div
                 key={i}
                 style={{
@@ -425,13 +432,7 @@ export function WorkoutsPage() {
                   display: "flex",
                   gap: 14,
                   alignItems: "flex-start",
-                  opacity:
-                    viewingToday &&
-                    workoutSession.session &&
-                    !completion.isComplete &&
-                    i < workoutSession.session.exerciseIdx
-                      ? 0.45
-                      : 1,
+                  opacity: viewingToday && exerciseDone ? 0.5 : 1,
                   transition: "opacity 300ms ease",
                 }}
               >
@@ -440,20 +441,14 @@ export function WorkoutsPage() {
                     width: 32,
                     height: 32,
                     borderRadius: 10,
-                    background:
-                      viewingToday &&
-                      workoutSession.session &&
-                      !completion.isComplete &&
-                      i < workoutSession.session.exerciseIdx
-                        ? "var(--accent)"
+                    background: exerciseDone
+                      ? "var(--accent)"
+                      : hasPartial
+                        ? "color-mix(in srgb, var(--accent) 20%, var(--clay))"
                         : "var(--clay)",
-                    color:
-                      viewingToday &&
-                      workoutSession.session &&
-                      !completion.isComplete &&
-                      i < workoutSession.session.exerciseIdx
-                        ? "var(--paper)"
-                        : "var(--sumi)",
+                    color: exerciseDone
+                      ? "var(--paper)"
+                      : "var(--sumi)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -461,12 +456,10 @@ export function WorkoutsPage() {
                     fontSize: 14,
                     flexShrink: 0,
                     transition: "background 300ms ease, color 300ms ease",
+                    animation: exerciseDone ? "checkPop 260ms ease" : undefined,
                   }}
                 >
-                  {viewingToday &&
-                  workoutSession.session &&
-                  !completion.isComplete &&
-                  i < workoutSession.session.exerciseIdx ? (
+                  {exerciseDone ? (
                     <Icon name="check" size={16} stroke={2.5} />
                   ) : (
                     i + 1
@@ -541,6 +534,7 @@ export function WorkoutsPage() {
                       marginTop: 4,
                       display: "flex",
                       gap: 10,
+                      alignItems: "center",
                     }}
                   >
                     <span>
@@ -549,6 +543,25 @@ export function WorkoutsPage() {
                     </span>
                     <span>·</span>
                     <span>{ex.restSeconds}s rest</span>
+                    {viewingToday && exerciseSets.length > 0 && (
+                      <>
+                        <span>·</span>
+                        <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+                          {Array.from({ length: ex.sets }, (_, s) => (
+                            <span
+                              key={s}
+                              style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                background: exerciseSets.includes(s + 1) ? "var(--accent)" : "var(--hair)",
+                                transition: "background 200ms ease",
+                              }}
+                            />
+                          ))}
+                        </span>
+                      </>
+                    )}
                   </div>
                   {ex.notes && (
                     <div
@@ -566,7 +579,8 @@ export function WorkoutsPage() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </Card>
         </div>
       )}
@@ -580,41 +594,30 @@ export function WorkoutsPage() {
           >
             <Icon name="dumbbell" size={16} />
             {viewingToday && workoutSession.session && !completion.isComplete
-              ? `Resume workout · ${sessProgress.completed} of ${sessProgress.total} sets`
-              : "Start workout"}
+              ? `Resume workout · ${completion.completedSetsCount} of ${sessProgress.total} sets`
+              : completion.isComplete && viewingToday
+                ? "Workout complete ✓"
+                : "Start workout"}
           </Button>
-          {viewingToday && workoutSession.session && !completion.isComplete && (
+          {viewingToday && completion.completedSetsCount > 0 && !completion.isComplete && (
             <div
               style={{
                 height: 4,
                 borderRadius: 2,
                 background: "var(--clay)",
                 overflow: "hidden",
-                marginTop: -4,
               }}
             >
               <div
                 style={{
                   height: "100%",
-                  width: `${sessProgress.fraction * 100}%`,
+                  width: `${sessProgress.total > 0 ? (completion.completedSetsCount / sessProgress.total) * 100 : 0}%`,
                   background: "var(--accent)",
                   borderRadius: 2,
                   transition: "width 400ms ease",
                 }}
               />
             </div>
-          )}
-          {viewingToday && (
-            <Button
-              className="w-full"
-              variant={completion.isComplete ? "ghost" : "primary"}
-              onClick={completion.toggle}
-            >
-              <Icon name="check" size={16} />
-              {completion.isComplete
-                ? "Marked complete · Undo"
-                : "Mark complete"}
-            </Button>
           )}
         </div>
       )}

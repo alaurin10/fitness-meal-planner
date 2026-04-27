@@ -17,8 +17,10 @@ import {
   useRegenerateSlot,
   useReplaceSlot,
 } from "../hooks/useMealPlan";
+import { localDayKey, useMealCompletions } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import { recipeToMeal } from "../lib/recipeAdapter";
+import { fireCelebration } from "../lib/confetti";
 import { formatMinutes, formatQuantity, type UnitSystem } from "../lib/units";
 import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
 
@@ -46,6 +48,9 @@ export function MealsPage() {
   );
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [picker, setPicker] = useState<PendingPicker | null>(null);
+  const completions = useMealCompletions(plan?.id, localDayKey());
+  const viewingToday = activeDay === DAYS[todayIdx];
+  const prevDayCompleteRef = useRef(false);
 
   if (isLoading) {
     return (
@@ -258,6 +263,7 @@ export function MealsPage() {
             regenSlot.isPending &&
             regenSlot.variables?.day === activeDay &&
             regenSlot.variables?.index === i;
+          const mealComplete = viewingToday && completions.isComplete(i);
           return (
             <div key={i} style={{ position: "relative" }}>
               <Card
@@ -272,8 +278,37 @@ export function MealsPage() {
                     navigate(`/meals/${activeDay}/${i}`);
                   }
                 }}
-                style={isRegenTarget ? { opacity: 0.55 } : undefined}
+                style={{
+                  ...(isRegenTarget ? { opacity: 0.55 } : {}),
+                  ...(mealComplete ? {
+                    opacity: 0.6,
+                    borderLeft: "3px solid var(--accent)",
+                  } : {}),
+                  transition: "opacity 300ms ease",
+                }}
               >
+                {/* Completion checkmark badge */}
+                {mealComplete && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      background: "var(--accent)",
+                      color: "var(--paper)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 5,
+                      animation: "checkPop 260ms ease",
+                    }}
+                  >
+                    <Icon name="check" size={14} stroke={2.5} />
+                  </div>
+                )}
                 <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
                   <div className="eyebrow">
                     {mealSlotLabel(m, i)} · {m.calories} kcal
@@ -355,6 +390,40 @@ export function MealsPage() {
                 onDelete={() => handleDelete(i)}
                 disabled={anyMutation}
               />
+              {viewingToday && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    completions.toggle(i, meals.length);
+                    // Fire confetti when completing the last meal
+                    if (!mealComplete && completions.completed.size === meals.length - 1) {
+                      setTimeout(() => fireCelebration(), 200);
+                    }
+                  }}
+                  className="tappable"
+                  style={{
+                    position: "absolute",
+                    bottom: 8,
+                    right: 8,
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    border: mealComplete ? "none" : "1.5px solid var(--hair)",
+                    background: mealComplete ? "var(--accent)" : "var(--paper)",
+                    color: mealComplete ? "var(--paper)" : "var(--muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    zIndex: 5,
+                    transition: "all 200ms ease",
+                  }}
+                  aria-label={mealComplete ? "Mark incomplete" : "Mark complete"}
+                >
+                  <Icon name="check" size={14} stroke={2} />
+                </button>
+              )}
             </div>
           );
         })}

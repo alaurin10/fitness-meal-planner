@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { formatLoad, weightUnitLabel, type UnitSystem } from "../lib/units";
+import { fireCelebration } from "../lib/confetti";
 import type { Exercise } from "../hooks/useWorkoutPlan";
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
   onProgress?: (exerciseIdx: number, setNum: number) => void;
   /** Clear persisted position (called on workout completion). */
   onSessionClear?: () => void;
+  /** Called when a set is completed — persists per-set progress. */
+  onSetComplete?: (exerciseIdx: number, setNum: number) => void;
 }
 
 type Phase = "active" | "resting" | "done";
@@ -35,6 +38,7 @@ export function WorkoutMode({
   initialSetNum = 1,
   onProgress,
   onSessionClear,
+  onSetComplete,
 }: Props) {
   const [exerciseIdx, setExerciseIdx] = useState(initialExerciseIdx);
   const [setNum, setSetNum] = useState(initialSetNum);
@@ -72,6 +76,7 @@ export function WorkoutMode({
   const nextExercise = exercises[exerciseIdx + 1];
 
   function completeSet() {
+    onSetComplete?.(exerciseIdx, setNum);
     if (isFinalSet) {
       setPhase("done");
       return;
@@ -249,6 +254,37 @@ function ActiveScreen({
       >
         {exercise.name}
       </div>
+      {/* Set indicator dots */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+        {Array.from({ length: exercise.sets }, (_, i) => {
+          const num = i + 1;
+          const isDone = num < setNum;
+          const isCurrent = num === setNum;
+          return (
+            <div
+              key={i}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: isDone ? "var(--accent)" : isCurrent ? "var(--clay)" : "transparent",
+                border: isDone ? "2px solid var(--accent)" : "2px solid var(--hair)",
+                color: isDone ? "var(--paper)" : isCurrent ? "var(--ink)" : "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: "var(--font-body)",
+                transition: "all 300ms ease",
+                animation: isDone ? "checkPop 260ms ease" : undefined,
+              }}
+            >
+              {isDone ? <Icon name="check" size={14} stroke={2.5} /> : num}
+            </div>
+          );
+        })}
+      </div>
       <div
         style={{
           display: "flex",
@@ -401,6 +437,15 @@ function RestScreen({
 }
 
 function DoneScreen({ onExit }: { onExit: () => void }) {
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (!firedRef.current) {
+      firedRef.current = true;
+      fireCelebration();
+    }
+  }, []);
+
   return (
     <div
       style={{
@@ -416,17 +461,19 @@ function DoneScreen({ onExit }: { onExit: () => void }) {
     >
       <div
         style={{
-          width: 72,
-          height: 72,
+          width: 88,
+          height: 88,
           borderRadius: "50%",
           background: "var(--accent)",
           color: "var(--paper)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          animation: "checkPop 400ms ease",
+          boxShadow: "0 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)",
         }}
       >
-        <Icon name="check" size={36} stroke={2.5} />
+        <Icon name="check" size={44} stroke={2.5} />
       </div>
       <div
         className="font-display"
@@ -436,7 +483,7 @@ function DoneScreen({ onExit }: { onExit: () => void }) {
           letterSpacing: "-0.01em",
         }}
       >
-        Workout complete.
+        Workout complete!
       </div>
       <p style={{ fontSize: 13.5, color: "var(--sumi)", maxWidth: 320 }}>
         Nicely done. Log your weight on the progress page so the next plan

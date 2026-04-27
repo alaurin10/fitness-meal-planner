@@ -375,11 +375,20 @@ export function MealDetailView({
         {onToggleComplete && (
           <Button
             className="w-full"
-            variant={isComplete ? "ghost" : "primary"}
+            variant={isComplete ? "ghost" : "accent"}
             onClick={onToggleComplete}
+            style={{
+              transition: "all 300ms ease",
+              ...(isComplete ? {
+                background: "color-mix(in srgb, var(--accent) 10%, transparent)",
+                borderColor: "var(--accent)",
+              } : {}),
+            }}
           >
-            <Icon name="check" size={16} />
-            {isComplete ? "Marked complete · Undo" : "Mark complete"}
+            <span style={{ display: "inline-flex", animation: isComplete ? "checkPop 260ms ease" : undefined }}>
+              <Icon name="check" size={16} />
+            </span>
+            {isComplete ? "Completed ✓" : "Mark complete"}
           </Button>
         )}
         </div>

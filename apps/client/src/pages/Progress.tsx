@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Heatmap } from "../components/Heatmap";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { WeeklyBars } from "../components/WeeklyBars";
 import { Chip, PhoneHeader, Sparkline } from "../components/Primitives";
 import { useLogProgress, useProgress } from "../hooks/useProgress";
+import { useStreaks } from "../hooks/useStreaks";
+import { useHistory } from "../hooks/useHistory";
 import { useSettings } from "../hooks/useSettings";
 import { formatWeight, kgToPounds, weightUnitLabel } from "../lib/units";
 
@@ -17,6 +21,104 @@ export function ProgressPage() {
   const [toast, setToast] = useState(false);
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
+
+  // Analytics data
+  const streaksQuery = useStreaks();
+  const today = new Date();
+  const todayKey = dayKeyStr(today);
+  const twelveWeeksAgo = new Date(today);
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 83);
+  const historyFrom = dayKeyStr(twelveWeeksAgo);
+  const historyQuery = useHistory(historyFrom, todayKey);
+
+  // Compute week start (Monday) for "This Week" bars
+  const weekStart = new Date(today);
+  const dayOfWeek = (weekStart.getDay() + 6) % 7;
+  weekStart.setDate(weekStart.getDate() - dayOfWeek);
+
+  const weekDays = useMemo(() => {
+    if (!historyQuery.data) return null;
+    const LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+    const todayIdx = (today.getDay() + 6) % 7;
+    return LABELS.map((label, i) => {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const dk = dayKeyStr(d);
+      const rec = historyQuery.data.days[dk];
+      const isFuture = i > todayIdx;
+      return {
+        label,
+        isToday: i === todayIdx,
+        isFuture,
+        values: [
+          {
+            color: "var(--moss)",
+            fraction: rec ? (rec.workout.total > 0 ? rec.workout.completed / rec.workout.total : 0) : 0,
+          },
+          {
+            color: "var(--accent)",
+            fraction: rec ? (rec.meals.total > 0 ? rec.meals.completed / rec.meals.total : 0) : 0,
+          },
+          {
+            color: "var(--honey)",
+            fraction: rec ? (rec.hydration.goal > 0 ? Math.min(rec.hydration.cups / rec.hydration.goal, 1) : 0) : 0,
+          },
+        ],
+      };
+    });
+  }, [historyQuery.data]);
+
+  // Compute weekly summary stats
+  const weekStats = useMemo(() => {
+    if (!historyQuery.data) return null;
+    const todayIdx = (today.getDay() + 6) % 7;
+    let workoutsDone = 0, workoutsTotal = 0, totalSets = 0;
+    let totalCal = 0, totalProtein = 0, calDays = 0;
+    let hydrationHits = 0, hydrationDays = 0;
+
+    for (let i = 0; i <= todayIdx; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const dk = dayKeyStr(d);
+      const rec = historyQuery.data.days[dk];
+      if (!rec) continue;
+
+      if (rec.workout.total > 0) {
+        workoutsTotal++;
+        if (rec.workout.done) workoutsDone++;
+        totalSets += rec.workout.completed;
+      }
+      if (rec.meals.total > 0) {
+        totalCal += rec.meals.calories;
+        totalProtein += rec.meals.protein;
+        calDays++;
+      }
+      hydrationDays++;
+      if (rec.hydration.done) hydrationHits++;
+    }
+
+    return {
+      workoutsDone,
+      workoutsTotal,
+      totalSets,
+      avgCalories: calDays > 0 ? Math.round(totalCal / calDays) : 0,
+      avgProtein: calDays > 0 ? Math.round(totalProtein / calDays) : 0,
+      hydrationRate: hydrationDays > 0 ? Math.round((hydrationHits / hydrationDays) * 100) : 0,
+    };
+  }, [historyQuery.data]);
+
+  // Heatmap data
+  const heatmapData = useMemo(() => {
+    if (!historyQuery.data) return [];
+    return Object.entries(historyQuery.data.days).map(([date, rec]) => {
+      let score = 0;
+      if (rec.workout.done || rec.workout.total === 0) score++;
+      if (rec.meals.done) score++;
+      if (rec.hydration.done) score++;
+      const level = score === 0 ? 0 : score === 1 ? 1 : score === 2 ? 2 : 3;
+      return { date, level: level as 0 | 1 | 2 | 3 };
+    });
+  }, [historyQuery.data]);
 
   const { series, latest, delta } = useMemo(() => {
     const sorted = [...(logs ?? [])].sort(
@@ -258,6 +360,116 @@ export function ProgressPage() {
           </div>
         </>
       )}
+
+      {/* ── Streaks ──────────────────────────────────────────────────── */}
+      {streaksQuery.data && (
+        <div className="px-4 pt-6">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Streaks</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <StreakCard label="Workout" current={streaksQuery.data.workout.current} best={streaksQuery.data.workout.best} color="var(--moss)" />
+            <StreakCard label="Meals" current={streaksQuery.data.meals.current} best={streaksQuery.data.meals.best} color="var(--honey)" />
+            <StreakCard label="Hydration" current={streaksQuery.data.hydration.current} best={streaksQuery.data.hydration.best} color="var(--accent)" />
+            <StreakCard label="Overall" current={streaksQuery.data.overall.current} best={streaksQuery.data.overall.best} color="var(--accent)" highlight />
+          </div>
+        </div>
+      )}
+
+      {/* ── This Week ────────────────────────────────────────────────── */}
+      {weekStats && weekDays && (
+        <div className="px-4 pt-6">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>This week</div>
+          <Card>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 16, fontSize: 12.5, color: "var(--sumi)" }}>
+              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.workoutsDone}</b> / {weekStats.workoutsTotal} workouts</span>
+              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.totalSets}</b> sets</span>
+              <span>Avg <b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.avgCalories}</b> kcal</span>
+              <span>Avg <b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.avgProtein}</b>g protein</span>
+              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.hydrationRate}%</b> hydration</span>
+            </div>
+            <WeeklyBars days={weekDays} height={100} />
+            <div style={{ display: "flex", gap: 12, marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--moss)" }} /> Workout
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent)" }} /> Meals
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--honey)" }} /> Hydration
+              </span>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── History Heatmap ──────────────────────────────────────────── */}
+      {heatmapData.length > 0 && (
+        <div className="px-4 pt-6 pb-4">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>12-week history</div>
+          <Card>
+            <Heatmap data={heatmapData} weeks={12} color="var(--moss)" />
+            <div style={{ display: "flex", gap: 4, marginTop: 10, alignItems: "center", fontSize: 10, color: "var(--muted)" }}>
+              <span>Less</span>
+              {[0, 1, 2, 3].map((level) => (
+                <span
+                  key={level}
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 2,
+                    background:
+                      level === 0
+                        ? "color-mix(in srgb, var(--muted) 10%, transparent)"
+                        : level === 1
+                          ? "color-mix(in srgb, var(--moss) 25%, transparent)"
+                          : level === 2
+                            ? "color-mix(in srgb, var(--moss) 55%, transparent)"
+                            : "var(--moss)",
+                  }}
+                />
+              ))}
+              <span>More</span>
+            </div>
+          </Card>
+        </div>
+      )}
     </Layout>
   );
+}
+
+function StreakCard({
+  label,
+  current,
+  best,
+  color,
+  highlight,
+}: {
+  label: string;
+  current: number;
+  best: number;
+  color: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className="streak-card"
+      style={highlight ? { borderColor: color, background: `color-mix(in srgb, ${color} 5%, var(--paper))` } : undefined}
+    >
+      <Icon name="flame" size={16} style={{ color }} />
+      <div className="font-display" style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1, marginTop: 2 }}>
+        {current}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        {current === 1 ? "day" : "days"}
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", marginTop: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 9.5, color: "var(--muted)" }}>Best: {best}</div>
+    </div>
+  );
+}
+
+function dayKeyStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

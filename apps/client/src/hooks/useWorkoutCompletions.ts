@@ -1,87 +1,137 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useApi } from "../lib/api";
 import { localDayKey } from "./useMealCompletions";
 
+export { localDayKey };
+
+interface CompletionRecord {
+  id: string;
+  planId: string;
+  dayKey: string;
+  setsJson: Record<string, number[]>;
+  completedAt: string | null;
+}
+
 /**
- * Tracks whether the user has marked the day's workout as complete.
- * Persisted in localStorage, scoped to (workoutPlanId, dayKey) so
- * completions reset when a new plan is generated and naturally roll over
- * at local midnight. Stale entries (>14 days) are pruned on mount.
+ * Tracks per-set workout completion, persisted server-side.
+ * setsJson maps exercise index → array of completed set numbers (1-based).
  */
-
-const STORAGE_KEY_PREFIX = "workoutCompletions:v1:";
-const MAX_KEEP_DAYS = 14;
-
-function storageKey(planId: string, dayKey: string) {
-  return `${STORAGE_KEY_PREFIX}${planId}:${dayKey}`;
-}
-
-function readBool(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeBool(key: string, value: boolean) {
-  try {
-    if (value) {
-      window.localStorage.setItem(key, "1");
-    } else {
-      window.localStorage.removeItem(key);
-    }
-  } catch {
-    // ignore
-  }
-}
-
 export function useWorkoutCompletions(
   planId: string | undefined,
   dayKey: string,
 ) {
-  const [isComplete, setIsComplete] = useState(false);
+  const api = useApi();
+  const qc = useQueryClient();
+  const queryKey = ["workoutCompletions", planId, dayKey];
 
-  useEffect(() => {
-    if (!planId) {
-      setIsComplete(false);
-      return;
-    }
-    setIsComplete(readBool(storageKey(planId, dayKey)));
-  }, [planId, dayKey]);
+  const query = useQuery({
+    queryKey,
+    enabled: !!planId,
+    queryFn: async () => {
+      const { data } = await api.get<{ completion: CompletionRecord | null }>(
+        `/api/workouts/completions?dayKey=${dayKey}`,
+      );
+      return data.completion;
+    },
+  });
 
-  // Sweep stale entries on mount.
-  useEffect(() => {
-    try {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - MAX_KEEP_DAYS);
-      const cutoffKey = localDayKey(cutoff);
-      for (let i = window.localStorage.length - 1; i >= 0; i--) {
-        const key = window.localStorage.key(i);
-        if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
-        const dk = key.slice(-10);
-        if (dk < cutoffKey) {
-          window.localStorage.removeItem(key);
-        }
+  const mutation = useMutation({
+    mutationFn: async (setsJson: Record<string, number[]>) => {
+      const { data } = await api.put<{ completion: CompletionRecord }>(
+        "/api/workouts/completions",
+        { planId, dayKey, setsJson, totalExercises: 0 },
+      );
+      return data.completion;
+    },
+    onMutate: async (setsJson) => {
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<CompletionRecord | null>(queryKey);
+      qc.setQueryData<CompletionRecord | null>(queryKey, (old) => ({
+        id: old?.id ?? "",
+        planId: planId ?? "",
+        dayKey,
+        setsJson,
+        completedAt: old?.completedAt ?? null,
+      }));
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(queryKey, ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["dailySummary"] });
+    },
+  });
+
+  const setsJson: Record<string, number[]> = (query.data?.setsJson as Record<string, number[]>) ?? {};
+
+  const toggleSet = useCallback(
+    (exerciseIdx: number, setNum: number) => {
+      if (!planId) return;
+      const current = { ...setsJson };
+      const key = String(exerciseIdx);
+      const sets = [...(current[key] ?? [])];
+      const idx = sets.indexOf(setNum);
+      if (idx >= 0) {
+        sets.splice(idx, 1);
+      } else {
+        sets.push(setNum);
+        sets.sort((a, b) => a - b);
       }
-    } catch {
-      // ignore
-    }
-  }, []);
+      current[key] = sets;
+      mutation.mutate(current);
+    },
+    [planId, setsJson, mutation],
+  );
+
+  const markSetComplete = useCallback(
+    (exerciseIdx: number, setNum: number) => {
+      if (!planId) return;
+      const current = { ...setsJson };
+      const key = String(exerciseIdx);
+      const sets = [...(current[key] ?? [])];
+      if (!sets.includes(setNum)) {
+        sets.push(setNum);
+        sets.sort((a, b) => a - b);
+        current[key] = sets;
+        mutation.mutate(current);
+      }
+    },
+    [planId, setsJson, mutation],
+  );
+
+  const isSetComplete = useCallback(
+    (exerciseIdx: number, setNum: number) => {
+      return setsJson[String(exerciseIdx)]?.includes(setNum) ?? false;
+    },
+    [setsJson],
+  );
+
+  const isComplete = query.data?.completedAt != null;
+
+  const completedSetsCount = Object.values(setsJson).reduce(
+    (s, arr) => s + arr.length,
+    0,
+  );
 
   const markComplete = useCallback(() => {
-    if (!planId) return;
-    writeBool(storageKey(planId, dayKey), true);
-    setIsComplete(true);
-  }, [planId, dayKey]);
+    // no-op for compatibility — completion is auto-determined server-side
+  }, []);
 
   const toggle = useCallback(() => {
-    if (!planId) return;
-    setIsComplete((prev) => {
-      const next = !prev;
-      writeBool(storageKey(planId, dayKey), next);
-      return next;
-    });
-  }, [planId, dayKey]);
+    // no-op for compatibility — completion is auto-determined server-side
+  }, []);
 
-  return { isComplete, markComplete, toggle };
+  return {
+    isComplete,
+    markComplete,
+    toggle,
+    toggleSet,
+    markSetComplete,
+    isSetComplete,
+    setsJson,
+    completedSetsCount,
+  };
 }

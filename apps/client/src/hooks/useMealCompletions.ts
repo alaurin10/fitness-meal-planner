@@ -1,40 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-
-/**
- * Tracks which meals the user has marked as eaten/complete for a given day.
- * Persisted in localStorage and keyed by the meal-plan id so completions
- * are scoped to the plan that produced them — regenerating the plan starts
- * fresh, and old plans don't pollute the active one.
- *
- * Old keys (other planIds) are pruned on mount.
- */
-
-const STORAGE_KEY_PREFIX = "mealCompletions:v1:";
-const MAX_KEEP_DAYS = 14;
-
-function storageKey(planId: string, dayKey: string) {
-  return `${STORAGE_KEY_PREFIX}${planId}:${dayKey}`;
-}
-
-function readSet(key: string): Set<number> {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is number => typeof v === "number"));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeSet(key: string, set: Set<number>) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify([...set]));
-  } catch {
-    // localStorage might be full or disabled — fail silently.
-  }
-}
+import { useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useApi } from "../lib/api";
 
 /**
  * Local-date string in YYYY-MM-DD form. Uses the device's local time so
@@ -47,71 +13,93 @@ export function localDayKey(date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+interface CompletionRecord {
+  id: string;
+  planId: string;
+  dayKey: string;
+  indicesJson: number[];
+  completedAt: string | null;
+}
+
+/**
+ * Tracks which meals the user has completed for a given day.
+ * Persisted server-side and keyed by the meal-plan id.
+ */
 export function useMealCompletions(
   planId: string | undefined,
   dayKey: string,
 ) {
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const api = useApi();
+  const qc = useQueryClient();
+  const queryKey = ["mealCompletions", planId, dayKey];
 
-  // Load whenever the active key changes.
-  useEffect(() => {
-    if (!planId) {
-      setCompleted(new Set());
-      return;
-    }
-    setCompleted(readSet(storageKey(planId, dayKey)));
-  }, [planId, dayKey]);
+  const query = useQuery({
+    queryKey,
+    enabled: !!planId,
+    queryFn: async () => {
+      const { data } = await api.get<{ completion: CompletionRecord | null }>(
+        `/api/meals/completions?dayKey=${dayKey}`,
+      );
+      return data.completion;
+    },
+  });
 
-  // Sweep stale completion entries on mount — keep only entries whose
-  // dayKey is within MAX_KEEP_DAYS of today.
-  useEffect(() => {
-    try {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - MAX_KEEP_DAYS);
-      const cutoffKey = localDayKey(cutoff);
-      for (let i = window.localStorage.length - 1; i >= 0; i--) {
-        const key = window.localStorage.key(i);
-        if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
-        // Key shape: prefix + planId + ':' + dayKey. Take the last 10 chars.
-        const dk = key.slice(-10);
-        if (dk < cutoffKey) {
-          window.localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+  const mutation = useMutation({
+    mutationFn: async (vars: { indices: number[]; totalMeals: number }) => {
+      const { data } = await api.put<{ completion: CompletionRecord }>(
+        "/api/meals/completions",
+        { planId, dayKey, indices: vars.indices, totalMeals: vars.totalMeals },
+      );
+      return data.completion;
+    },
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<CompletionRecord | null>(queryKey);
+      qc.setQueryData<CompletionRecord | null>(queryKey, (old) => ({
+        id: old?.id ?? "",
+        planId: planId ?? "",
+        dayKey,
+        indicesJson: vars.indices,
+        completedAt: old?.completedAt ?? null,
+      }));
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(queryKey, ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["dailySummary"] });
+    },
+  });
+
+  const completedIndices: number[] = (query.data?.indicesJson as number[]) ?? [];
+  const completed = new Set(completedIndices);
 
   const toggle = useCallback(
-    (index: number) => {
+    (index: number, totalMeals = 0) => {
       if (!planId) return;
-      setCompleted((prev) => {
-        const next = new Set(prev);
-        if (next.has(index)) {
-          next.delete(index);
-        } else {
-          next.add(index);
-        }
-        writeSet(storageKey(planId, dayKey), next);
-        return next;
-      });
+      const next = [...completedIndices];
+      const pos = next.indexOf(index);
+      if (pos >= 0) {
+        next.splice(pos, 1);
+      } else {
+        next.push(index);
+        next.sort((a, b) => a - b);
+      }
+      mutation.mutate({ indices: next, totalMeals });
     },
-    [planId, dayKey],
+    [planId, completedIndices, mutation],
   );
 
   const markComplete = useCallback(
-    (index: number) => {
+    (index: number, totalMeals = 0) => {
       if (!planId) return;
-      setCompleted((prev) => {
-        if (prev.has(index)) return prev;
-        const next = new Set(prev);
-        next.add(index);
-        writeSet(storageKey(planId, dayKey), next);
-        return next;
-      });
+      if (completedIndices.includes(index)) return;
+      const next = [...completedIndices, index].sort((a, b) => a - b);
+      mutation.mutate({ indices: next, totalMeals });
     },
-    [planId, dayKey],
+    [planId, completedIndices, mutation],
   );
 
   const isComplete = useCallback(
@@ -119,5 +107,7 @@ export function useMealCompletions(
     [completed],
   );
 
-  return { completed, toggle, markComplete, isComplete };
+  const isDayComplete = query.data?.completedAt != null;
+
+  return { completed, toggle, markComplete, isComplete, isDayComplete };
 }

@@ -1,14 +1,17 @@
 import { Link } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { ProgressRing } from "../components/ProgressRing";
-import { Chip, PhoneHeader } from "../components/Primitives";
+import { Chip, PhoneHeader, Ring } from "../components/Primitives";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
 import { useHydration, useLogHydration } from "../hooks/useHydration";
+import { useDailySummary } from "../hooks/useDailySummary";
+import { useStreaks } from "../hooks/useStreaks";
 import {
   localDayKey,
   useMealCompletions,
@@ -18,6 +21,7 @@ import {
   useWorkoutSession,
   sessionProgress,
 } from "../hooks/useWorkoutSession";
+import { fireCelebration } from "../lib/confetti";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -91,6 +95,24 @@ export function DashboardPage() {
   );
   const hydrationQuery = useHydration();
   const logHydration = useLogHydration();
+  const summaryQuery = useDailySummary();
+  const streaksQuery = useStreaks();
+  const prevAllDoneRef = useRef(false);
+
+  // Fire confetti when all 4 categories hit 100%
+  const summary = summaryQuery.data;
+  const allCategoriesDone = summary
+    ? (summary.workout.done || summary.workout.isRestDay) &&
+      summary.meals.done &&
+      summary.hydration.cups >= summary.hydration.goal
+    : false;
+
+  useEffect(() => {
+    if (allCategoriesDone && !prevAllDoneRef.current) {
+      fireCelebration();
+    }
+    prevAllDoneRef.current = allCategoriesDone;
+  }, [allCategoriesDone]);
 
   if (profileQuery.isLoading || workoutQuery.isLoading || mealQuery.isLoading) {
     return (
@@ -187,6 +209,76 @@ export function DashboardPage() {
       >
         {formatDay(today)}
       </div>
+
+      {/* Streak badge */}
+      {streaksQuery.data && streaksQuery.data.overall.current > 0 && (
+        <Link
+          to="/progress"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "0 22px 8px",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+        >
+          <Icon name="flame" size={16} />
+          {streaksQuery.data.overall.current} day streak
+        </Link>
+      )}
+
+      {/* Today's progress rings */}
+      {summary && (
+        <div className="px-4 pt-1 pb-2 fade-up">
+          <Card>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>Today's progress</div>
+            <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start" }}>
+              <ProgressStat
+                label="Workout"
+                value={summary.workout.isRestDay
+                  ? "Rest"
+                  : summary.workout.done
+                    ? "Done"
+                    : `${summary.workout.completed}/${summary.workout.total}`}
+                fraction={summary.workout.isRestDay ? 1 : summary.workout.total > 0
+                  ? summary.workout.completed / summary.workout.total : 0}
+                color="var(--moss)"
+                done={summary.workout.done || summary.workout.isRestDay}
+              />
+              <ProgressStat
+                label="Calories"
+                value={summary.meals.calories > 0 ? String(summary.meals.calories) : "0"}
+                sublabel={summary.targets.caloricTarget ? `/ ${summary.targets.caloricTarget}` : undefined}
+                fraction={summary.targets.caloricTarget
+                  ? Math.min(summary.meals.calories / summary.targets.caloricTarget, 1) : 0}
+                color="var(--accent)"
+                done={summary.meals.done}
+              />
+              <ProgressStat
+                label="Protein"
+                value={summary.meals.protein > 0 ? `${summary.meals.protein}g` : "0g"}
+                sublabel={summary.targets.proteinTargetG ? `/ ${summary.targets.proteinTargetG}g` : undefined}
+                fraction={summary.targets.proteinTargetG
+                  ? Math.min(summary.meals.protein / summary.targets.proteinTargetG, 1) : 0}
+                color="var(--honey)"
+                done={false}
+              />
+              <ProgressStat
+                label="Hydration"
+                value={`${summary.hydration.cups}`}
+                sublabel={`/ ${summary.hydration.goal}`}
+                fraction={summary.hydration.goal > 0
+                  ? Math.min(summary.hydration.cups / summary.hydration.goal, 1) : 0}
+                color={summary.hydration.cups >= summary.hydration.goal ? "var(--moss)" : "var(--accent)"}
+                done={summary.hydration.cups >= summary.hydration.goal}
+              />
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Today's workout */}
       <div className="px-4 pt-1 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
@@ -402,6 +494,61 @@ export function DashboardPage() {
         loading={hydrationQuery.isLoading}
       />
     </Layout>
+  );
+}
+
+function ProgressStat({
+  label,
+  value,
+  sublabel,
+  fraction,
+  color,
+  done,
+}: {
+  label: string;
+  value: string;
+  sublabel?: string;
+  fraction: number;
+  color: string;
+  done: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <Ring
+        value={fraction}
+        size={56}
+        stroke={5}
+        color={color}
+      >
+        {done ? (
+          <div style={{ color, animation: "checkPop 260ms ease" }}>
+            <Icon name="check" size={18} stroke={2.5} />
+          </div>
+        ) : (
+          <span
+            className="font-display"
+            style={{
+              fontSize: 12,
+              color: "var(--ink)",
+              letterSpacing: "-0.01em",
+              lineHeight: 1,
+            }}
+          >
+            {value}
+          </span>
+        )}
+      </Ring>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          {label}
+        </div>
+        {sublabel && !done && (
+          <div style={{ fontSize: 9.5, color: "var(--muted)", marginTop: 1 }}>
+            {sublabel}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
