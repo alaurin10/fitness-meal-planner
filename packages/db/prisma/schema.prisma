@@ -118,6 +118,8 @@ model Recipe {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   slotHint        String? // "breakfast" | "lunch" | "dinner" | "snack"
+  // Recipe-book category. See RECIPE_CATEGORIES in @platform/db.
+  category        String   @default("other")
   servings        Int      @default(1)
   prepMinutes     Int?
   cookMinutes     Int?

@@ -6,6 +6,7 @@ import {
 import { useApi } from "../lib/api";
 import type {
   MealDay,
+  RecipeCategory,
   RecipeInput,
   RecipeRecord,
   RecipeSource,
@@ -16,6 +17,7 @@ export interface RecipeListFilters {
   favorite?: boolean;
   source?: RecipeSource;
   tag?: string;
+  category?: RecipeCategory;
 }
 
 export function useRecipes(filters: RecipeListFilters = {}) {
@@ -28,6 +30,7 @@ export function useRecipes(filters: RecipeListFilters = {}) {
       if (filters.favorite) params.favorite = "true";
       if (filters.source) params.source = filters.source;
       if (filters.tag) params.tag = filters.tag;
+      if (filters.category) params.category = filters.category;
       const { data } = await api.get<{ recipes: RecipeRecord[] }>(
         "/api/recipes",
         { params },

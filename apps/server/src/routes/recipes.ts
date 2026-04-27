@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, MEAL_SLOTS } from "@platform/db";
+import { prisma, MEAL_SLOTS, RECIPE_CATEGORIES } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import {
   ingredientSchema,
@@ -14,6 +14,7 @@ const router = Router();
 const recipeBodySchema = z.object({
   name: z.string().min(1).max(120),
   slotHint: z.enum(MEAL_SLOTS).nullable().optional(),
+  category: z.enum(RECIPE_CATEGORIES).default("other"),
   servings: z.number().int().min(1).max(50).default(1),
   prepMinutes: z.number().int().nonnegative().nullable().optional(),
   cookMinutes: z.number().int().nonnegative().nullable().optional(),
@@ -44,11 +45,18 @@ router.get("/", requireAuth, async (req, res) => {
   const favorite = req.query.favorite === "true";
   const source = String(req.query.source ?? "").toUpperCase();
   const tag = String(req.query.tag ?? "").trim();
+  const categoryRaw = String(req.query.category ?? "").trim().toLowerCase();
+  const category = (RECIPE_CATEGORIES as readonly string[]).includes(
+    categoryRaw,
+  )
+    ? categoryRaw
+    : "";
 
   const where: Record<string, unknown> = { userId };
   if (favorite) where.isFavorite = true;
   if (source === "MANUAL" || source === "AI") where.source = source;
   if (tag) where.tags = { has: tag };
+  if (category) where.category = category;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
   const recipes = await prisma.recipe.findMany({
@@ -93,6 +101,7 @@ router.post("/", requireAuth, async (req, res) => {
       userId,
       name: data.name,
       slotHint: data.slotHint ?? null,
+      category: data.category,
       servings: data.servings,
       prepMinutes: data.prepMinutes ?? null,
       cookMinutes: data.cookMinutes ?? null,
@@ -137,6 +146,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     data: {
       name: d.name ?? undefined,
       slotHint: d.slotHint === undefined ? undefined : d.slotHint,
+      category: d.category ?? undefined,
       servings: d.servings ?? undefined,
       prepMinutes: d.prepMinutes === undefined ? undefined : d.prepMinutes,
       cookMinutes: d.cookMinutes === undefined ? undefined : d.cookMinutes,
@@ -206,11 +216,21 @@ router.post("/from-meal", requireAuth, async (req, res) => {
     return;
   }
 
+  // Carry the meal's slot through as the recipe-book category so AI
+  // saves don't all land in "other". Falls back to "other" if the slot
+  // isn't set.
+  const inferredCategory = (RECIPE_CATEGORIES as readonly string[]).includes(
+    meal.slot ?? "",
+  )
+    ? (meal.slot as string)
+    : "other";
+
   const recipe = await prisma.recipe.create({
     data: {
       userId,
       name: meal.name,
       slotHint: meal.slot ?? null,
+      category: inferredCategory,
       servings: meal.servings,
       prepMinutes: meal.prepMinutes ?? null,
       cookMinutes: meal.cookMinutes ?? null,

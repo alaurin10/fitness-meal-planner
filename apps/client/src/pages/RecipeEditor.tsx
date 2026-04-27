@@ -13,12 +13,26 @@ import {
 import {
   GROCERY_CATEGORIES,
   MEAL_SLOTS,
+  RECIPE_CATEGORIES,
   type GroceryCategory,
   type Ingredient,
   type MealSlot,
+  type RecipeCategory,
   type RecipeInput,
   type RecipeStep,
 } from "../lib/types";
+
+const RECIPE_CATEGORY_LABELS: Record<RecipeCategory, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  snack: "Snack",
+  dessert: "Dessert",
+  baking: "Baking",
+  drinks: "Drinks",
+  sides: "Sides",
+  other: "Other",
+};
 
 const UNIT_OPTIONS = [
   "g",
@@ -43,6 +57,7 @@ const UNIT_OPTIONS = [
 interface FormState {
   name: string;
   slotHint: MealSlot | "";
+  category: RecipeCategory;
   servings: number;
   prepMinutes: string;
   cookMinutes: string;
@@ -59,6 +74,7 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   name: "",
   slotHint: "",
+  category: "other",
   servings: 1,
   prepMinutes: "",
   cookMinutes: "",
@@ -89,6 +105,7 @@ export function RecipeEditorPage() {
     setForm({
       name: existing.name,
       slotHint: existing.slotHint ?? "",
+      category: existing.category ?? "other",
       servings: existing.servings,
       prepMinutes: existing.prepMinutes?.toString() ?? "",
       cookMinutes: existing.cookMinutes?.toString() ?? "",
@@ -232,6 +249,7 @@ export function RecipeEditorPage() {
     const input: RecipeInput = {
       name: form.name.trim(),
       slotHint: form.slotHint || null,
+      category: form.category,
       servings: Math.max(1, Math.round(form.servings)),
       prepMinutes: form.prepMinutes ? Number(form.prepMinutes) : null,
       cookMinutes: form.cookMinutes ? Number(form.cookMinutes) : null,
@@ -286,6 +304,21 @@ export function RecipeEditorPage() {
             />
           </Field>
           <Row>
+            <Field label="Category">
+              <select
+                className="field-input"
+                value={form.category}
+                onChange={(e) =>
+                  setField("category", e.target.value as RecipeCategory)
+                }
+              >
+                {RECIPE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {RECIPE_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Slot">
               <select
                 className="field-input"
@@ -302,6 +335,8 @@ export function RecipeEditorPage() {
                 ))}
               </select>
             </Field>
+          </Row>
+          <Row>
             <Field label="Servings">
               <input
                 type="number"

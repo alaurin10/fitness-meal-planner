@@ -41,6 +41,22 @@ export type GroceryCategory = (typeof GROCERY_CATEGORIES)[number];
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
+// Pre-made categories for organizing the recipe book. The first four
+// align with MEAL_SLOTS so AI-saved recipes can carry their slot
+// straight into a category. The rest are broader buckets.
+export const RECIPE_CATEGORIES = [
+  "breakfast",
+  "lunch",
+  "dinner",
+  "snack",
+  "dessert",
+  "baking",
+  "drinks",
+  "sides",
+  "other",
+] as const;
+export type RecipeCategory = (typeof RECIPE_CATEGORIES)[number];
+
 export interface Quantity {
   amount: number;
   unit: string;

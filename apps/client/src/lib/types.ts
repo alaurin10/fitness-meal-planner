@@ -35,6 +35,19 @@ export interface GroceryList {
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
+export const RECIPE_CATEGORIES = [
+  "breakfast",
+  "lunch",
+  "dinner",
+  "snack",
+  "dessert",
+  "baking",
+  "drinks",
+  "sides",
+  "other",
+] as const;
+export type RecipeCategory = (typeof RECIPE_CATEGORIES)[number];
+
 export interface Quantity {
   amount: number;
   /**
@@ -104,6 +117,7 @@ export interface RecipeRecord {
   userId: string;
   name: string;
   slotHint: MealSlot | null;
+  category: RecipeCategory;
   servings: number;
   prepMinutes: number | null;
   cookMinutes: number | null;
@@ -125,6 +139,7 @@ export interface RecipeRecord {
 export interface RecipeInput {
   name: string;
   slotHint?: MealSlot | null;
+  category?: RecipeCategory;
   servings: number;
   prepMinutes?: number | null;
   cookMinutes?: number | null;

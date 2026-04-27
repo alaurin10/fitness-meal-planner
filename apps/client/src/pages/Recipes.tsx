@@ -6,16 +6,41 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { useRecipes, type RecipeListFilters } from "../hooks/useRecipes";
+import { RECIPE_CATEGORIES, type RecipeCategory } from "../lib/types";
 import { formatMinutes } from "../lib/units";
 
-type FilterPreset = "all" | "favorites" | "manual" | "ai";
+type FilterPreset = "all" | "favorites" | RecipeCategory;
 
-const PRESETS: { id: FilterPreset; label: string }[] = [
+const CATEGORY_LABEL: Record<RecipeCategory, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  snack: "Snack",
+  dessert: "Dessert",
+  baking: "Baking",
+  drinks: "Drinks",
+  sides: "Sides",
+  other: "Other",
+};
+
+interface ChipDef {
+  id: FilterPreset;
+  label: string;
+  icon?: "heart";
+}
+
+const CHIPS: ChipDef[] = [
   { id: "all", label: "All" },
-  { id: "favorites", label: "Favorites" },
-  { id: "manual", label: "Manual" },
-  { id: "ai", label: "From plans" },
+  { id: "favorites", label: "Favorites", icon: "heart" },
+  ...RECIPE_CATEGORIES.map<ChipDef>((c) => ({
+    id: c,
+    label: CATEGORY_LABEL[c],
+  })),
 ];
+
+function isCategory(preset: FilterPreset): preset is RecipeCategory {
+  return preset !== "all" && preset !== "favorites";
+}
 
 export function RecipesPage() {
   const navigate = useNavigate();
@@ -25,12 +50,7 @@ export function RecipesPage() {
   const filters: RecipeListFilters = {
     search: search.trim() || undefined,
     favorite: preset === "favorites" ? true : undefined,
-    source:
-      preset === "manual"
-        ? "MANUAL"
-        : preset === "ai"
-          ? "AI"
-          : undefined,
+    category: isCategory(preset) ? preset : undefined,
   };
   const { data: recipes, isLoading } = useRecipes(filters);
 
@@ -67,13 +87,13 @@ export function RecipesPage() {
           overflowX: "auto",
         }}
       >
-        {PRESETS.map((p) => {
-          const active = preset === p.id;
+        {CHIPS.map((c) => {
+          const active = preset === c.id;
           return (
             <button
-              key={p.id}
+              key={c.id}
               type="button"
-              onClick={() => setPreset(p.id)}
+              onClick={() => setPreset(c.id)}
               className="tappable"
               style={{
                 border: "none",
@@ -86,9 +106,13 @@ export function RecipesPage() {
                 fontWeight: 500,
                 whiteSpace: "nowrap",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {p.label}
+              {c.icon === "heart" && <Icon name="heart" size={12} />}
+              {c.label}
             </button>
           );
         })}
