@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Groceries: hide Quick Add category chips until input is focused (shown on blur after 150ms delay)
+
+### Removed
+
+- Groceries: removed "Send to Reminders" button and synced-date indicator
+
 ### Added
 
 - Responsive desktop layout with `md:` (≥768px) breakpoint

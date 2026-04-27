@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
@@ -9,7 +9,6 @@ import {
   useClearChecked,
   useDeleteGroceryItem,
   useGroceries,
-  usePushToReminders,
   useRebuildGroceries,
   useToggleItem,
   useUpdateGroceryItem,
@@ -29,7 +28,6 @@ export function GroceriesPage() {
   const remove = useDeleteGroceryItem();
   const add = useAddGroceryItem();
   const clear = useClearChecked();
-  const push = usePushToReminders();
   const rebuild = useRebuildGroceries();
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
@@ -50,7 +48,6 @@ export function GroceriesPage() {
     <Layout>
       <ListBody
         items={items}
-        pushedAt={list?.pushedToRemindersAt ?? null}
         hasList={!!list}
         unitSystem={unitSystem}
         onToggle={(id, checked) => toggle.mutate({ itemId: id, checked })}
@@ -58,9 +55,7 @@ export function GroceriesPage() {
         onDelete={(itemId) => remove.mutate(itemId)}
         onAdd={(input) => add.mutate(input)}
         onClear={() => clear.mutate()}
-        onPush={() => push.mutate()}
         onRebuild={() => rebuild.mutate()}
-        pushing={push.isPending}
         rebuilding={rebuild.isPending}
       />
     </Layout>
@@ -69,7 +64,6 @@ export function GroceriesPage() {
 
 interface ListBodyProps {
   items: GroceryItem[];
-  pushedAt: string | null;
   hasList: boolean;
   unitSystem: UnitSystem;
   onToggle: (id: string, checked: boolean) => void;
@@ -84,15 +78,12 @@ interface ListBodyProps {
     category?: GroceryCategory;
   }) => void;
   onClear: () => void;
-  onPush: () => void;
   onRebuild: () => void;
-  pushing: boolean;
   rebuilding: boolean;
 }
 
 function ListBody({
   items,
-  pushedAt,
   hasList,
   unitSystem,
   onToggle,
@@ -100,9 +91,7 @@ function ListBody({
   onDelete,
   onAdd,
   onClear,
-  onPush,
   onRebuild,
-  pushing,
   rebuilding,
 }: ListBodyProps) {
   const byCategory = useMemo(() => groupByCategory(items), [items]);
@@ -117,6 +106,17 @@ function ListBody({
   const [quickAddCategory, setQuickAddCategory] = useState<
     GroceryCategory | "auto"
   >("auto");
+  const [quickAddFocused, setQuickAddFocused] = useState(false);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const handleFocus = useCallback(() => {
+    if (blurTimeout.current) clearTimeout(blurTimeout.current);
+    setQuickAddFocused(true);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    blurTimeout.current = setTimeout(() => setQuickAddFocused(false), 150);
+  }, []);
 
   function handleQuickAdd() {
     const name = quickAddName.trim();
@@ -177,20 +177,12 @@ function ListBody({
             <div style={{ fontSize: 12.5, color: "var(--sumi)" }}>
               {checked} of {total} marked off.
             </div>
-            {pushedAt && (
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                Synced {new Date(pushedAt).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </div>
-            )}
           </div>
         </Card>
       </div>
 
       {/* Actions */}
-      <div className="px-4 pt-3 grid grid-cols-2 gap-2">
+      <div className="px-4 pt-3 grid gap-2">
         <Button
           variant="ghost"
           onClick={onClear}
@@ -198,16 +190,6 @@ function ListBody({
           className="w-full"
         >
           <Icon name="check" size={14} /> Clear checked
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onPush}
-          disabled={pushing || total === 0}
-          className="w-full"
-          title="Push to iOS Reminders via Shortcut"
-        >
-          <Icon name="share" size={14} />
-          {pushing ? "Pushing…" : "Send to Reminders"}
         </Button>
       </div>
       <div className="px-4 pt-2">
@@ -243,6 +225,8 @@ function ListBody({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleQuickAdd();
               }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
             />
             <input
               className="field-input"
@@ -252,6 +236,8 @@ function ListBody({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleQuickAdd();
               }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
             />
             <Button
               onClick={handleQuickAdd}
@@ -262,30 +248,32 @@ function ListBody({
               <Icon name="plus" size={13} />
             </Button>
           </div>
-          <div
-            style={{
-              padding: "0 12px 10px",
-              display: "flex",
-              gap: 4,
-              flexWrap: "wrap",
-            }}
-          >
-            <CategoryChip
-              active={quickAddCategory === "auto"}
-              onClick={() => setQuickAddCategory("auto")}
+          {quickAddFocused && (
+            <div
+              style={{
+                padding: "0 12px 10px",
+                display: "flex",
+                gap: 4,
+                flexWrap: "wrap",
+              }}
             >
-              Auto
-            </CategoryChip>
-            {GROCERY_CATEGORIES.map((c) => (
               <CategoryChip
-                key={c}
-                active={quickAddCategory === c}
-                onClick={() => setQuickAddCategory(c)}
+                active={quickAddCategory === "auto"}
+                onClick={() => setQuickAddCategory("auto")}
               >
-                {c}
+                Auto
               </CategoryChip>
-            ))}
-          </div>
+              {GROCERY_CATEGORIES.map((c) => (
+                <CategoryChip
+                  key={c}
+                  active={quickAddCategory === c}
+                  onClick={() => setQuickAddCategory(c)}
+                >
+                  {c}
+                </CategoryChip>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
 
