@@ -35,8 +35,8 @@ export const ingredientSchema = z.object({
 });
 
 export const stepSchema = z.object({
-  order: z.number().int().nonnegative(),
-  text: z.string().min(1),
+  order: z.number().int().nonnegative().catch(0),
+  text: z.string().min(1).catch("(step details unavailable)"),
   durationMinutes: z.number().int().nonnegative().optional(),
 });
 
