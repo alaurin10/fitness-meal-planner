@@ -9,7 +9,6 @@ import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
 import { useHydration, useLogHydration } from "../hooks/useHydration";
-import { useSettings } from "../hooks/useSettings";
 import {
   localDayKey,
   useMealCompletions,
@@ -92,7 +91,6 @@ export function DashboardPage() {
   );
   const hydrationQuery = useHydration();
   const logHydration = useLogHydration();
-  const settingsQuery = useSettings();
 
   if (profileQuery.isLoading || workoutQuery.isLoading || mealQuery.isLoading) {
     return (
@@ -399,7 +397,7 @@ export function DashboardPage() {
       {/* Hydration tracker */}
       <HydrationCard
         cups={hydrationQuery.data?.cups ?? 0}
-        goal={settingsQuery.data?.hydrationGoal ?? 8}
+        goal={profileQuery.data?.profile?.hydrationGoal ?? 8}
         onAdd={() => logHydration.mutate()}
         loading={hydrationQuery.isLoading}
       />

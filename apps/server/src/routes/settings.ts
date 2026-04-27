@@ -6,8 +6,7 @@ import { currentUserId, requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 const settingsSchema = z.object({
-  unitSystem: z.enum(["imperial", "metric"]).optional(),
-  hydrationGoal: z.number().int().min(1).max(20).optional(),
+  unitSystem: z.enum(["imperial", "metric"]),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -26,7 +25,6 @@ router.get("/", requireAuth, async (req, res) => {
   res.json({
     settings: {
       unitSystem: settings?.unitSystem ?? profile?.unitSystem ?? "imperial",
-      hydrationGoal: settings?.hydrationGoal ?? 8,
     },
   });
 });
@@ -45,31 +43,23 @@ router.patch("/", requireAuth, async (req, res) => {
     create: { id: userId },
   });
 
-  const updateData: Record<string, unknown> = {};
-  if (parsed.data.unitSystem != null) updateData.unitSystem = parsed.data.unitSystem;
-  if (parsed.data.hydrationGoal != null) updateData.hydrationGoal = parsed.data.hydrationGoal;
-
   const settings = await prisma.userSettings.upsert({
     where: { userId },
-    update: updateData,
+    update: { unitSystem: parsed.data.unitSystem },
     create: {
       userId,
-      unitSystem: parsed.data.unitSystem ?? "imperial",
-      ...(parsed.data.hydrationGoal != null && { hydrationGoal: parsed.data.hydrationGoal }),
+      unitSystem: parsed.data.unitSystem,
     },
   });
 
-  if (parsed.data.unitSystem != null) {
-    await prisma.profile.updateMany({
-      where: { userId },
-      data: { unitSystem: parsed.data.unitSystem },
-    });
-  }
+  await prisma.profile.updateMany({
+    where: { userId },
+    data: { unitSystem: parsed.data.unitSystem },
+  });
 
   res.json({
     settings: {
       unitSystem: settings.unitSystem,
-      hydrationGoal: settings.hydrationGoal,
     },
   });
 });

@@ -39,6 +39,7 @@ const EMPTY: ProfileInput = {
   dietaryNotes: null,
   mealComplexity: "varied",
   equipment: [],
+  hydrationGoal: 8,
 };
 
 const MEAL_COMPLEXITY: Array<{
@@ -312,6 +313,12 @@ export function ProfilePage() {
             unit="g"
             value={p.proteinTargetG}
             isSuggested={proteinIsSuggested}
+          />
+          <TargetSummaryCard
+            title="Hydration"
+            unit="cups / day"
+            value={p.hydrationGoal}
+            isSuggested={false}
           />
         </div>
 
@@ -667,6 +674,75 @@ export function ProfilePage() {
             min={40}
             max={300}
           />
+          <Card>
+            <div className="flex items-center justify-between">
+              <div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--muted)",
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Hydration
+                </div>
+                <div style={{ fontSize: 12, color: "var(--sumi)", marginTop: 4, lineHeight: 1.4 }}>
+                  Cups or drinks per day.
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  className="tappable"
+                  onClick={() => upd("hydrationGoal", Math.max(1, (form.hydrationGoal ?? 8) - 1))}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    border: "1px solid var(--hair)",
+                    background: "var(--paper)",
+                    color: "var(--ink)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Decrease goal"
+                >
+                  &minus;
+                </button>
+                <span
+                  className="font-display"
+                  style={{ fontSize: 24, color: "var(--ink)", minWidth: 28, textAlign: "center" }}
+                >
+                  {form.hydrationGoal ?? 8}
+                </span>
+                <button
+                  type="button"
+                  className="tappable"
+                  onClick={() => upd("hydrationGoal", Math.min(20, (form.hydrationGoal ?? 8) + 1))}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    border: "1px solid var(--hair)",
+                    background: "var(--paper)",
+                    color: "var(--ink)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Increase goal"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div className="px-6 pt-5 pb-2">
@@ -1250,6 +1326,7 @@ function profileToForm(profile: Profile): ProfileInput {
     dietaryNotes: profile.dietaryNotes,
     mealComplexity: profile.mealComplexity ?? "varied",
     equipment: profile.equipment ?? [],
+    hydrationGoal: profile.hydrationGoal ?? 8,
   };
 }
 

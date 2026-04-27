@@ -32,6 +32,7 @@ const profileSchema = z.object({
   dietaryNotes: z.string().max(500).nullable().optional(),
   mealComplexity: z.enum(["varied", "simple", "prep"]).default("varied"),
   equipment: z.array(z.enum(EQUIPMENT_OPTIONS)).default([]),
+  hydrationGoal: z.number().int().min(1).max(20).optional(),
 });
 
 router.get("/", requireAuth, async (req, res) => {

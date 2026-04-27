@@ -4,6 +4,7 @@ const KG_PER_LB = 0.45359237;
 const CM_PER_IN = 2.54;
 const G_PER_OZ = 28.3495;
 const ML_PER_FLOZ = 29.5735;
+const KM_PER_MILE = 1.609344;
 
 export function poundsToKg(value: number) {
   return value * KG_PER_LB;
@@ -19,6 +20,23 @@ export function inchesToCm(value: number) {
 
 export function cmToInches(value: number) {
   return value / CM_PER_IN;
+}
+
+export function milesToKm(value: number) {
+  return value * KM_PER_MILE;
+}
+
+export function kmToMiles(value: number) {
+  return value / KM_PER_MILE;
+}
+
+export function formatDistance(valueMiles: number, unitSystem: UnitSystem) {
+  const value = unitSystem === "metric" ? milesToKm(valueMiles) : valueMiles;
+  return roundTo(value, 2);
+}
+
+export function distanceUnitLabel(unitSystem: UnitSystem) {
+  return unitSystem === "metric" ? "km" : "mi";
 }
 
 export function formatWeight(valueLbs: number, unitSystem: UnitSystem, decimals = 1) {

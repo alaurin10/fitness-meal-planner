@@ -182,7 +182,7 @@ function ListBody({
       </div>
 
       {/* Actions */}
-      <div className="px-4 pt-3 grid gap-2">
+      <div className="px-4 pt-3 grid grid-cols-2 gap-2">
         <Button
           variant="ghost"
           onClick={onClear}
@@ -191,8 +191,6 @@ function ListBody({
         >
           <Icon name="check" size={14} /> Clear checked
         </Button>
-      </div>
-      <div className="px-4 pt-2">
         <Button
           variant="ghost"
           onClick={onRebuild}

@@ -33,6 +33,7 @@ export interface Profile {
   dietaryNotes: string | null;
   mealComplexity: MealComplexity;
   equipment: EquipmentId[];
+  hydrationGoal: number;
   updatedAt: string;
 }
 
@@ -50,6 +51,7 @@ export interface ProfileInput {
   dietaryNotes?: string | null;
   mealComplexity: MealComplexity;
   equipment: EquipmentId[];
+  hydrationGoal?: number;
 }
 
 export interface SuggestedTargets {

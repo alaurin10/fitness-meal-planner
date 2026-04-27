@@ -3,7 +3,6 @@ import { useApi } from "../lib/api";
 
 export interface AppSettings {
   unitSystem: "imperial" | "metric";
-  hydrationGoal: number;
 }
 
 export function useSettings() {

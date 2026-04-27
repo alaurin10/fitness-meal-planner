@@ -9,6 +9,7 @@ import progressRouter from "./routes/progress.js";
 import recipesRouter from "./routes/recipes.js";
 import settingsRouter from "./routes/settings.js";
 import hydrationRouter from "./routes/hydration.js";
+import activitiesRouter from "./routes/activities.js";
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/groceries", groceriesRouter);
 app.use("/api/progress", progressRouter);
 app.use("/api/recipes", recipesRouter);
 app.use("/api/hydration", hydrationRouter);
+app.use("/api/activities", activitiesRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("[app-server] unhandled:", err);

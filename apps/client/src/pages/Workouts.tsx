@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
 import { WorkoutMode } from "../components/WorkoutMode";
+import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useActivities";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { localDayKey } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
@@ -23,7 +24,10 @@ import {
 } from "../hooks/useWorkoutSession";
 import { ProgressRing } from "../components/ProgressRing";
 import {
+  distanceUnitLabel,
+  formatDistance,
   formatLoad,
+  kmToMiles,
   kgToPounds,
   poundsToKg,
   roundTo,
@@ -48,6 +52,10 @@ export function WorkoutsPage() {
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
+  const [showActivityForm, setShowActivityForm] = useState(false);
+  const activitiesQuery = useActivities();
+  const logActivity = useLogActivity();
+  const deleteActivity = useDeleteActivity();
   const unitLabel = weightUnitLabel(unitSystem);
 
   if (isLoading) {
@@ -114,6 +122,131 @@ export function WorkoutsPage() {
             </Card>
           )}
         </div>
+
+        <div className="px-4 pt-6">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Log an activity</div>
+          {!showActivityForm ? (
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => setShowActivityForm(true)}
+            >
+              <Icon name="plus" size={16} />
+              Log activity
+            </Button>
+          ) : (
+            <ActivityForm
+              unitSystem={unitSystem}
+              saving={logActivity.isPending}
+              onSave={async (input) => {
+                await logActivity.mutateAsync(input);
+                setShowActivityForm(false);
+              }}
+              onCancel={() => setShowActivityForm(false)}
+            />
+          )}
+          {logActivity.isError && (
+            <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 8 }}>
+              {(logActivity.error as Error).message}
+            </p>
+          )}
+        </div>
+
+        {activitiesQuery.data && activitiesQuery.data.length > 0 && (
+          <div className="px-4 pt-4">
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Recent activities</div>
+            <Card flush>
+              {activitiesQuery.data.slice(0, 20).map((a, i, arr) => (
+                <div
+                  key={a.id}
+                  style={{
+                    padding: "14px 18px",
+                    borderBottom: i < arr.length - 1 ? "1px solid var(--hair)" : "none",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 10,
+                      background: "var(--clay)",
+                      color: "var(--sumi)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon name="flame" size={16} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
+                        {a.activityName}
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Delete activity"
+                        onClick={() => deleteActivity.mutate(a.id)}
+                        disabled={deleteActivity.isPending}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--muted)",
+                          cursor: "pointer",
+                          padding: 4,
+                          borderRadius: 6,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon name="x" size={14} />
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                      {new Date(a.performedAt).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6, fontSize: 12, color: "var(--sumi)" }}>
+                      {a.durationMinutes != null && (
+                        <span>{a.durationMinutes} min</span>
+                      )}
+                      {a.activeCalories != null && (
+                        <span>{a.activeCalories} cal</span>
+                      )}
+                      {a.distanceMiles != null && (
+                        <span>
+                          {formatDistance(a.distanceMiles, unitSystem)} {distanceUnitLabel(unitSystem)}
+                        </span>
+                      )}
+                    </div>
+                    {a.note && (
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: "var(--muted)",
+                          marginTop: 6,
+                          fontStyle: "italic",
+                          paddingLeft: 8,
+                          borderLeft: "2px solid var(--hair)",
+                        }}
+                      >
+                        {a.note}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
       </Layout>
     );
   }
@@ -505,6 +638,131 @@ export function WorkoutsPage() {
           </p>
         )}
       </div>
+
+      <div className="px-4 pt-6">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Log an activity</div>
+        {!showActivityForm ? (
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => setShowActivityForm(true)}
+          >
+            <Icon name="plus" size={16} />
+            Log activity
+          </Button>
+        ) : (
+          <ActivityForm
+            unitSystem={unitSystem}
+            saving={logActivity.isPending}
+            onSave={async (input) => {
+              await logActivity.mutateAsync(input);
+              setShowActivityForm(false);
+            }}
+            onCancel={() => setShowActivityForm(false)}
+          />
+        )}
+        {logActivity.isError && (
+          <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 8 }}>
+            {(logActivity.error as Error).message}
+          </p>
+        )}
+      </div>
+
+      {activitiesQuery.data && activitiesQuery.data.length > 0 && (
+        <div className="px-4 pt-4">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Recent activities</div>
+          <Card flush>
+            {activitiesQuery.data.slice(0, 20).map((a, i, arr) => (
+              <div
+                key={a.id}
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--hair)" : "none",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    background: "var(--clay)",
+                    color: "var(--sumi)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="flame" size={16} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                    <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
+                      {a.activityName}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Delete activity"
+                      onClick={() => deleteActivity.mutate(a.id)}
+                      disabled={deleteActivity.isPending}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--muted)",
+                        cursor: "pointer",
+                        padding: 4,
+                        borderRadius: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon name="x" size={14} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                    {new Date(a.performedAt).toLocaleDateString(undefined, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6, fontSize: 12, color: "var(--sumi)" }}>
+                    {a.durationMinutes != null && (
+                      <span>{a.durationMinutes} min</span>
+                    )}
+                    {a.activeCalories != null && (
+                      <span>{a.activeCalories} cal</span>
+                    )}
+                    {a.distanceMiles != null && (
+                      <span>
+                        {formatDistance(a.distanceMiles, unitSystem)} {distanceUnitLabel(unitSystem)}
+                      </span>
+                    )}
+                  </div>
+                  {a.note && (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--muted)",
+                        marginTop: 6,
+                        fontStyle: "italic",
+                        paddingLeft: 8,
+                        borderLeft: "2px solid var(--hair)",
+                      }}
+                    >
+                      {a.note}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
       </div>
       </div>
     </Layout>
@@ -615,6 +873,187 @@ function iconBtn(color: string): React.CSSProperties {
     alignItems: "center",
     justifyContent: "center",
   };
+}
+
+function toLocalDatetimeValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+interface ActivityFormInput {
+  activityName: string;
+  performedAt: string;
+  durationMinutes?: number | null;
+  activeCalories?: number | null;
+  distanceMiles?: number | null;
+  note?: string;
+}
+
+function ActivityForm({
+  unitSystem,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  unitSystem: UnitSystem;
+  saving: boolean;
+  onSave: (input: ActivityFormInput) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [performedAt, setPerformedAt] = useState(toLocalDatetimeValue(new Date()));
+  const [duration, setDuration] = useState("");
+  const [calories, setCalories] = useState("");
+  const [distance, setDistance] = useState("");
+  const [note, setNote] = useState("");
+
+  const distLabel = distanceUnitLabel(unitSystem);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    const durationVal = duration ? parseInt(duration, 10) : null;
+    const caloriesVal = calories ? parseInt(calories, 10) : null;
+    let distanceVal: number | null = null;
+    if (distance) {
+      const parsed = parseFloat(distance);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        distanceVal = unitSystem === "metric" ? kmToMiles(parsed) : parsed;
+      }
+    }
+
+    onSave({
+      activityName: name.trim(),
+      performedAt: new Date(performedAt).toISOString(),
+      durationMinutes: durationVal && durationVal > 0 ? durationVal : null,
+      activeCalories: caloriesVal && caloriesVal > 0 ? caloriesVal : null,
+      distanceMiles: distanceVal,
+      note: note.trim() || undefined,
+    });
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: 14,
+    border: "1px solid var(--hair)",
+    borderRadius: 8,
+    fontFamily: "var(--font-body)",
+    background: "var(--paper)",
+    color: "var(--ink)",
+  };
+
+  return (
+    <Card>
+      <form onSubmit={submit}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+              Activity *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Bike ride, Morning run, Yoga"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              maxLength={100}
+              disabled={saving}
+              style={fieldStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+              Date & time
+            </label>
+            <input
+              type="datetime-local"
+              value={performedAt}
+              onChange={(e) => setPerformedAt(e.target.value)}
+              disabled={saving}
+              style={fieldStyle}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                Duration (min)
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="—"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                min={1}
+                disabled={saving}
+                style={fieldStyle}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                Calories
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="—"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                min={1}
+                disabled={saving}
+                style={fieldStyle}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                Distance ({distLabel})
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="—"
+                value={distance}
+                onChange={(e) => setDistance(e.target.value)}
+                min={0}
+                step="any"
+                disabled={saving}
+                style={fieldStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+              Note
+            </label>
+            <input
+              type="text"
+              placeholder="Optional note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={500}
+              disabled={saving}
+              style={fieldStyle}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button type="submit" variant="accent" className="flex-1" disabled={saving || !name.trim()}>
+              <Icon name="check" size={16} />
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Card>
+  );
 }
 
 function longDay(d: TrainingDay["day"]) {

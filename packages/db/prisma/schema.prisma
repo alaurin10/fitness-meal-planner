@@ -21,6 +21,7 @@ model User {
   recipes         Recipe[]
   groceryCategoryOverrides GroceryCategoryOverride[]
   hydrationLogs   HydrationLog[]
+  activityLogs    ActivityLog[]
 }
 
 model UserSettings {
@@ -28,7 +29,6 @@ model UserSettings {
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   unitSystem     String   @default("imperial") // "imperial" | "metric"
-  hydrationGoal  Int      @default(8)
   updatedAt      DateTime @updatedAt
 }
 
@@ -53,6 +53,7 @@ model Profile {
   // Known values: "barbell", "dumbbells", "kettlebells", "pull_up_bar",
   // "bench", "squat_rack", "cable_machine", "resistance_bands", "cardio_machine".
   equipment           String[] @default([])
+  hydrationGoal       Int      @default(8)
   updatedAt           DateTime @updatedAt
 }
 
@@ -141,6 +142,21 @@ model Recipe {
 
   @@index([userId, isFavorite])
   @@index([userId, createdAt])
+}
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activityName    String
+  performedAt     DateTime @default(now())
+  durationMinutes Int?
+  activeCalories  Int?
+  distanceMiles   Float?
+  note            String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, performedAt])
 }
 
 model HydrationLog {

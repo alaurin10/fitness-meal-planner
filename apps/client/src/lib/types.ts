@@ -154,3 +154,24 @@ export interface RecipeInput {
   tags?: string[];
   notes?: string | null;
 }
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  activityName: string;
+  performedAt: string;
+  durationMinutes: number | null;
+  activeCalories: number | null;
+  distanceMiles: number | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface ActivityInput {
+  activityName: string;
+  performedAt: string;
+  durationMinutes?: number | null;
+  activeCalories?: number | null;
+  distanceMiles?: number | null;
+  note?: string;
+}
