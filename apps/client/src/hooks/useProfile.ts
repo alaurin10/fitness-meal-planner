@@ -1,6 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 
+export type MealComplexity = "varied" | "simple" | "prep";
+
+export const EQUIPMENT_OPTIONS = [
+  "barbell",
+  "dumbbells",
+  "kettlebells",
+  "pull_up_bar",
+  "bench",
+  "squat_rack",
+  "cable_machine",
+  "resistance_bands",
+  "cardio_machine",
+] as const;
+
+export type EquipmentId = (typeof EQUIPMENT_OPTIONS)[number];
+
 export interface Profile {
   id: string;
   userId: string;
@@ -15,6 +31,8 @@ export interface Profile {
   caloricTarget: number | null;
   proteinTargetG: number | null;
   dietaryNotes: string | null;
+  mealComplexity: MealComplexity;
+  equipment: EquipmentId[];
   updatedAt: string;
 }
 
@@ -30,6 +48,8 @@ export interface ProfileInput {
   caloricTarget?: number | null;
   proteinTargetG?: number | null;
   dietaryNotes?: string | null;
+  mealComplexity: MealComplexity;
+  equipment: EquipmentId[];
 }
 
 export interface SuggestedTargets {
@@ -71,6 +91,8 @@ export function useSaveProfile() {
         profile: {
           ...data.profile,
           unitSystem: data.profile.unitSystem ?? "imperial",
+          mealComplexity: data.profile.mealComplexity ?? "varied",
+          equipment: data.profile.equipment ?? [],
         } as Profile,
       };
     },

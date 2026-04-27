@@ -51,6 +51,15 @@ export function buildSystemPrompt(): string {
   ].join("\n");
 }
 
+const COMPLEXITY_GUIDANCE: Record<string, string> = {
+  varied:
+    "STYLE: Lean toward varied, creative meals — different recipes most days, with some shared ingredients to keep the grocery list manageable. The user enjoys cooking new things.",
+  simple:
+    "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight.",
+  prep:
+    "STYLE: Prioritize meal prep and batch cooking — REUSE the same lunch and dinner recipes across at least 3-4 days of the week. Aim for ~3 distinct dinners and 2-3 distinct lunches max for the whole week, scaled up to multiple servings each. Breakfasts and snacks may also repeat. The user wants to cook a few large batches and eat the leftovers.",
+};
+
 export function buildUserPrompt(args: {
   profile: Profile;
   schedule: TrainingSchedule;
@@ -60,6 +69,7 @@ export function buildUserPrompt(args: {
   const baseTarget = profile.caloricTarget ?? 2200;
   const trainingDayBonus = schedule.avgDailyCaloriesBurned;
   const suggestedTarget = baseTarget + trainingDayBonus;
+  const complexity = profile.mealComplexity ?? "varied";
 
   const lines: string[] = [];
   lines.push("Client profile:");
@@ -69,6 +79,7 @@ export function buildUserPrompt(args: {
         baseCaloricTarget: baseTarget,
         proteinTargetG: profile.proteinTargetG,
         dietaryNotes: profile.dietaryNotes ?? "none",
+        mealComplexity: complexity,
       },
       null,
       2,
@@ -86,6 +97,10 @@ export function buildUserPrompt(args: {
       null,
       2,
     ),
+  );
+  lines.push("");
+  lines.push(
+    COMPLEXITY_GUIDANCE[complexity] ?? COMPLEXITY_GUIDANCE.varied!,
   );
   lines.push("");
   lines.push(

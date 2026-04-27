@@ -8,6 +8,9 @@ import { Chip, PhoneHeader } from "../components/Primitives";
 import {
   useProfile,
   useSaveProfile,
+  EQUIPMENT_OPTIONS,
+  type EquipmentId,
+  type MealComplexity,
   type Profile,
   type ProfileInput,
 } from "../hooks/useProfile";
@@ -34,7 +37,57 @@ const EMPTY: ProfileInput = {
   caloricTarget: null,
   proteinTargetG: null,
   dietaryNotes: null,
+  mealComplexity: "varied",
+  equipment: [],
 };
+
+const MEAL_COMPLEXITY: Array<{
+  value: MealComplexity;
+  label: string;
+  hint: string;
+  icon: IconName;
+}> = [
+  {
+    value: "varied",
+    label: "Creative",
+    hint: "Different recipes most days. Lean into variety.",
+    icon: "sparkle",
+  },
+  {
+    value: "simple",
+    label: "Simple",
+    hint: "Quick weeknight meals with short ingredient lists.",
+    icon: "leaf",
+  },
+  {
+    value: "prep",
+    label: "Meal prep",
+    hint: "Reuse a few recipes across the week. Cook in batches.",
+    icon: "flame",
+  },
+];
+
+const MEAL_COMPLEXITY_LABEL: Record<MealComplexity, string> = {
+  varied: "Creative",
+  simple: "Simple",
+  prep: "Meal prep",
+};
+
+const EQUIPMENT: Array<{ value: EquipmentId; label: string }> = [
+  { value: "barbell", label: "Barbell + plates" },
+  { value: "dumbbells", label: "Dumbbells" },
+  { value: "kettlebells", label: "Kettlebells" },
+  { value: "pull_up_bar", label: "Pull-up bar" },
+  { value: "bench", label: "Bench" },
+  { value: "squat_rack", label: "Squat rack" },
+  { value: "cable_machine", label: "Cable machine" },
+  { value: "resistance_bands", label: "Resistance bands" },
+  { value: "cardio_machine", label: "Cardio machine" },
+];
+
+const EQUIPMENT_LABEL: Record<EquipmentId, string> = Object.fromEntries(
+  EQUIPMENT.map((e) => [e.value, e.label]),
+) as Record<EquipmentId, string>;
 
 const EXPERIENCE: Array<[ProfileInput["experienceLevel"], string]> = [
   ["beginner", "Beginner"],
@@ -260,6 +313,46 @@ export function ProfilePage() {
             value={p.proteinTargetG}
             isSuggested={proteinIsSuggested}
           />
+        </div>
+
+        <div className="md:grid md:grid-cols-2 md:gap-4 md:px-4">
+        <div>
+        <div className="px-6 pt-5 pb-2 md:px-0">
+          <div className="eyebrow">Meal style</div>
+        </div>
+        <div className="px-4 md:px-0">
+          <Card>
+            <SummaryRow
+              label="Plan style"
+              value={MEAL_COMPLEXITY_LABEL[p.mealComplexity ?? "varied"]}
+              last
+            />
+          </Card>
+        </div>
+        </div>
+
+        <div>
+        <div className="px-6 pt-5 pb-2 md:px-0 md:pt-5">
+          <div className="eyebrow">Equipment</div>
+        </div>
+        <div className="px-4 md:px-0">
+          <Card>
+            {p.equipment && p.equipment.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {p.equipment.map((id) => (
+                  <Chip key={id} variant="moss">
+                    {EQUIPMENT_LABEL[id] ?? id}
+                  </Chip>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13.5, color: "var(--sumi)" }}>
+                Bodyweight only
+              </div>
+            )}
+          </Card>
+        </div>
+        </div>
         </div>
 
         {p.dietaryNotes && p.dietaryNotes.trim() !== "" && (
@@ -574,6 +667,121 @@ export function ProfilePage() {
             min={40}
             max={300}
           />
+        </div>
+
+        <div className="px-6 pt-5 pb-2">
+          <div className="eyebrow">Meal style</div>
+        </div>
+        <div className="px-4">
+          <Card>
+            <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>
+              How should plans look?
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: 8,
+              }}
+            >
+              {MEAL_COMPLEXITY.map((opt) => {
+                const selected = form.mealComplexity === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => upd("mealComplexity", opt.value)}
+                    className="tappable"
+                    style={{
+                      padding: "14px 10px 12px",
+                      border:
+                        "1px solid " +
+                        (selected ? "var(--accent)" : "var(--hair)"),
+                      background: selected
+                        ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+                        : "var(--paper)",
+                      color: selected ? "var(--accent-2)" : "var(--sumi)",
+                      borderRadius: "calc(var(--radius) * 0.7)",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "var(--font-body)",
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <Icon name={opt.icon} size={18} />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 10,
+                lineHeight: 1.5,
+              }}
+            >
+              {MEAL_COMPLEXITY.find((o) => o.value === form.mealComplexity)?.hint}
+            </div>
+          </Card>
+        </div>
+
+        <div className="px-6 pt-5 pb-2">
+          <div className="eyebrow">Equipment</div>
+        </div>
+        <div className="px-4">
+          <Card>
+            <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>
+              What can you train with?
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {EQUIPMENT.map((opt) => {
+                const active = form.equipment.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      upd(
+                        "equipment",
+                        active
+                          ? form.equipment.filter((e) => e !== opt.value)
+                          : [...form.equipment, opt.value],
+                      )
+                    }
+                    className="tappable"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Chip variant={active ? "moss" : "ghost"}>
+                      {active ? "✓ " : ""}
+                      {opt.label}
+                    </Chip>
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 10,
+                lineHeight: 1.5,
+              }}
+            >
+              {form.equipment.length === 0
+                ? "Nothing selected — plans will be bodyweight only."
+                : "Workouts will only use the equipment you've selected."}
+            </div>
+          </Card>
         </div>
 
         <div className="px-6 pt-5 pb-2">
@@ -1040,6 +1248,8 @@ function profileToForm(profile: Profile): ProfileInput {
     caloricTarget: profile.caloricTarget,
     proteinTargetG: profile.proteinTargetG,
     dietaryNotes: profile.dietaryNotes,
+    mealComplexity: profile.mealComplexity ?? "varied",
+    equipment: profile.equipment ?? [],
   };
 }
 

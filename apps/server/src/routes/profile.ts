@@ -6,6 +6,18 @@ import { computeTargets } from "../services/targets.js";
 
 const router = Router();
 
+export const EQUIPMENT_OPTIONS = [
+  "barbell",
+  "dumbbells",
+  "kettlebells",
+  "pull_up_bar",
+  "bench",
+  "squat_rack",
+  "cable_machine",
+  "resistance_bands",
+  "cardio_machine",
+] as const;
+
 const profileSchema = z.object({
   unitSystem: z.enum(["imperial", "metric"]).default("imperial"),
   age: z.number().int().min(10).max(100).nullable().optional(),
@@ -18,6 +30,8 @@ const profileSchema = z.object({
   caloricTarget: z.number().int().positive().nullable().optional(),
   proteinTargetG: z.number().int().positive().nullable().optional(),
   dietaryNotes: z.string().max(500).nullable().optional(),
+  mealComplexity: z.enum(["varied", "simple", "prep"]).default("varied"),
+  equipment: z.array(z.enum(EQUIPMENT_OPTIONS)).default([]),
 });
 
 router.get("/", requireAuth, async (req, res) => {

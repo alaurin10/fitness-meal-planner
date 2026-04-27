@@ -14,6 +14,32 @@ export function buildSystemPrompt(): string {
     "- `summary` is one paragraph explaining the week's focus.",
     "- `progressionNotes` is one paragraph explaining what changed from the previous week and why.",
     "- Only include as many day entries as trainingDaysPerWeek.",
+    "- STRICTLY respect the athlete's available equipment. Only prescribe exercises that can be performed with the listed equipment. If equipment is empty, the athlete has bodyweight only — design a fully bodyweight program.",
+  ].join("\n");
+}
+
+const EQUIPMENT_LABELS: Record<string, string> = {
+  barbell: "Barbell with plates",
+  dumbbells: "Dumbbells (adjustable or full set)",
+  kettlebells: "Kettlebells",
+  pull_up_bar: "Pull-up bar",
+  bench: "Adjustable bench",
+  squat_rack: "Squat rack / power rack",
+  cable_machine: "Cable machine / lat pulldown",
+  resistance_bands: "Resistance bands",
+  cardio_machine: "Cardio machine (treadmill, bike, or rower)",
+};
+
+function describeEquipment(equipment: string[] | null | undefined): string {
+  if (!equipment || equipment.length === 0) {
+    return "BODYWEIGHT ONLY — no equipment available. Use only bodyweight movements (push-ups, pull-ups only if a bar is listed, lunges, squats, planks, etc.).";
+  }
+  const lines = equipment
+    .map((id) => EQUIPMENT_LABELS[id])
+    .filter((v): v is string => Boolean(v));
+  return [
+    "Available equipment (use only these):",
+    ...lines.map((label) => `- ${label}`),
   ].join("\n");
 }
 
@@ -31,6 +57,7 @@ export function buildUserPrompt(args: {
     experienceLevel: profile.experienceLevel,
     trainingDaysPerWeek: profile.trainingDaysPerWeek,
     goal: profile.goal,
+    equipment: profile.equipment ?? [],
   };
 
   const progressBlock = recentProgress.map((p) => ({
@@ -52,6 +79,8 @@ export function buildUserPrompt(args: {
   if (progressBlock.length > 0) {
     lines.push(JSON.stringify(progressBlock, null, 2));
   }
+  lines.push("");
+  lines.push(describeEquipment(profile.equipment));
   lines.push("");
   if (previousPlan) {
     lines.push("Previous plan (evolve this, do not restart):");

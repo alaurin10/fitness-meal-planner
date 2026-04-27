@@ -45,6 +45,12 @@ model Profile {
   caloricTarget       Int?
   proteinTargetG      Int?
   dietaryNotes        String?
+  // Meal-plan style preference: "varied" | "simple" | "prep"
+  mealComplexity      String   @default("varied")
+  // Equipment available for workouts. Empty array => bodyweight only.
+  // Known values: "barbell", "dumbbells", "kettlebells", "pull_up_bar",
+  // "bench", "squat_rack", "cable_machine", "resistance_bands", "cardio_machine".
+  equipment           String[] @default([])
   updatedAt           DateTime @updatedAt
 }
 
