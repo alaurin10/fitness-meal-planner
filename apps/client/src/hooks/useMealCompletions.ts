@@ -121,3 +121,16 @@ export function useMealCompletions(
 
   return { completed, toggle, markComplete, isComplete };
 }
+
+/**
+ * Read meal-completion indexes for a specific (planId, dayKey) without
+ * subscribing. Used by views (e.g. WeekStrip) that need to peek at
+ * past days and don't care about live updates.
+ */
+export function readMealCompletions(
+  planId: string | undefined,
+  dayKey: string,
+): Set<number> {
+  if (!planId) return new Set();
+  return readSet(storageKey(planId, dayKey));
+}

@@ -8,12 +8,14 @@ import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
 import { WorkoutMode } from "../components/WorkoutMode";
 import { useIsDesktop } from "../hooks/useIsDesktop";
+import { localDayKey } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import {
   useCurrentWorkoutPlan,
   useGenerateWorkoutPlan,
   type TrainingDay,
 } from "../hooks/useWorkoutPlan";
+import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import { formatLoad, weightUnitLabel } from "../lib/units";
 
 const DAYS: TrainingDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -27,6 +29,7 @@ export function WorkoutsPage() {
     DAYS[todayIdx] ?? "Mon",
   );
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
+  const completion = useWorkoutCompletions(plan?.id, localDayKey());
   const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
@@ -101,6 +104,7 @@ export function WorkoutsPage() {
 
   const dayEntry = plan.planJson.days.find((d) => d.day === activeDay);
   const exercises = dayEntry?.exercises ?? [];
+  const viewingToday = activeDay === DAYS[todayIdx];
 
   if (workoutInProgress && exercises.length > 0) {
     return (
@@ -109,6 +113,13 @@ export function WorkoutsPage() {
         dayLabel={longDay(activeDay)}
         unitSystem={unitSystem}
         onExit={() => setWorkoutInProgress(false)}
+        onComplete={
+          // Only auto-mark complete when the user is doing today's session.
+          // Browsing a future/past day is just preview.
+          viewingToday && !completion.isComplete
+            ? completion.markComplete
+            : undefined
+        }
       />
     );
   }
@@ -297,7 +308,7 @@ export function WorkoutsPage() {
       )}
 
       {exercises.length > 0 && (
-        <div className="px-4 pt-3">
+        <div className="px-4 pt-3 space-y-2">
           <Button
             className="w-full"
             variant="accent"
@@ -306,6 +317,18 @@ export function WorkoutsPage() {
             <Icon name="dumbbell" size={16} />
             Start workout
           </Button>
+          {viewingToday && (
+            <Button
+              className="w-full"
+              variant={completion.isComplete ? "ghost" : "primary"}
+              onClick={completion.toggle}
+            >
+              <Icon name="check" size={16} />
+              {completion.isComplete
+                ? "Marked complete · Undo"
+                : "Mark complete"}
+            </Button>
+          )}
         </div>
       )}
 

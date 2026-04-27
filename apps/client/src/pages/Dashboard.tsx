@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { DayArc } from "../components/DayArc";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
+import { WeekStrip } from "../components/WeekStrip";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
@@ -11,6 +13,7 @@ import {
   localDayKey,
   useMealCompletions,
 } from "../hooks/useMealCompletions";
+import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -72,6 +75,10 @@ export function DashboardPage() {
   // Hook calls must run on every render — keep this above the early returns.
   const completions = useMealCompletions(
     mealQuery.data?.id,
+    localDayKey(),
+  );
+  const workoutCompletion = useWorkoutCompletions(
+    workoutQuery.data?.id,
     localDayKey(),
   );
 
@@ -151,7 +158,7 @@ export function DashboardPage() {
   const mealsForToday = todayMeals?.meals ?? [];
   const nextMeal = findNextMeal(mealsForToday, completions.completed);
   const allDoneToday = mealsForToday.length > 0 && nextMeal === null;
-  const todayDayKey = todayLabel;
+  const todayDayKey = todayLabel ?? "Mon";
 
   return (
     <Layout>
@@ -165,6 +172,21 @@ export function DashboardPage() {
         }
         subtitle="Today's workout and meals at a glance."
       />
+
+      {/* Weekly momentum + today's arc */}
+      <div className="px-4 pt-1 pb-3 space-y-3">
+        <WeekStrip
+          mealPlan={mealPlan}
+          workoutPlan={workoutPlan}
+        />
+        <DayArc
+          meals={mealsForToday}
+          completedMealIndexes={completions.completed}
+          hasWorkout={(todayWorkout?.exercises.length ?? 0) > 0}
+          workoutComplete={workoutCompletion.isComplete}
+          todayDayKey={todayDayKey}
+        />
+      </div>
 
       {/* Today's workout */}
       <div className="px-4 pt-1 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">

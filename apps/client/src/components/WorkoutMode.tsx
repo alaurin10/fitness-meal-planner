@@ -9,6 +9,11 @@ interface Props {
   dayLabel: string;
   unitSystem: UnitSystem;
   onExit: () => void;
+  /**
+   * Called once when the user reaches the Done screen. Lets the host
+   * automatically mark the workout complete after guided sessions.
+   */
+  onComplete?: () => void;
 }
 
 type Phase = "active" | "resting" | "done";
@@ -18,10 +23,20 @@ export function WorkoutMode({
   dayLabel,
   unitSystem,
   onExit,
+  onComplete,
 }: Props) {
   const [exerciseIdx, setExerciseIdx] = useState(0);
   const [setNum, setSetNum] = useState(1);
   const [phase, setPhase] = useState<Phase>("active");
+  const completionFiredRef = useRef(false);
+
+  // Fire onComplete the moment the user lands on the Done screen.
+  useEffect(() => {
+    if (phase === "done" && !completionFiredRef.current) {
+      completionFiredRef.current = true;
+      onComplete?.();
+    }
+  }, [phase, onComplete]);
 
   const exercise = exercises[exerciseIdx];
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
