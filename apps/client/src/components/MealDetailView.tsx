@@ -18,6 +18,10 @@ interface MealDetailViewProps {
   topAction?: React.ReactNode;
   /** Optional action row rendered below the steps section (e.g. Save to book). */
   bottomActions?: React.ReactNode;
+  /** When true, render the "Marked complete · Undo" state. */
+  isComplete?: boolean;
+  /** When provided, render a Mark complete / Undo button. */
+  onToggleComplete?: () => void;
 }
 
 const SLOT_LABEL: Record<string, string> = {
@@ -32,6 +36,8 @@ export function MealDetailView({
   slotLabel,
   topAction,
   bottomActions,
+  isComplete,
+  onToggleComplete,
 }: MealDetailViewProps) {
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
@@ -65,6 +71,11 @@ export function MealDetailView({
         unitSystem={unitSystem}
         scale={scale}
         onExit={() => setCooking(false)}
+        onComplete={
+          // Auto-mark the meal complete when guided cooking finishes,
+          // unless it's already marked complete.
+          onToggleComplete && !isComplete ? onToggleComplete : undefined
+        }
       />
     );
   }
@@ -345,6 +356,16 @@ export function MealDetailView({
             Start cooking
           </Button>
         )}
+        {onToggleComplete && (
+          <Button
+            className="w-full"
+            variant={isComplete ? "ghost" : "primary"}
+            onClick={onToggleComplete}
+          >
+            <Icon name="check" size={16} />
+            {isComplete ? "Marked complete · Undo" : "Mark complete"}
+          </Button>
+        )}
         </div>
         </div>
 
@@ -492,11 +513,17 @@ function CookingMode({
   unitSystem,
   scale,
   onExit,
+  onComplete,
 }: {
   meal: Meal;
   unitSystem: UnitSystem;
   scale: number;
   onExit: () => void;
+  /**
+   * Called once when the user finishes the last step (taps "Done").
+   * Lets the host mark the meal complete automatically.
+   */
+  onComplete?: () => void;
 }) {
   const [stepIdx, setStepIdx] = useState(0);
   const step = meal.steps[stepIdx];
@@ -625,7 +652,14 @@ function CookingMode({
             <Icon name="chevron" size={14} />
           </Button>
         ) : (
-          <Button variant="accent" onClick={onExit} style={{ flex: 1 }}>
+          <Button
+            variant="accent"
+            onClick={() => {
+              onComplete?.();
+              onExit();
+            }}
+            style={{ flex: 1 }}
+          >
             <Icon name="check" size={16} />
             Done
           </Button>

@@ -7,6 +7,10 @@ import { Chip, PhoneHeader } from "../components/Primitives";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
+import {
+  localDayKey,
+  useMealCompletions,
+} from "../hooks/useMealCompletions";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -19,27 +23,13 @@ function formatDay(date: Date) {
   });
 }
 
-// Approximate "should-be-eaten-by" times so we can decide which meal is next.
-// Meals without a slot fall back to position-based ordering.
+// Order in which meals are naturally eaten through the day. Meals without
+// a slot fall back to their position in the day's array.
 const SLOT_ORDER: Record<MealSlot, number> = {
   breakfast: 0,
   lunch: 1,
   snack: 2,
   dinner: 3,
-};
-
-const SLOT_START_HOUR: Record<MealSlot, number> = {
-  breakfast: 8,
-  lunch: 12.5,
-  snack: 15.5,
-  dinner: 18.5,
-};
-
-const SLOT_END_HOUR: Record<MealSlot, number> = {
-  breakfast: 11,
-  lunch: 14.5,
-  snack: 17,
-  dinner: 21,
 };
 
 function slotLabel(slot: MealSlot | undefined, fallbackIndex: number): string {
@@ -49,24 +39,14 @@ function slotLabel(slot: MealSlot | undefined, fallbackIndex: number): string {
   return ["Breakfast", "Lunch", "Dinner", "Snack", "Snack", "Snack"][fallbackIndex] ?? "Meal";
 }
 
-function formatHour(hour24: number): string {
-  const h = Math.floor(hour24);
-  const m = Math.round((hour24 - h) * 60);
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0 ? `${h12} ${period}` : `${h12}:${m.toString().padStart(2, "0")} ${period}`;
-}
-
 interface NextMeal {
   meal: Meal;
   index: number;
   label: string;
-  whenLabel: string;
 }
 
-function findNextMeal(meals: Meal[], now: Date): NextMeal | null {
+function findNextMeal(meals: Meal[], completed: Set<number>): NextMeal | null {
   if (meals.length === 0) return null;
-  const minutesNow = now.getHours() * 60 + now.getMinutes();
 
   // Sort meals into the order they'd naturally be eaten in.
   const sorted = meals
@@ -78,16 +58,8 @@ function findNextMeal(meals: Meal[], now: Date): NextMeal | null {
     });
 
   for (const { meal, index } of sorted) {
-    const slot = meal.slot;
-    const endHour = slot ? SLOT_END_HOUR[slot] : 21;
-    if (minutesNow < endHour * 60) {
-      const startHour = slot ? SLOT_START_HOUR[slot] : 12;
-      return {
-        meal,
-        index,
-        label: slotLabel(slot, index),
-        whenLabel: `Around ${formatHour(startHour)}`,
-      };
+    if (!completed.has(index)) {
+      return { meal, index, label: slotLabel(meal.slot, index) };
     }
   }
   return null;
@@ -97,6 +69,11 @@ export function DashboardPage() {
   const profileQuery = useProfile();
   const workoutQuery = useCurrentWorkoutPlan();
   const mealQuery = useCurrentMealPlan();
+  // Hook calls must run on every render — keep this above the early returns.
+  const completions = useMealCompletions(
+    mealQuery.data?.id,
+    localDayKey(),
+  );
 
   if (profileQuery.isLoading || workoutQuery.isLoading || mealQuery.isLoading) {
     return (
@@ -172,7 +149,7 @@ export function DashboardPage() {
   const todayWorkout = workoutPlan?.planJson.days.find((d) => d.day === todayLabel);
   const todayMeals = mealPlan?.planJson.days.find((d) => d.day === todayLabel);
   const mealsForToday = todayMeals?.meals ?? [];
-  const nextMeal = findNextMeal(mealsForToday, today);
+  const nextMeal = findNextMeal(mealsForToday, completions.completed);
   const allDoneToday = mealsForToday.length > 0 && nextMeal === null;
   const todayDayKey = todayLabel;
 
@@ -286,8 +263,6 @@ export function DashboardPage() {
                     flexWrap: "wrap",
                   }}
                 >
-                  <span>{nextMeal.whenLabel}</span>
-                  <span>·</span>
                   <span>
                     <b style={{ color: "var(--ink)", fontWeight: 500 }}>{nextMeal.meal.calories}</b> kcal
                   </span>

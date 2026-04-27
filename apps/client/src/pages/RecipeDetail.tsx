@@ -5,6 +5,10 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { MealDetailView } from "../components/MealDetailView";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
+import {
+  localDayKey,
+  useMealCompletions,
+} from "../hooks/useMealCompletions";
 import { useSaveMealAsRecipe } from "../hooks/useRecipes";
 import type { Meal, MealDay } from "../lib/types";
 
@@ -27,6 +31,7 @@ export function RecipeDetailPage() {
   const navigate = useNavigate();
   const { data: plan, isLoading } = useCurrentMealPlan();
   const save = useSaveMealAsRecipe();
+  const completions = useMealCompletions(plan?.id, localDayKey());
 
   const day = params.day as MealDay["day"];
   const idx = Number(params.index);
@@ -66,6 +71,8 @@ export function RecipeDetailPage() {
       <MealDetailView
         meal={meal}
         slotLabel={slotLabel}
+        isComplete={completions.isComplete(idx)}
+        onToggleComplete={() => completions.toggle(idx)}
         topAction={
           <div style={{ padding: "8px 16px 0" }}>
             <Button
