@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { DayArc } from "../components/DayArc";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
-import { WeekStrip } from "../components/WeekStrip";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
@@ -13,7 +11,6 @@ import {
   localDayKey,
   useMealCompletions,
 } from "../hooks/useMealCompletions";
-import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -75,10 +72,6 @@ export function DashboardPage() {
   // Hook calls must run on every render — keep this above the early returns.
   const completions = useMealCompletions(
     mealQuery.data?.id,
-    localDayKey(),
-  );
-  const workoutCompletion = useWorkoutCompletions(
-    workoutQuery.data?.id,
     localDayKey(),
   );
 
@@ -162,30 +155,17 @@ export function DashboardPage() {
 
   return (
     <Layout>
-      <PhoneHeader
-        greeting={formatDay(today)}
-        title={
-          <>
-            Good day,<br />
-            you.
-          </>
-        }
-        subtitle="Today's workout and meals at a glance."
-      />
-
-      {/* Weekly momentum + today's arc */}
-      <div className="px-4 pt-1 pb-3 space-y-3">
-        <WeekStrip
-          mealPlan={mealPlan}
-          workoutPlan={workoutPlan}
-        />
-        <DayArc
-          meals={mealsForToday}
-          completedMealIndexes={completions.completed}
-          hasWorkout={(todayWorkout?.exercises.length ?? 0) > 0}
-          workoutComplete={workoutCompletion.isComplete}
-          todayDayKey={todayDayKey}
-        />
+      <div
+        className="font-display"
+        style={{
+          padding: "20px 22px 14px",
+          fontSize: 36,
+          color: "var(--ink)",
+          letterSpacing: "-0.02em",
+          lineHeight: 1.05,
+        }}
+      >
+        {formatDay(today)}
       </div>
 
       {/* Today's workout */}
@@ -356,38 +336,6 @@ export function DashboardPage() {
             </>
           )}
         </Card>
-
-        {/* Log weight shortcut */}
-        <Link to="/progress" className="block md:col-span-2">
-          <Card className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  background: "var(--clay)",
-                  color: "var(--sumi)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name="scale" size={20} />
-              </div>
-              <div>
-                <div style={{ fontSize: 13.5, color: "var(--ink)", fontWeight: 500 }}>
-                  Log weight
-                </div>
-                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
-                  Track today's number
-                </div>
-              </div>
-            </div>
-            <Icon name="chevron" size={18} style={{ color: "var(--muted)" }} />
-          </Card>
-        </Link>
       </div>
     </Layout>
   );

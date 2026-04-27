@@ -85,16 +85,3 @@ export function useWorkoutCompletions(
 
   return { isComplete, markComplete, toggle };
 }
-
-/**
- * Read whether a specific workout (by planId + dayKey) is complete,
- * without subscribing to changes. Useful for the WeekStrip which
- * shows past days and doesn't need re-renders on toggles.
- */
-export function readWorkoutCompletion(
-  planId: string | undefined,
-  dayKey: string,
-): boolean {
-  if (!planId) return false;
-  return readBool(storageKey(planId, dayKey));
-}
