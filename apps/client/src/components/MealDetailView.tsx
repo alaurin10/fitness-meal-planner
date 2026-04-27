@@ -580,14 +580,18 @@ function CookingMode({
         >
           {step.text}
         </div>
-        {step.durationMinutes ? (
-          <StepTimer key={step.order} minutes={step.durationMinutes} />
+        {shouldShowTimer(step.text, step.durationMinutes) ? (
+          <StepTimer key={step.order} minutes={step.durationMinutes!} />
         ) : null}
         <RelevantIngredients
           step={step.text}
           ingredients={meal.ingredients}
           unitSystem={unitSystem}
           scale={scale}
+        />
+        <UpcomingSteps
+          steps={meal.steps}
+          currentIdx={stepIdx}
         />
       </div>
 
@@ -695,6 +699,102 @@ function StepTimer({ minutes }: { minutes: number }) {
           Reset
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Show a timer only for steps that involve actual cooking/waiting time
+ * (bake, simmer, rest, marinate, etc.) — not for short prep estimates
+ * like "chop the onions for 1 minute."
+ */
+const COOKING_KEYWORDS = [
+  "bake", "boil", "simmer", "cook", "fry", "sear", "roast",
+  "rest", "marinate", "chill", "rise", "steep", "broil",
+  "grill", "refrigerate", "freeze", "sauté", "sautee", "saute",
+  "brown", "reduce", "poach", "blanch", "toast", "roasting",
+  "baking", "boiling", "simmering", "frying", "searing",
+  "resting", "marinating", "chilling", "rising", "steeping",
+  "broiling", "grilling", "browning", "reducing", "poaching",
+  "blanching", "toasting", "set aside", "let stand", "let sit",
+  "until golden", "until tender", "until cooked", "until done",
+  "for at least", "preheat",
+];
+
+function shouldShowTimer(stepText: string, minutes?: number): boolean {
+  if (!minutes || minutes < 1) return false;
+  // Always offer a timer for longer waits — those are clearly cooking durations.
+  if (minutes >= 5) return true;
+  const lower = stepText.toLowerCase();
+  return COOKING_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+function UpcomingSteps({
+  steps,
+  currentIdx,
+}: {
+  steps: { order: number; text: string }[];
+  currentIdx: number;
+}) {
+  const next = steps.slice(currentIdx + 1, currentIdx + 3);
+  if (next.length === 0) return null;
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        width: "100%",
+        maxWidth: 420,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        alignItems: "stretch",
+      }}
+    >
+      <div
+        className="eyebrow"
+        style={{ textAlign: "left", paddingLeft: 4, opacity: 0.7 }}
+      >
+        Coming up
+      </div>
+      {next.map((s, i) => (
+        <div
+          key={s.order}
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            background: "var(--paper)",
+            border: "1px solid var(--hair)",
+            borderRadius: 12,
+            opacity: i === 0 ? 0.85 : 0.6,
+            textAlign: "left",
+          }}
+        >
+          <span
+            className="font-display"
+            style={{
+              fontSize: 12,
+              color: "var(--muted)",
+              lineHeight: 1.6,
+              flexShrink: 0,
+              minWidth: 18,
+            }}
+          >
+            {s.order}
+          </span>
+          <span
+            style={{
+              fontSize: 13,
+              color: "var(--sumi)",
+              lineHeight: 1.45,
+              flex: 1,
+            }}
+          >
+            {s.text}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
