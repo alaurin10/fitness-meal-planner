@@ -106,13 +106,24 @@ function ListBody({
   const [openAdd, setOpenAdd] = useState<GroceryCategory | null>(null);
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddQty, setQuickAddQty] = useState("");
+  // null/undefined ⇒ let the server auto-categorize from the name.
+  const [quickAddCategory, setQuickAddCategory] = useState<
+    GroceryCategory | "auto"
+  >("auto");
 
   function handleQuickAdd() {
     const name = quickAddName.trim();
     if (!name) return;
-    onAdd({ name, qty: quickAddQty.trim() || undefined });
+    onAdd({
+      name,
+      qty: quickAddQty.trim() || undefined,
+      category:
+        quickAddCategory === "auto" ? undefined : quickAddCategory,
+    });
     setQuickAddName("");
     setQuickAddQty("");
+    // Keep the category sticky — likely the user is adding multiple
+    // items of the same kind in a row.
   }
 
   return (
@@ -205,7 +216,7 @@ function ListBody({
         </Button>
       </div>
 
-      {/* Quick add — auto-categorized from item name */}
+      {/* Quick add — pick a category, or let the server auto-sort. */}
       <div className="px-4 pt-3">
         <Card flush>
           <div
@@ -239,20 +250,34 @@ function ListBody({
               onClick={handleQuickAdd}
               disabled={!quickAddName.trim()}
               style={{ padding: "8px 12px" }}
-              title="Auto-sorted into a category from the item name"
+              title="Add to grocery list"
             >
               <Icon name="plus" size={13} />
             </Button>
           </div>
           <div
             style={{
-              padding: "0 14px 8px",
-              fontSize: 10.5,
-              color: "var(--muted)",
-              letterSpacing: "0.04em",
+              padding: "0 12px 10px",
+              display: "flex",
+              gap: 4,
+              flexWrap: "wrap",
             }}
           >
-            Sorted into a category automatically. Tap a row to change it.
+            <CategoryChip
+              active={quickAddCategory === "auto"}
+              onClick={() => setQuickAddCategory("auto")}
+            >
+              Auto
+            </CategoryChip>
+            {GROCERY_CATEGORIES.map((c) => (
+              <CategoryChip
+                key={c}
+                active={quickAddCategory === c}
+                onClick={() => setQuickAddCategory(c)}
+              >
+                {c}
+              </CategoryChip>
+            ))}
           </div>
         </Card>
       </div>
@@ -725,6 +750,37 @@ function ItemEditor({
         </Button>
       </div>
     </div>
+  );
+}
+
+function CategoryChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="tappable"
+      style={{
+        border: "1px solid " + (active ? "var(--ink)" : "var(--hair)"),
+        background: active ? "var(--ink)" : "var(--paper)",
+        color: active ? "var(--paper)" : "var(--sumi)",
+        padding: "5px 10px",
+        borderRadius: 999,
+        fontFamily: "var(--font-body)",
+        fontSize: 11.5,
+        fontWeight: 500,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

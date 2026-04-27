@@ -274,12 +274,6 @@ export function MealsPage() {
                 }}
                 style={isRegenTarget ? { opacity: 0.55 } : undefined}
               >
-                <div
-                  className="placeholder-photo"
-                  style={{ width: 96, flexShrink: 0 }}
-                >
-                  {abbr(m.name)}
-                </div>
                 <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
                   <div className="eyebrow">
                     {mealSlotLabel(m, i)} · {m.calories} kcal
@@ -624,12 +618,4 @@ function mealSlotLabel(meal: Meal, i: number) {
     return map[meal.slot] ?? "Meal";
   }
   return ["Breakfast", "Lunch", "Dinner", "Snack", "Snack", "Snack"][i] ?? "Meal";
-}
-
-function abbr(s: string) {
-  return (s.split(/[·,]/)[0] ?? s)
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase()
-    .slice(0, 14);
 }

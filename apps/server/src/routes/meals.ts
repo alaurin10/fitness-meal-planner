@@ -7,6 +7,7 @@ import { generateMealPlan, generateSingleMeal } from "../services/mealPlan.js";
 import { getTrainingSchedule } from "../services/schedule.js";
 import { buildGroceryItems } from "../services/groceryAggregator.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
+import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
 import {
   mealSchema,
@@ -46,9 +47,21 @@ router.post("/generate", requireAuth, async (req, res) => {
     const planJson = await generateMealPlan({ profile, schedule });
 
     const weekStart = startOfWeek(new Date());
-    const groceryItems = buildGroceryItems(planJson);
+    const fresh = buildGroceryItems(planJson);
 
     const result = await prisma.$transaction(async (tx) => {
+      // Preserve manual items + check state from the most recent
+      // grocery list so regenerating a plan doesn't wipe what the user
+      // already gathered or hand-added.
+      const previous = await tx.groceryList.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+      const previousItems: GroceryItem[] = Array.isArray(previous?.items)
+        ? (previous!.items as unknown as GroceryItem[])
+        : [];
+      const merged = mergeGroceryItems(fresh, previousItems);
+
       await tx.weeklyMealPlan.updateMany({
         where: { userId, isActive: true },
         data: { isActive: false },
@@ -65,7 +78,7 @@ router.post("/generate", requireAuth, async (req, res) => {
         data: {
           userId,
           weeklyMealPlanId: plan.id,
-          items: groceryItems as unknown as object,
+          items: merged as unknown as object,
         },
       });
       return { plan, groceryList };
