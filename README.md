@@ -25,8 +25,6 @@ pnpm install
 
 # 2. Copy env template and fill in Clerk + Gemini keys
 cp .env.example .env
-cp apps/fit/client/.env.example apps/fit/client/.env
-cp apps/meals/client/.env.example apps/meals/client/.env
 
 # 3. Start Postgres (creates both databases on first boot)
 docker compose up -d postgres
@@ -125,7 +123,10 @@ In production, Railway runs `pnpm --filter @platform/db migrate:deploy:<app>` as
    - `meals.andrewlaurin.com` → meals client
    - `api.meals.andrewlaurin.com` → meals server
 8. In Cloudflare DNS, add CNAME records pointing each subdomain to the Railway-provided target (proxied / orange cloud).
-9. In Clerk dashboard, add all four custom domains to **Allowed origins**.
+9. In Clerk dashboard → **Domains**, add your custom domains to **Allowed origins**.
+10. In Clerk dashboard → **User & Authentication → Social Connections**, enable Google and Apple:
+    - **Google**: create an OAuth 2.0 Client ID in [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials, then paste the Client ID and Secret into Clerk. Copy Clerk's "Authorized redirect URI" back into the Google OAuth app.
+    - **Apple**: follow Clerk's Apple setup guide (requires an Apple Developer account, App ID, and Sign in with Apple key). Paste the credentials into Clerk.
 
 ---
 
