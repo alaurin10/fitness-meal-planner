@@ -13,10 +13,18 @@ import { useSettings } from "../hooks/useSettings";
 import {
   useCurrentWorkoutPlan,
   useGenerateWorkoutPlan,
+  useUpdateExerciseLoad,
   type TrainingDay,
 } from "../hooks/useWorkoutPlan";
 import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
-import { formatLoad, weightUnitLabel } from "../lib/units";
+import {
+  formatLoad,
+  kgToPounds,
+  poundsToKg,
+  roundTo,
+  weightUnitLabel,
+  type UnitSystem,
+} from "../lib/units";
 
 const DAYS: TrainingDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -30,6 +38,8 @@ export function WorkoutsPage() {
   );
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
   const completion = useWorkoutCompletions(plan?.id, localDayKey());
+  const updateLoad = useUpdateExerciseLoad();
+  const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
@@ -266,9 +276,55 @@ export function WorkoutsPage() {
                     <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
                       {ex.name}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                      {ex.loadLbs !== null ? `${formatLoad(ex.loadLbs, unitSystem)} ${unitLabel}` : "Bodywt"}
-                    </div>
+                    {editingLoadIdx === i ? (
+                      <LoadEditor
+                        initialLoadLbs={ex.loadLbs}
+                        unitSystem={unitSystem}
+                        saving={updateLoad.isPending}
+                        onCancel={() => setEditingLoadIdx(null)}
+                        onSave={async (newLoadLbs) => {
+                          await updateLoad.mutateAsync({
+                            day: activeDay,
+                            index: i,
+                            loadLbs: newLoadLbs,
+                          });
+                          setEditingLoadIdx(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingLoadIdx(i)}
+                        title="Set a new baseline weight"
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          whiteSpace: "nowrap",
+                          background: "transparent",
+                          border: "1px dashed transparent",
+                          padding: "3px 6px",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          fontFamily: "var(--font-body)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor =
+                            "var(--hair)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderColor =
+                            "transparent";
+                        }}
+                      >
+                        {ex.loadLbs !== null
+                          ? `${formatLoad(ex.loadLbs, unitSystem)} ${unitLabel}`
+                          : "Bodywt"}
+                        <Icon name="note" size={11} />
+                      </button>
+                    )}
                   </div>
                   <div
                     style={{
@@ -355,6 +411,112 @@ export function WorkoutsPage() {
       </div>
     </Layout>
   );
+}
+
+/**
+ * Inline editor for an exercise's prescribed load. Renders next to the
+ * exercise name where the static "135 lb" pill normally sits. Saving
+ * patches the active plan AND records a new PR in the progress log so
+ * future generated plans anchor to this weight.
+ */
+function LoadEditor({
+  initialLoadLbs,
+  unitSystem,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  initialLoadLbs: number | null;
+  unitSystem: UnitSystem;
+  saving: boolean;
+  onSave: (loadLbs: number) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const initialDisplay =
+    initialLoadLbs !== null
+      ? unitSystem === "metric"
+        ? roundTo(poundsToKg(initialLoadLbs), 1)
+        : roundTo(initialLoadLbs, 0)
+      : "";
+  const [value, setValue] = useState<string>(String(initialDisplay));
+  const unitLabel = weightUnitLabel(unitSystem);
+
+  function commit() {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const lbs = unitSystem === "metric" ? kgToPounds(n) : n;
+    onSave(roundTo(lbs, 2));
+  }
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+      }}
+    >
+      <input
+        autoFocus
+        type="number"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        disabled={saving}
+        style={{
+          width: 64,
+          padding: "4px 6px",
+          fontSize: 13,
+          border: "1px solid var(--accent)",
+          borderRadius: 6,
+          fontFamily: "var(--font-body)",
+          background: "var(--paper)",
+        }}
+      />
+      <span style={{ fontSize: 11, color: "var(--muted)" }}>{unitLabel}</span>
+      <button
+        type="button"
+        onClick={commit}
+        disabled={saving || !value}
+        aria-label="Save baseline"
+        style={iconBtn("var(--accent)")}
+      >
+        <Icon name="check" size={12} stroke={2.5} />
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={saving}
+        aria-label="Cancel"
+        style={iconBtn("var(--muted)")}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    </div>
+  );
+}
+
+function iconBtn(color: string): React.CSSProperties {
+  return {
+    background: "transparent",
+    border: "1px solid var(--hair)",
+    color,
+    padding: 4,
+    borderRadius: 6,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
 }
 
 function longDay(d: TrainingDay["day"]) {

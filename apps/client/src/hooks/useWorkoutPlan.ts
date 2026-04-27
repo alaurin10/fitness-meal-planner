@@ -55,3 +55,26 @@ export function useGenerateWorkoutPlan() {
     },
   });
 }
+
+export function useUpdateExerciseLoad() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      day: TrainingDay["day"];
+      index: number;
+      loadLbs: number;
+    }) => {
+      const { data } = await api.patch<{ plan: WeeklyPlanRecord }>(
+        "/api/workouts/exercise",
+        args,
+      );
+      return data.plan;
+    },
+    onSuccess: () => {
+      // The plan changed and we just logged a new PR — refresh both.
+      qc.invalidateQueries({ queryKey: ["workouts"] });
+      qc.invalidateQueries({ queryKey: ["progress"] });
+    },
+  });
+}
