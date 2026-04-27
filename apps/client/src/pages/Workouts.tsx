@@ -18,6 +18,11 @@ import {
 } from "../hooks/useWorkoutPlan";
 import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import {
+  useWorkoutSession,
+  sessionProgress,
+} from "../hooks/useWorkoutSession";
+import { ProgressRing } from "../components/ProgressRing";
+import {
   formatLoad,
   kgToPounds,
   poundsToKg,
@@ -38,6 +43,7 @@ export function WorkoutsPage() {
   );
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
   const completion = useWorkoutCompletions(plan?.id, localDayKey());
+  const workoutSession = useWorkoutSession(plan?.id, localDayKey());
   const updateLoad = useUpdateExerciseLoad();
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
@@ -116,12 +122,18 @@ export function WorkoutsPage() {
   const exercises = dayEntry?.exercises ?? [];
   const viewingToday = activeDay === DAYS[todayIdx];
 
+  const sessProgress = sessionProgress(workoutSession.session, exercises);
+
   if (workoutInProgress && exercises.length > 0) {
     return (
       <WorkoutMode
         exercises={exercises}
         dayLabel={longDay(activeDay)}
         unitSystem={unitSystem}
+        initialExerciseIdx={workoutSession.session?.exerciseIdx}
+        initialSetNum={workoutSession.session?.setNum}
+        onProgress={workoutSession.saveSession}
+        onSessionClear={workoutSession.clearSession}
         onExit={() => setWorkoutInProgress(false)}
         onComplete={
           // Only auto-mark complete when the user is doing today's session.
@@ -223,11 +235,46 @@ export function WorkoutsPage() {
                   : "A calm day — recover well."}
               </div>
             </div>
-            <Icon
-              name="dumbbell"
-              size={38}
-              style={{ color: "var(--accent)", flexShrink: 0 }}
-            />
+            {viewingToday && sessProgress.completed > 0 && !completion.isComplete ? (
+              <ProgressRing
+                value={sessProgress.fraction}
+                size={44}
+                strokeWidth={4}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "var(--accent)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {sessProgress.completed}/{sessProgress.total}
+                </span>
+              </ProgressRing>
+            ) : completion.isComplete && viewingToday ? (
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  color: "var(--paper)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name="check" size={22} stroke={2.5} />
+              </div>
+            ) : (
+              <Icon
+                name="dumbbell"
+                size={38}
+                style={{ color: "var(--accent)", flexShrink: 0 }}
+              />
+            )}
           </div>
         </Card>
       </div>
@@ -245,6 +292,14 @@ export function WorkoutsPage() {
                   display: "flex",
                   gap: 14,
                   alignItems: "flex-start",
+                  opacity:
+                    viewingToday &&
+                    workoutSession.session &&
+                    !completion.isComplete &&
+                    i < workoutSession.session.exerciseIdx
+                      ? 0.45
+                      : 1,
+                  transition: "opacity 300ms ease",
                 }}
               >
                 <div
@@ -252,17 +307,37 @@ export function WorkoutsPage() {
                     width: 32,
                     height: 32,
                     borderRadius: 10,
-                    background: "var(--clay)",
-                    color: "var(--sumi)",
+                    background:
+                      viewingToday &&
+                      workoutSession.session &&
+                      !completion.isComplete &&
+                      i < workoutSession.session.exerciseIdx
+                        ? "var(--accent)"
+                        : "var(--clay)",
+                    color:
+                      viewingToday &&
+                      workoutSession.session &&
+                      !completion.isComplete &&
+                      i < workoutSession.session.exerciseIdx
+                        ? "var(--paper)"
+                        : "var(--sumi)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontFamily: "var(--font-display)",
                     fontSize: 14,
                     flexShrink: 0,
+                    transition: "background 300ms ease, color 300ms ease",
                   }}
                 >
-                  {i + 1}
+                  {viewingToday &&
+                  workoutSession.session &&
+                  !completion.isComplete &&
+                  i < workoutSession.session.exerciseIdx ? (
+                    <Icon name="check" size={16} stroke={2.5} />
+                  ) : (
+                    i + 1
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
@@ -371,8 +446,31 @@ export function WorkoutsPage() {
             onClick={() => setWorkoutInProgress(true)}
           >
             <Icon name="dumbbell" size={16} />
-            Start workout
+            {viewingToday && workoutSession.session && !completion.isComplete
+              ? `Resume workout · ${sessProgress.completed} of ${sessProgress.total} sets`
+              : "Start workout"}
           </Button>
+          {viewingToday && workoutSession.session && !completion.isComplete && (
+            <div
+              style={{
+                height: 4,
+                borderRadius: 2,
+                background: "var(--clay)",
+                overflow: "hidden",
+                marginTop: -4,
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${sessProgress.fraction * 100}%`,
+                  background: "var(--accent)",
+                  borderRadius: 2,
+                  transition: "width 400ms ease",
+                }}
+              />
+            </div>
+          )}
           {viewingToday && (
             <Button
               className="w-full"

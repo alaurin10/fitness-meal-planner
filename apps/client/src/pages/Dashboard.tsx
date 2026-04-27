@@ -3,6 +3,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { ProgressRing } from "../components/ProgressRing";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
@@ -11,6 +12,11 @@ import {
   localDayKey,
   useMealCompletions,
 } from "../hooks/useMealCompletions";
+import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
+import {
+  useWorkoutSession,
+  sessionProgress,
+} from "../hooks/useWorkoutSession";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -72,6 +78,14 @@ export function DashboardPage() {
   // Hook calls must run on every render — keep this above the early returns.
   const completions = useMealCompletions(
     mealQuery.data?.id,
+    localDayKey(),
+  );
+  const workoutCompletion = useWorkoutCompletions(
+    workoutQuery.data?.id,
+    localDayKey(),
+  );
+  const workoutSession = useWorkoutSession(
+    workoutQuery.data?.id,
     localDayKey(),
   );
 
@@ -147,6 +161,9 @@ export function DashboardPage() {
   }
 
   const todayWorkout = workoutPlan?.planJson.days.find((d) => d.day === todayLabel);
+  const todayExercises = todayWorkout?.exercises ?? [];
+  const sessProgress = sessionProgress(workoutSession.session, todayExercises);
+  const hasSession = sessProgress.completed > 0 && !workoutCompletion.isComplete;
   const todayMeals = mealPlan?.planJson.days.find((d) => d.day === todayLabel);
   const mealsForToday = todayMeals?.meals ?? [];
   const nextMeal = findNextMeal(mealsForToday, completions.completed);
@@ -173,7 +190,37 @@ export function DashboardPage() {
         <Card tone="gradient" className="fade-up">
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">Today's workout</div>
-            <Icon name="dumbbell" size={20} style={{ color: "var(--accent)" }} />
+            {hasSession ? (
+              <ProgressRing value={sessProgress.fraction} size={36} strokeWidth={3.5}>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: "var(--accent)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {Math.round(sessProgress.fraction * 100)}%
+                </span>
+              </ProgressRing>
+            ) : workoutCompletion.isComplete ? (
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  color: "var(--paper)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name="check" size={18} stroke={2.5} />
+              </div>
+            ) : (
+              <Icon name="dumbbell" size={20} style={{ color: "var(--accent)" }} />
+            )}
           </div>
           {todayWorkout ? (
             <>
@@ -185,11 +232,17 @@ export function DashboardPage() {
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
                 <Chip>{todayWorkout.exercises.length} exercises</Chip>
-                <Chip variant="honey">Session</Chip>
+                {hasSession ? (
+                  <Chip variant="honey">{sessProgress.completed}/{sessProgress.total} sets</Chip>
+                ) : workoutCompletion.isComplete ? (
+                  <Chip variant="honey">Done</Chip>
+                ) : (
+                  <Chip variant="honey">Session</Chip>
+                )}
               </div>
               <Link to="/workouts" className="block mt-4">
                 <Button className="w-full">
-                  View workout
+                  {hasSession ? "Resume workout" : workoutCompletion.isComplete ? "View workout" : "View workout"}
                   <Icon name="chevron" size={16} />
                 </Button>
               </Link>

@@ -14,6 +14,13 @@ interface Props {
    * automatically mark the workout complete after guided sessions.
    */
   onComplete?: () => void;
+  /** Resume from a saved position (exercise + set). */
+  initialExerciseIdx?: number;
+  initialSetNum?: number;
+  /** Persist the current position on every state change. */
+  onProgress?: (exerciseIdx: number, setNum: number) => void;
+  /** Clear persisted position (called on workout completion). */
+  onSessionClear?: () => void;
 }
 
 type Phase = "active" | "resting" | "done";
@@ -24,9 +31,13 @@ export function WorkoutMode({
   unitSystem,
   onExit,
   onComplete,
+  initialExerciseIdx = 0,
+  initialSetNum = 1,
+  onProgress,
+  onSessionClear,
 }: Props) {
-  const [exerciseIdx, setExerciseIdx] = useState(0);
-  const [setNum, setSetNum] = useState(1);
+  const [exerciseIdx, setExerciseIdx] = useState(initialExerciseIdx);
+  const [setNum, setSetNum] = useState(initialSetNum);
   const [phase, setPhase] = useState<Phase>("active");
   const completionFiredRef = useRef(false);
 
@@ -35,8 +46,16 @@ export function WorkoutMode({
     if (phase === "done" && !completionFiredRef.current) {
       completionFiredRef.current = true;
       onComplete?.();
+      onSessionClear?.();
     }
-  }, [phase, onComplete]);
+  }, [phase, onComplete, onSessionClear]);
+
+  // Persist position whenever it changes.
+  useEffect(() => {
+    if (phase !== "done") {
+      onProgress?.(exerciseIdx, setNum);
+    }
+  }, [exerciseIdx, setNum, phase, onProgress]);
 
   const exercise = exercises[exerciseIdx];
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);

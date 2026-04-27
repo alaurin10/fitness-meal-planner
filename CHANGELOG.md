@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Workout session persistence — progress (exercise + set) is saved to localStorage so exiting mid-workout and returning resumes where you left off
+- `useWorkoutSession` hook — localStorage-backed session state scoped to (planId, dayKey), with automatic stale-entry pruning
+- `ProgressRing` component — SVG circular progress indicator with animated fill and optional centre label
+- Dashboard: today's workout card shows a progress ring with percentage when a session is in-progress, and a filled check circle when complete
+- Dashboard: session chip shows "5/12 sets" during a workout, "Done" after completion
+- Workouts page: "Start workout" button becomes "Resume workout · 5 of 12 sets" with a thin progress bar when a session exists
+- Workouts page: completed exercises in the list are dimmed with accent-coloured check badges
+- Workouts page: day header card shows a progress ring (in-progress) or check circle (complete) instead of the static dumbbell icon
+
 ### Changed
 
 - Groceries: hide Quick Add category chips until input is focused (shown on blur after 150ms delay)
