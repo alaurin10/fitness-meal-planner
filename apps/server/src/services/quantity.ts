@@ -39,9 +39,18 @@ const VOLUME_TO_ML: Record<string, number> = {
   "fl oz": 29.5735,
 };
 
+/**
+ * Size adjectives that sometimes appear before a unit word.
+ * We strip them so "large piece" → "piece", enabling numeric merging.
+ */
+const SIZE_ADJECTIVES = /^(large|small|medium|big|thin|thick|extra[- ]?large|extra[- ]?small|whole|half)\s+/i;
+
 export function normalizeUnit(unit: string | undefined | null): string {
   if (!unit) return "";
-  const u = unit.trim();
+  let u = unit.trim();
+  if (u in UNIT_DIMENSIONS) return u;
+  // Strip size adjectives so "large piece" → "piece"
+  u = u.replace(SIZE_ADJECTIVES, "");
   if (u in UNIT_DIMENSIONS) return u;
   // case-insensitive lookup with some common aliases
   const lower = u.toLowerCase();

@@ -511,12 +511,14 @@ function ItemRow({
   onToggle: (c: boolean) => void;
   onEdit: () => void;
 }) {
+  const [qtyExpanded, setQtyExpanded] = useState(false);
   // If the item has structured amount/unit, use formatQuantity for unit conversion.
   // Otherwise fall back to the pre-formatted qty string.
   const displayQty =
     item.amount != null && item.unit != null
       ? formatQuantity({ amount: item.amount, unit: item.unit }, unitSystem)
       : item.qty;
+  const isLongQty = !!displayQty && displayQty.length > 20;
   // Whole row is the toggle target — much easier to tap. Edit moves to
   // a small icon button on the right; clicks there stop propagation so
   // they don't also flip the checkbox.
@@ -536,13 +538,13 @@ function ItemRow({
         padding: "13px 14px 13px 18px",
         borderBottom: isLast ? "none" : "1px solid var(--hair)",
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: 12,
         cursor: "pointer",
         userSelect: "none",
       }}
     >
-      <CheckBoxVisual checked={item.checked} />
+      <CheckBoxVisual checked={item.checked} style={{ marginTop: 2 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -558,9 +560,6 @@ function ItemRow({
               fontWeight: 500,
               textDecoration: item.checked ? "line-through" : "none",
               transition: "color 180ms",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
             }}
           >
             {item.name}
@@ -583,6 +582,38 @@ function ItemRow({
             </span>
           )}
         </div>
+        {displayQty && (
+          <div
+            onClick={
+              isLongQty
+                ? (e) => {
+                    e.stopPropagation();
+                    setQtyExpanded((v) => !v);
+                  }
+                : undefined
+            }
+            style={{
+              fontSize: 11.5,
+              color: "var(--muted)",
+              letterSpacing: "0.03em",
+              fontFamily: "var(--font-mono)",
+              marginTop: 2,
+              cursor: isLongQty ? "pointer" : "default",
+              ...(isLongQty && !qtyExpanded
+                ? {
+                    overflow: "hidden" as const,
+                    textOverflow: "ellipsis" as const,
+                    whiteSpace: "nowrap" as const,
+                  }
+                : { wordBreak: "break-word" as const }),
+            }}
+          >
+            {displayQty}
+            {isLongQty && !qtyExpanded && (
+              <span style={{ marginLeft: 4, fontSize: 10, color: "var(--accent)" }}>▸ more</span>
+            )}
+          </div>
+        )}
         {item.note && (
           <div
             style={{
@@ -598,17 +629,6 @@ function ItemRow({
           </div>
         )}
       </div>
-      <span
-        style={{
-          fontSize: 11.5,
-          color: "var(--muted)",
-          letterSpacing: "0.03em",
-          fontFamily: "var(--font-mono)",
-          flexShrink: 0,
-        }}
-      >
-        {displayQty}
-      </span>
       <button
         type="button"
         aria-label={`Edit ${item.name}`}
@@ -789,7 +809,7 @@ function CategoryChip({
   );
 }
 
-function CheckBoxVisual({ checked }: { checked: boolean }) {
+function CheckBoxVisual({ checked, style: extraStyle }: { checked: boolean; style?: React.CSSProperties }) {
   // Pure visual — the row's role="button" handles toggling.
   return (
     <span
@@ -806,6 +826,7 @@ function CheckBoxVisual({ checked }: { checked: boolean }) {
         color: "var(--paper)",
         flexShrink: 0,
         transition: "background 180ms, border-color 180ms",
+        ...extraStyle,
       }}
     >
       {checked && <Icon name="check" size={13} stroke={2.5} />}
