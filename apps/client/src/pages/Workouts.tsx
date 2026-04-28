@@ -594,12 +594,12 @@ export function WorkoutsPage() {
           >
             <Icon name="dumbbell" size={16} />
             {viewingToday && workoutSession.session && !completion.isComplete
-              ? `Resume workout · ${completion.completedSetsCount} of ${sessProgress.total} sets`
+              ? `Resume workout · ${sessProgress.completed} of ${sessProgress.total} sets`
               : completion.isComplete && viewingToday
                 ? "Workout complete ✓"
                 : "Start workout"}
           </Button>
-          {viewingToday && completion.completedSetsCount > 0 && !completion.isComplete && (
+          {viewingToday && sessProgress.completed > 0 && !completion.isComplete && (
             <div
               style={{
                 height: 4,
@@ -611,7 +611,7 @@ export function WorkoutsPage() {
               <div
                 style={{
                   height: "100%",
-                  width: `${sessProgress.total > 0 ? (completion.completedSetsCount / sessProgress.total) * 100 : 0}%`,
+                  width: `${sessProgress.fraction * 100}%`,
                   background: "var(--accent)",
                   borderRadius: 2,
                   transition: "width 400ms ease",

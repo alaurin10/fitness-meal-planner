@@ -236,18 +236,28 @@ export function DashboardPage() {
           <Card>
             <div className="eyebrow" style={{ marginBottom: 12 }}>Today's progress</div>
             <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start" }}>
-              <ProgressStat
-                label="Workout"
-                value={summary.workout.isRestDay
-                  ? "Rest"
-                  : summary.workout.done
-                    ? "Done"
-                    : `${summary.workout.completed}/${summary.workout.total}`}
-                fraction={summary.workout.isRestDay ? 1 : summary.workout.total > 0
-                  ? summary.workout.completed / summary.workout.total : 0}
-                color="var(--moss)"
-                done={summary.workout.done || summary.workout.isRestDay}
-              />
+              {(() => {
+                const workoutCompleted = hasSession
+                  ? sessProgress.completed
+                  : summary.workout.completed;
+                const workoutTotal = hasSession
+                  ? sessProgress.total
+                  : summary.workout.total;
+                return (
+                  <ProgressStat
+                    label="Workout"
+                    value={summary.workout.isRestDay
+                      ? "Rest"
+                      : summary.workout.done
+                        ? "Done"
+                        : `${workoutCompleted}/${workoutTotal}`}
+                    fraction={summary.workout.isRestDay ? 1 : workoutTotal > 0
+                      ? workoutCompleted / workoutTotal : 0}
+                    color="var(--moss)"
+                    done={summary.workout.done || summary.workout.isRestDay}
+                  />
+                );
+              })()}
               <ProgressStat
                 label="Calories"
                 value={summary.meals.calories > 0 ? String(summary.meals.calories) : "0"}
