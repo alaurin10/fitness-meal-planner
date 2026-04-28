@@ -43,8 +43,27 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
         const existing = byKey.get(key);
 
         if (existing) {
-          if (existing._displayParts) {
-            existing._displayParts.push(quantityDisplay(scaledQuantity));
+          // "to taste" is non-quantitative — skip it when we already have a
+          // real quantity, or just keep one instance if that's all we have.
+          const isToTaste = scaledQuantity.unit === "to taste" || scaledQuantity.amount === 0 && scaledQuantity.unit === "to taste";
+          const existingIsToTaste = existing._quantity?.unit === "to taste";
+
+          if (isToTaste && (existing._quantity || existing._displayParts)) {
+            // Already have a real quantity or parts — ignore the "to taste"
+          } else if (existingIsToTaste && !isToTaste) {
+            // Replace the existing "to taste" with the real quantity
+            existing._quantity = { ...scaledQuantity };
+            existing._displayParts = undefined;
+            existing.qty = quantityDisplay(scaledQuantity);
+            existing.amount = scaledQuantity.amount;
+            existing.unit = scaledQuantity.unit;
+          } else if (existing._displayParts) {
+            // Filter out any "to taste" parts before appending
+            const newPart = quantityDisplay(scaledQuantity);
+            if (newPart !== "to taste") {
+              existing._displayParts = existing._displayParts.filter((p) => p !== "to taste");
+            }
+            existing._displayParts.push(newPart);
             existing.qty = existing._displayParts.join(" + ");
             existing.amount = undefined;
             existing.unit = undefined;

@@ -147,6 +147,13 @@ export function addQuantities(
 ): QuantityJson | null {
   const ua = normalizeUnit(a.unit);
   const ub = normalizeUnit(b.unit);
+
+  // "to taste" is non-quantitative — absorb it into the other side,
+  // or collapse two "to taste" into one.
+  if (ua === "to taste" && ub === "to taste") return { amount: 0, unit: "to taste" };
+  if (ua === "to taste") return { amount: b.amount, unit: ub };
+  if (ub === "to taste") return { amount: a.amount, unit: ua };
+
   if (ua === ub) {
     return { amount: round2(a.amount + b.amount), unit: ua };
   }
