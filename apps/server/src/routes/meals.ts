@@ -1,6 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma, MEAL_SLOTS } from "@platform/db";
+import {
+  startOfWeek,
+  addWeeks,
+  computePlanWindow,
+  parseLocalDate,
+  ALL_DAYS,
+  type WeekStartDay,
+} from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateMealPlan, generateSingleMeal } from "../services/mealPlan.js";
@@ -9,6 +17,10 @@ import { buildGroceryItems } from "../services/groceryAggregator.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
 import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
+import {
+  findActiveMealPlan,
+  findMealPlanForWeek,
+} from "../services/activePlan.js";
 import {
   mealSchema,
   type MealJson,
@@ -28,10 +40,13 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const plan = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const weekStartParam = typeof req.query.weekStart === "string" ? req.query.weekStart : "";
+  let plan;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(weekStartParam)) {
+    plan = await findMealPlanForWeek(userId, parseLocalDate(weekStartParam));
+  } else {
+    plan = await findActiveMealPlan(userId);
+  }
   if (!plan) {
     res.json({ plan: null });
     return;
@@ -49,49 +64,69 @@ router.post("/generate", requireAuth, async (req, res) => {
     return;
   }
 
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  const now = new Date();
+  const thisWeek = startOfWeek(now, weekStartDay);
+
+  const targetStr = typeof req.body.targetWeekStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.targetWeekStart)
+    ? req.body.targetWeekStart as string
+    : null;
+  const target = targetStr ? parseLocalDate(targetStr) : thisWeek;
+
+  if (target.getTime() < thisWeek.getTime()) {
+    res.status(400).json({ error: "Cannot regenerate a past week." });
+    return;
+  }
+  if (target.getTime() > addWeeks(thisWeek, 1).getTime()) {
+    res.status(400).json({ error: "Future generation capped at +1 week." });
+    return;
+  }
+
+  const { daysToInclude, isCurrentWeek } = computePlanWindow(target, now, weekStartDay);
+  if (daysToInclude.length === 0) {
+    res.status(400).json({ error: "No remaining days this week." });
+    return;
+  }
+
   try {
     const schedule = await getTrainingSchedule(userId);
-    const planJson = await generateMealPlan({ profile, schedule });
-
-    const weekStart = startOfWeek(new Date());
-    const fresh = buildGroceryItems(planJson);
+    const planJson = await generateMealPlan({ profile, schedule, daysToGenerate: daysToInclude });
 
     const result = await prisma.$transaction(async (tx) => {
-      // Preserve manual items + check state from the most recent
-      // grocery list so regenerating a plan doesn't wipe what the user
-      // already gathered or hand-added.
-      const previous = await tx.groceryList.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      });
-      const previousItems: GroceryItem[] = Array.isArray(previous?.items)
-        ? (previous!.items as unknown as GroceryItem[])
-        : [];
-      const merged = mergeGroceryItems(fresh, previousItems);
+      // Deactivate (not delete) existing plan for this week to preserve completions
+      const existingPlan = await findMealPlanForWeek(userId, target);
+      if (existingPlan) {
+        await tx.weeklyMealPlan.update({
+          where: { id: existingPlan.id },
+          data: { isActive: false },
+        });
+      }
 
-      await tx.weeklyMealPlan.updateMany({
-        where: { userId, isActive: true },
-        data: { isActive: false },
-      });
+      // Deactivate older plans only when the new plan is for the current week
+      if (isCurrentWeek) {
+        await tx.weeklyMealPlan.updateMany({
+          where: { userId, weekStartDate: { lt: target }, isActive: true },
+          data: { isActive: false },
+        });
+      }
+
       const plan = await tx.weeklyMealPlan.create({
         data: {
           userId,
-          weekStartDate: weekStart,
+          weekStartDate: target,
           planJson,
           isActive: true,
         },
       });
-      const groceryList = await tx.groceryList.create({
-        data: {
-          userId,
-          weeklyMealPlanId: plan.id,
-          items: merged as unknown as object,
-        },
-      });
-      return { plan, groceryList };
+
+      return { plan };
     });
 
-    res.json(result);
+    // Rebuild merged grocery list across all active plans
+    const groceryList = await rebuildGroceries(userId);
+
+    res.json({ plan: result.plan, groceryList });
   } catch (err) {
     const message = getGeminiErrorMessage(err);
     console.error("[meals] generate failed:", message);
@@ -99,8 +134,6 @@ router.post("/generate", requireAuth, async (req, res) => {
   }
 });
 
-// Create a blank weekly plan with 7 days × 0 meals so the user can build
-// the week manually.
 router.post("/empty", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
   await prisma.user.upsert({
@@ -108,37 +141,45 @@ router.post("/empty", requireAuth, async (req, res) => {
     update: {},
     create: { id: userId },
   });
+
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  const now = new Date();
+  const thisWeek = startOfWeek(now, weekStartDay);
+
+  const targetStr = typeof req.body.targetWeekStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.targetWeekStart)
+    ? req.body.targetWeekStart as string
+    : null;
+  const target = targetStr ? parseLocalDate(targetStr) : thisWeek;
+
   const planJson: MealPlanJson = {
     summary: "Manual plan — add meals from your recipe book or build new ones.",
     dailyCalorieTarget: 0,
-    days: DAYS.map((day) => ({ day, meals: [] })),
+    days: ALL_DAYS.map((day) => ({ day, meals: [] })),
   };
-  const weekStart = startOfWeek(new Date());
 
   const result = await prisma.$transaction(async (tx) => {
-    await tx.weeklyMealPlan.updateMany({
-      where: { userId, isActive: true },
-      data: { isActive: false },
-    });
+    const existingPlan = await findMealPlanForWeek(userId, target);
+    if (existingPlan) {
+      await tx.weeklyMealPlan.update({
+        where: { id: existingPlan.id },
+        data: { isActive: false },
+      });
+    }
+
     const plan = await tx.weeklyMealPlan.create({
       data: {
         userId,
-        weekStartDate: weekStart,
+        weekStartDate: target,
         planJson: planJson as unknown as object,
         isActive: true,
       },
     });
-    const groceryList = await tx.groceryList.create({
-      data: {
-        userId,
-        weeklyMealPlanId: plan.id,
-        items: [] as unknown as object,
-      },
-    });
-    return { plan, groceryList };
+    return { plan };
   });
 
-  res.json(result);
+  const groceryList = await rebuildGroceries(userId);
+  res.json({ plan: result.plan, groceryList });
 });
 
 const slotLocSchema = z.object({
@@ -253,10 +294,7 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Create a profile first" });
     return;
   }
-  const active = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const active = await findActiveMealPlan(userId);
   if (!active) {
     res.status(404).json({ error: "No active meal plan" });
     return;
@@ -340,10 +378,7 @@ async function mutateActivePlan(
   userId: string,
   mutator: (json: MealPlanJson) => MealPlanJson,
 ) {
-  const active = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const active = await findActiveMealPlan(userId);
   if (!active) {
     throw new Error("No active meal plan");
   }
@@ -355,31 +390,65 @@ async function mutateActivePlan(
   return { plan: updated };
 }
 
-async function rebuildGroceries(userId: string, planId: string) {
-  const plan = await prisma.weeklyMealPlan.findFirst({
-    where: { id: planId, userId },
+/**
+ * Rebuild the merged grocery list from all currently-relevant meal plans.
+ * When called with a specific planId (after a slot mutation), we also use
+ * that plan; otherwise we gather all plans with weekStartDate >= current week.
+ */
+async function rebuildGroceries(userId: string, planId?: string) {
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  const thisWeek = startOfWeek(new Date(), weekStartDay);
+
+  // Fetch all plans from current week onward, newest first per week
+  const allPlans = await prisma.weeklyMealPlan.findMany({
+    where: { userId, weekStartDate: { gte: thisWeek } },
+    orderBy: [{ weekStartDate: "asc" }, { createdAt: "desc" }],
   });
-  if (!plan) throw new Error("Plan vanished mid-update");
-  const planJson = normalizeMealPlan(plan.planJson);
-  const fresh = buildGroceryItems(planJson);
+
+  // Deduplicate: take only the latest plan per weekStartDate
+  const plansByWeek = new Map<string, typeof allPlans[number]>();
+  for (const p of allPlans) {
+    const key = p.weekStartDate.toISOString();
+    if (!plansByWeek.has(key)) {
+      plansByWeek.set(key, p);
+    }
+  }
+
+  // Build aggregated grocery items from all qualifying plans
+  const allFresh: GroceryItem[] = [];
+  for (const plan of plansByWeek.values()) {
+    const planJson = normalizeMealPlan(plan.planJson);
+    const items = buildGroceryItems(planJson);
+    allFresh.push(...items);
+  }
+
+  // Merge with existing list to preserve manual items + check state
   const existing = await prisma.groceryList.findFirst({
-    where: { userId, weeklyMealPlanId: planId },
+    where: { userId },
     orderBy: { createdAt: "desc" },
   });
   const merged = mergeGroceryItems(
-    fresh,
+    allFresh,
     Array.isArray(existing?.items) ? (existing!.items as never) : [],
   );
+
+  // Link to the most recently relevant plan
+  const linkPlanId = planId ?? plansByWeek.values().next().value?.id ?? null;
+
   if (existing) {
     return prisma.groceryList.update({
       where: { id: existing.id },
-      data: { items: merged as unknown as object },
+      data: {
+        items: merged as unknown as object,
+        ...(linkPlanId ? { weeklyMealPlanId: linkPlanId } : {}),
+      },
     });
   }
   return prisma.groceryList.create({
     data: {
       userId,
-      weeklyMealPlanId: planId,
+      weeklyMealPlanId: linkPlanId,
       items: merged as unknown as object,
     },
   });
@@ -395,10 +464,16 @@ router.get("/completions", requireAuth, async (req, res) => {
     return;
   }
 
-  const plan = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // Accept optional planId to support week navigation (viewing past/future weeks)
+  const planIdParam = typeof req.query.planId === "string" ? req.query.planId : "";
+  let plan;
+  if (planIdParam) {
+    plan = await prisma.weeklyMealPlan.findFirst({
+      where: { id: planIdParam, userId },
+    });
+  } else {
+    plan = await findActiveMealPlan(userId);
+  }
   if (!plan) {
     res.json({ completion: null });
     return;
@@ -437,14 +512,5 @@ router.put("/completions", requireAuth, async (req, res) => {
   });
   res.json({ completion });
 });
-
-function startOfWeek(date: Date): Date {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + mondayOffset);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
 
 export default router;

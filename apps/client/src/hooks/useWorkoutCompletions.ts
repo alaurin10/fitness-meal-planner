@@ -30,7 +30,7 @@ export function useWorkoutCompletions(
     enabled: !!planId,
     queryFn: async () => {
       const { data } = await api.get<{ completion: CompletionRecord | null }>(
-        `/api/workouts/completions?dayKey=${dayKey}`,
+        `/api/workouts/completions?dayKey=${dayKey}${planId ? `&planId=${planId}` : ""}`,
       );
       return data.completion;
     },

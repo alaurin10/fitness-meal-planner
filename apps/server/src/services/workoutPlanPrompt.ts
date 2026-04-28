@@ -1,4 +1,5 @@
 import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
+import type { DayLabel } from "@platform/shared";
 
 export function buildSystemPrompt(): string {
   return [
@@ -13,7 +14,7 @@ export function buildSystemPrompt(): string {
     "- `loadLbs` is a recommended working load. Use null for bodyweight. For bar lifts, anchor to the athlete's most recent PR if provided.",
     "- `summary` is one paragraph explaining the week's focus.",
     "- `progressionNotes` is one paragraph explaining what changed from the previous week and why.",
-    "- Only include as many day entries as trainingDaysPerWeek.",
+    "- Only include as many day entries as specified by the caller (see daysToGenerate).",
     "- STRICTLY respect the athlete's available equipment. Only prescribe exercises that can be performed with the listed equipment. If equipment is empty, the athlete has bodyweight only — design a fully bodyweight program.",
   ].join("\n");
 }
@@ -47,6 +48,7 @@ export function buildUserPrompt(args: {
   profile: Profile;
   recentProgress: ProgressLog[];
   previousPlan: WeeklyPlan | null;
+  daysToGenerate?: DayLabel[];
 }): string {
   const { profile, recentProgress, previousPlan } = args;
 
@@ -89,8 +91,14 @@ export function buildUserPrompt(args: {
     lines.push("Previous plan: (none)");
   }
   lines.push("");
-  lines.push(
-    `Produce this week's plan for ${profile.trainingDaysPerWeek} training days. Output JSON only.`,
-  );
+  if (args.daysToGenerate && args.daysToGenerate.length < 7) {
+    lines.push(
+      `Produce a plan with day entries EXACTLY matching this set, in this order: ${args.daysToGenerate.join(", ")}. The "days" array must contain exactly ${args.daysToGenerate.length} entries with these exact day labels. Output JSON only.`,
+    );
+  } else {
+    lines.push(
+      `Produce this week's plan for ${profile.trainingDaysPerWeek} training days. Output JSON only.`,
+    );
+  }
   return lines.join("\n");
 }

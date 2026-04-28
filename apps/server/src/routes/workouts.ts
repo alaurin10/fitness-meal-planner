@@ -1,9 +1,23 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "@platform/db";
+import {
+  startOfWeek,
+  addWeeks,
+  computePlanWindow,
+  parseLocalDate,
+  localDayKey,
+  ALL_DAYS,
+  type WeekStartDay,
+  type DayLabel,
+} from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateWeeklyPlan } from "../services/workoutPlan.js";
+import {
+  findActiveWorkoutPlan,
+  findWorkoutPlanForWeek,
+} from "../services/activePlan.js";
 import {
   weeklyPlanSchema,
   type WeeklyPlanJson,
@@ -27,10 +41,13 @@ const completionSchema = z.object({
 
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const plan = await prisma.weeklyPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const weekStartParam = typeof req.query.weekStart === "string" ? req.query.weekStart : "";
+  let plan;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(weekStartParam)) {
+    plan = await findWorkoutPlanForWeek(userId, parseLocalDate(weekStartParam));
+  } else {
+    plan = await findActiveWorkoutPlan(userId);
+  }
   res.json({ plan });
 });
 
@@ -52,16 +69,44 @@ router.post("/generate", requireAuth, async (req, res) => {
     return;
   }
 
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  const now = new Date();
+  const thisWeek = startOfWeek(now, weekStartDay);
+
+  const targetStr = typeof req.body.targetWeekStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.targetWeekStart)
+    ? req.body.targetWeekStart as string
+    : null;
+  const target = targetStr ? parseLocalDate(targetStr) : thisWeek;
+
+  if (target.getTime() < thisWeek.getTime()) {
+    res.status(400).json({ error: "Cannot regenerate a past week." });
+    return;
+  }
+  if (target.getTime() > addWeeks(thisWeek, 1).getTime()) {
+    res.status(400).json({ error: "Future generation capped at +1 week." });
+    return;
+  }
+
+  const { daysToInclude, isCurrentWeek } = computePlanWindow(target, now, weekStartDay);
+
+  // Intersect with profile.trainingDays
+  const trainingDays: DayLabel[] = (profile.trainingDays?.length
+    ? profile.trainingDays
+    : [...ALL_DAYS]) as DayLabel[];
+  const workoutDays = daysToInclude.filter((d) => trainingDays.includes(d));
+  if (workoutDays.length === 0) {
+    res.status(400).json({ error: "No remaining training days this week." });
+    return;
+  }
+
   const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
   const [recentProgress, previousPlan] = await Promise.all([
     prisma.progressLog.findMany({
       where: { userId, loggedAt: { gte: fourWeeksAgo } },
       orderBy: { loggedAt: "desc" },
     }),
-    prisma.weeklyPlan.findFirst({
-      where: { userId, isActive: true },
-      orderBy: { createdAt: "desc" },
-    }),
+    findActiveWorkoutPlan(userId),
   ]);
 
   try {
@@ -69,19 +114,30 @@ router.post("/generate", requireAuth, async (req, res) => {
       profile,
       recentProgress,
       previousPlan,
+      daysToGenerate: workoutDays,
     });
 
-    const weekStart = startOfWeek(new Date());
+    // Deactivate (not delete) any existing plan for this week to preserve completions
+    const existing = await findWorkoutPlanForWeek(userId, target);
+    if (existing) {
+      await prisma.weeklyPlan.update({
+        where: { id: existing.id },
+        data: { isActive: false },
+      });
+    }
 
-    await prisma.weeklyPlan.updateMany({
-      where: { userId, isActive: true },
-      data: { isActive: false },
-    });
+    // Deactivate older plans only when the new plan is for the current week
+    if (isCurrentWeek) {
+      await prisma.weeklyPlan.updateMany({
+        where: { userId, weekStartDate: { lt: target }, isActive: true },
+        data: { isActive: false },
+      });
+    }
 
     const created = await prisma.weeklyPlan.create({
       data: {
         userId,
-        weekStartDate: weekStart,
+        weekStartDate: target,
         planJson,
         isActive: true,
       },
@@ -109,10 +165,7 @@ router.patch("/exercise", requireAuth, async (req, res) => {
   }
   const { day, index, loadLbs, note } = parsed.data;
 
-  const plan = await prisma.weeklyPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const plan = await findActiveWorkoutPlan(userId);
   if (!plan) {
     res.status(404).json({ error: "No active workout plan" });
     return;
@@ -168,10 +221,16 @@ router.get("/completions", requireAuth, async (req, res) => {
     return;
   }
 
-  const plan = await prisma.weeklyPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // Accept optional planId to support week navigation (viewing past/future weeks)
+  const planIdParam = typeof req.query.planId === "string" ? req.query.planId : "";
+  let plan;
+  if (planIdParam) {
+    plan = await prisma.weeklyPlan.findFirst({
+      where: { id: planIdParam, userId },
+    });
+  } else {
+    plan = await findActiveWorkoutPlan(userId);
+  }
   if (!plan) {
     res.json({ completion: null });
     return;
@@ -205,11 +264,9 @@ router.put("/completions", requireAuth, async (req, res) => {
   const validated = weeklyPlanSchema.safeParse(plan.planJson);
   let completedAt: Date | null = null;
   if (validated.success) {
-    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
     // Derive which day-of-week from the dayKey
     const date = new Date(dayKey + "T12:00:00");
-    const dayIdx = (date.getDay() + 6) % 7;
-    const dayLabel = DAYS[dayIdx];
+    const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const dayEntry = validated.data.days.find((d) => d.day === dayLabel);
     if (dayEntry) {
       const allDone = dayEntry.exercises.every((ex, idx) => {
@@ -227,14 +284,5 @@ router.put("/completions", requireAuth, async (req, res) => {
   });
   res.json({ completion });
 });
-
-function startOfWeek(date: Date): Date {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + mondayOffset);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
 
 export default router;

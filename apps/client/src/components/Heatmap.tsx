@@ -1,3 +1,5 @@
+import { rotateDays, dayIdxFromDate, type WeekStartDay } from "@platform/shared";
+
 interface HeatmapCell {
   date: string;
   level: 0 | 1 | 2 | 3;
@@ -7,20 +9,22 @@ interface Props {
   data: HeatmapCell[];
   weeks?: number;
   color?: string;
+  weekStartDay?: WeekStartDay;
 }
-
-const DAY_LABELS = ["M", "", "W", "", "F", "", ""];
 
 /**
  * GitHub-style contribution heatmap. Renders a grid of weeks × 7 days.
  * Color intensity maps to the level (0–3).
  */
-export function Heatmap({ data, weeks = 12, color = "var(--moss)" }: Props) {
+export function Heatmap({ data, weeks = 12, color = "var(--moss)", weekStartDay = "Mon" }: Props) {
   const dataMap = new Map(data.map((d) => [d.date, d.level]));
 
-  // Build grid: last N weeks, Mon–Sun per column
+  const rotated = rotateDays(weekStartDay);
+  const DAY_LABELS = rotated.map((d, i) => (i % 2 === 0 ? d[0]! : ""));
+
+  // Build grid: last N weeks, rotated day order per column
   const today = new Date();
-  const todayDayOfWeek = (today.getDay() + 6) % 7; // Mon=0
+  const todayDayOfWeek = dayIdxFromDate(today, weekStartDay);
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - todayDayOfWeek - (weeks - 1) * 7);
 

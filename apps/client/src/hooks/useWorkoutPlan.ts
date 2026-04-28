@@ -31,12 +31,13 @@ export interface WeeklyPlanRecord {
   createdAt: string;
 }
 
-export function useCurrentWorkoutPlan() {
+export function useCurrentWorkoutPlan(weekStart?: string) {
   const api = useApi();
   return useQuery({
-    queryKey: ["workouts", "current"],
+    queryKey: ["workouts", "current", weekStart ?? "active"],
     queryFn: async () => {
-      const { data } = await api.get<{ plan: WeeklyPlanRecord | null }>("/api/workouts/current");
+      const params = weekStart ? `?weekStart=${weekStart}` : "";
+      const { data } = await api.get<{ plan: WeeklyPlanRecord | null }>(`/api/workouts/current${params}`);
       return data.plan;
     },
   });
@@ -46,8 +47,10 @@ export function useGenerateWorkoutPlan() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post<{ plan: WeeklyPlanRecord }>("/api/workouts/generate");
+    mutationFn: async (opts?: { targetWeekStart?: string }) => {
+      const { data } = await api.post<{ plan: WeeklyPlanRecord }>("/api/workouts/generate", {
+        targetWeekStart: opts?.targetWeekStart,
+      });
       return data.plan;
     },
     onSuccess: () => {

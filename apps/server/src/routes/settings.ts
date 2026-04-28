@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { prisma } from "@platform/db";
 import { z } from "zod";
+import { ALL_DAYS } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
 const settingsSchema = z.object({
   unitSystem: z.enum(["imperial", "metric"]),
+  weekStartDay: z.enum(ALL_DAYS as unknown as [string, ...string[]]).optional(),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -25,6 +27,7 @@ router.get("/", requireAuth, async (req, res) => {
   res.json({
     settings: {
       unitSystem: settings?.unitSystem ?? profile?.unitSystem ?? "imperial",
+      weekStartDay: settings?.weekStartDay ?? "Mon",
     },
   });
 });
@@ -45,10 +48,14 @@ router.patch("/", requireAuth, async (req, res) => {
 
   const settings = await prisma.userSettings.upsert({
     where: { userId },
-    update: { unitSystem: parsed.data.unitSystem },
+    update: {
+      unitSystem: parsed.data.unitSystem,
+      ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
+    },
     create: {
       userId,
       unitSystem: parsed.data.unitSystem,
+      ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
     },
   });
 
@@ -60,6 +67,7 @@ router.patch("/", requireAuth, async (req, res) => {
   res.json({
     settings: {
       unitSystem: settings.unitSystem,
+      weekStartDay: settings.weekStartDay,
     },
   });
 });

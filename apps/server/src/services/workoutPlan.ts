@@ -1,4 +1,5 @@
 import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
+import type { DayLabel } from "@platform/shared";
 import { generateWithRetry, getGeminiClient, parseGeminiJson } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
@@ -7,6 +8,7 @@ export async function generateWeeklyPlan(args: {
   profile: Profile;
   recentProgress: ProgressLog[];
   previousPlan: WeeklyPlan | null;
+  daysToGenerate?: DayLabel[];
 }): Promise<WeeklyPlanJson> {
   const text = await generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({

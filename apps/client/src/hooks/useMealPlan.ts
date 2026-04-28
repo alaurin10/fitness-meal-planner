@@ -12,13 +12,14 @@ interface PlanResult {
   groceryList: GroceryList;
 }
 
-export function useCurrentMealPlan() {
+export function useCurrentMealPlan(weekStart?: string) {
   const api = useApi();
   return useQuery({
-    queryKey: ["meals", "current"],
+    queryKey: ["meals", "current", weekStart ?? "active"],
     queryFn: async () => {
+      const params = weekStart ? `?weekStart=${weekStart}` : "";
       const { data } = await api.get<{ plan: WeeklyMealPlanRecord | null }>(
-        "/api/meals/current",
+        `/api/meals/current${params}`,
       );
       return data.plan;
     },
@@ -29,8 +30,10 @@ export function useGenerateMealPlan() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post<PlanResult>("/api/meals/generate");
+    mutationFn: async (opts?: { targetWeekStart?: string }) => {
+      const { data } = await api.post<PlanResult>("/api/meals/generate", {
+        targetWeekStart: opts?.targetWeekStart,
+      });
       return data;
     },
     onSuccess: () => {
@@ -44,8 +47,10 @@ export function useCreateEmptyPlan() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post<PlanResult>("/api/meals/empty");
+    mutationFn: async (opts?: { targetWeekStart?: string }) => {
+      const { data } = await api.post<PlanResult>("/api/meals/empty", {
+        targetWeekStart: opts?.targetWeekStart,
+      });
       return data;
     },
     onSuccess: () => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ALL_DAYS, type WeekStartDay } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
@@ -10,13 +11,17 @@ export function SettingsPage() {
   const settingsQuery = useSettings();
   const save = useSaveSettings();
   const [unitSystem, setUnitSystem] = useState<"imperial" | "metric">("imperial");
+  const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>("Mon");
   const [toast, setToast] = useState(false);
 
   useEffect(() => {
     if (settingsQuery.data?.unitSystem) {
       setUnitSystem(settingsQuery.data.unitSystem);
     }
-  }, [settingsQuery.data?.unitSystem]);
+    if (settingsQuery.data?.weekStartDay) {
+      setWeekStartDay(settingsQuery.data.weekStartDay);
+    }
+  }, [settingsQuery.data?.unitSystem, settingsQuery.data?.weekStartDay]);
 
   return (
     <Layout>
@@ -46,7 +51,7 @@ export function SettingsPage() {
             className="w-full mt-5"
             onClick={() =>
               save.mutate(
-                { unitSystem },
+                { unitSystem, weekStartDay },
                 {
                   onSuccess: () => {
                     setToast(true);
@@ -82,6 +87,45 @@ export function SettingsPage() {
               <Icon name="check" size={14} /> Settings saved.
             </div>
           )}
+        </Card>
+
+        <Card>
+          <div className="eyebrow">Week starts on</div>
+          <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
+            Controls day order on Meals, Workouts, and Progress.
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 14,
+            }}
+          >
+            {ALL_DAYS.map((d) => {
+              const active = weekStartDay === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setWeekStartDay(d)}
+                  className="tappable"
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid var(--hair)",
+                    borderRadius: 999,
+                    background: active ? "var(--ink)" : "transparent",
+                    color: active ? "var(--paper)" : "var(--sumi)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
         </Card>
       </div>
     </Layout>

@@ -1,4 +1,5 @@
 import { prisma } from "@platform/db";
+import { findActiveWorkoutPlan } from "./activePlan.js";
 
 export interface TrainingSchedule {
   trainingDays: string[];
@@ -17,17 +18,17 @@ const CALORIE_PER_SESSION_ESTIMATE: Record<string, number> = {
 export async function getTrainingSchedule(userId: string): Promise<TrainingSchedule> {
   const [profile, plan] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
-    prisma.weeklyPlan.findFirst({
-      where: { userId, isActive: true },
-      orderBy: { createdAt: "desc" },
-    }),
+    findActiveWorkoutPlan(userId),
   ]);
 
   if (!profile) {
     return { trainingDays: [], avgDailyCaloriesBurned: 0, goal: null };
   }
 
-  const trainingDays = extractTrainingDays(plan?.planJson, profile.trainingDaysPerWeek);
+  // Prefer explicit trainingDays from profile, then fall back to plan/count
+  const trainingDays = profile.trainingDays?.length
+    ? (profile.trainingDays as string[])
+    : extractTrainingDays(plan?.planJson, profile.trainingDaysPerWeek);
   const burnPerSession = CALORIE_PER_SESSION_ESTIMATE[profile.goal] ?? 300;
   const avgDailyCaloriesBurned = Math.round(
     (burnPerSession * trainingDays.length) / 7,

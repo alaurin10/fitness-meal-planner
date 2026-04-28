@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "@platform/db";
+import { ALL_DAYS } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { computeTargets } from "../services/targets.js";
 
@@ -33,6 +34,7 @@ const profileSchema = z.object({
   mealComplexity: z.enum(["varied", "simple", "prep"]).default("varied"),
   equipment: z.array(z.enum(EQUIPMENT_OPTIONS)).default([]),
   hydrationGoal: z.number().int().min(1).max(20).optional(),
+  trainingDays: z.array(z.enum(ALL_DAYS as unknown as [string, ...string[]])).default([]),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -80,6 +82,10 @@ router.put("/", requireAuth, async (req, res) => {
 
   const data = {
     ...parsed.data,
+    // Sync trainingDaysPerWeek from trainingDays when provided
+    trainingDaysPerWeek: parsed.data.trainingDays.length > 0
+      ? parsed.data.trainingDays.length
+      : parsed.data.trainingDaysPerWeek,
     caloricTarget:
       parsed.data.caloricTarget === undefined
         ? suggested?.caloricTarget ?? null

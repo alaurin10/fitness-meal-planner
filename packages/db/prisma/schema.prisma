@@ -31,6 +31,7 @@ model UserSettings {
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   unitSystem     String   @default("imperial") // "imperial" | "metric"
+  weekStartDay   String   @default("Mon") // "Mon"|"Tue"|"Wed"|"Thu"|"Fri"|"Sat"|"Sun"
   updatedAt      DateTime @updatedAt
 }
 
@@ -45,6 +46,7 @@ model Profile {
   heightIn            Float?
   experienceLevel     String // "beginner" | "intermediate" | "advanced"
   trainingDaysPerWeek Int
+  trainingDays    String[] @default([]) // ["Mon","Wed","Fri",...]
   goal                String // "build_muscle" | "lose_fat" | "maintain"
   caloricTarget       Int?
   proteinTargetG      Int?

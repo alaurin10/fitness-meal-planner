@@ -1,4 +1,5 @@
 import type { Profile } from "@platform/db";
+import type { DayLabel } from "@platform/shared";
 import { generateWithRetry, getGeminiClient, parseGeminiJson } from "./gemini.js";
 import {
   buildSingleMealSystemPrompt,
@@ -17,6 +18,7 @@ import type { TrainingSchedule } from "./schedule.js";
 export async function generateMealPlan(args: {
   profile: Profile;
   schedule: TrainingSchedule;
+  daysToGenerate?: DayLabel[];
 }): Promise<MealPlanJson> {
   const text = await generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({

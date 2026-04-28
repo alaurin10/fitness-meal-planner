@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { rotateDays, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon, type IconName } from "../components/Icon";
@@ -15,6 +16,7 @@ import {
   type ProfileInput,
 } from "../hooks/useProfile";
 import { useSettings } from "../hooks/useSettings";
+import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { computeSuggestedTargets } from "../lib/targets";
 import {
   cmToInches,
@@ -40,6 +42,7 @@ const EMPTY: ProfileInput = {
   mealComplexity: "varied",
   equipment: [],
   hydrationGoal: 8,
+  trainingDays: [],
 };
 
 const MEAL_COMPLEXITY: Array<{
@@ -132,6 +135,7 @@ const QUICK_NOTES = [
 export function ProfilePage() {
   const query = useProfile();
   const settingsQuery = useSettings();
+  const weekStartDay = useWeekStartDay();
   const save = useSaveProfile();
   const [form, setForm] = useState<ProfileInput>(EMPTY);
   const [useSuggestedCalories, setUseSuggestedCalories] = useState(true);
@@ -280,8 +284,8 @@ export function ProfilePage() {
           <Card>
             <SummaryRow label="Experience" value={EXPERIENCE_LABEL[p.experienceLevel]} />
             <SummaryRow
-              label="Training days / week"
-              value={String(p.trainingDaysPerWeek)}
+              label="Training days"
+              value={p.trainingDays?.length ? p.trainingDays.join(", ") : `${p.trainingDaysPerWeek} days/week`}
             />
             <SummaryRow
               label="Goal"
@@ -566,39 +570,51 @@ export function ProfilePage() {
                   alignItems: "center",
                 }}
               >
-                <span style={sectionLabelStyle}>Training days / week</span>
+                <span style={sectionLabelStyle}>Training days</span>
                 <span
                   className="font-display"
                   style={{ fontSize: 18, color: "var(--accent)" }}
                 >
-                  {form.trainingDaysPerWeek}
+                  {(form.trainingDays?.length || form.trainingDaysPerWeek)} days
                 </span>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => upd("trainingDaysPerWeek", n)}
-                    className="tappable"
-                    style={{
-                      minWidth: 40,
-                      padding: "10px 0",
-                      border: "1px solid " + (form.trainingDaysPerWeek === n ? "var(--accent)" : "var(--hair)"),
-                      background:
-                        form.trainingDaysPerWeek === n
+                {rotateDays(weekStartDay).map((d) => {
+                  const selected = form.trainingDays?.includes(d) ?? false;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const current = form.trainingDays ?? [];
+                        const next = selected
+                          ? current.filter((x) => x !== d)
+                          : [...current, d];
+                        setForm((f) => ({
+                          ...f,
+                          trainingDays: next,
+                          trainingDaysPerWeek: next.length || f.trainingDaysPerWeek,
+                        }));
+                      }}
+                      className="tappable"
+                      style={{
+                        minWidth: 44,
+                        padding: "10px 0",
+                        border: "1px solid " + (selected ? "var(--accent)" : "var(--hair)"),
+                        background: selected
                           ? "color-mix(in srgb, var(--accent) 18%, transparent)"
                           : "var(--paper)",
-                      color: form.trainingDaysPerWeek === n ? "var(--accent-2)" : "var(--sumi)",
-                      borderRadius: "calc(var(--radius) * 0.55)",
-                      fontFamily: "var(--font-display)",
-                      fontSize: 14,
-                      flex: 1,
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
+                        color: selected ? "var(--accent-2)" : "var(--sumi)",
+                        borderRadius: "calc(var(--radius) * 0.55)",
+                        fontFamily: "var(--font-display)",
+                        fontSize: 13,
+                        flex: 1,
+                      }}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1327,6 +1343,7 @@ function profileToForm(profile: Profile): ProfileInput {
     mealComplexity: profile.mealComplexity ?? "varied",
     equipment: profile.equipment ?? [],
     hydrationGoal: profile.hydrationGoal ?? 8,
+    trainingDays: profile.trainingDays ?? [],
   };
 }
 

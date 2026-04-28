@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { GeneratingProgress } from "../components/GeneratingProgress";
@@ -11,6 +12,7 @@ import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useAc
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { localDayKey } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
+import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import {
   useCurrentWorkoutPlan,
   useGenerateWorkoutPlan,
@@ -35,13 +37,29 @@ import {
   type UnitSystem,
 } from "../lib/units";
 
-const DAYS: TrainingDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 export function WorkoutsPage() {
-  const { data: plan, isLoading } = useCurrentWorkoutPlan();
+  const weekStartDay = useWeekStartDay();
+  const DAYS = rotateDays(weekStartDay);
+  const now = useMemo(() => new Date(), []);
+  const thisWeekStart = useMemo(() => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
+  const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
+  const isCurrentWeek = viewingWeekStart === thisWeekStart;
+
+  const weekStartDate = useMemo(() => {
+    const [y, m, d] = viewingWeekStart.split("-").map(Number);
+    return new Date(y!, m! - 1, d!);
+  }, [viewingWeekStart]);
+
+  const weekLabel = isCurrentWeek
+    ? "This week"
+    : weekStartDate.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+      " – " +
+      new Date(weekStartDate.getTime() + 6 * 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  const { data: plan, isLoading } = useCurrentWorkoutPlan(viewingWeekStart);
   const settingsQuery = useSettings();
   const generate = useGenerateWorkoutPlan();
-  const todayIdx = (new Date().getDay() + 6) % 7;
+  const todayIdx = dayIdxFromDate(now, weekStartDay);
   const [activeDay, setActiveDay] = useState<TrainingDay["day"]>(
     DAYS[todayIdx] ?? "Mon",
   );
@@ -99,12 +117,35 @@ export function WorkoutsPage() {
           subtitle="No plan yet. Generate one shaped by your profile."
           right={headerRight}
         />
-        <div className="px-4 pt-2">
+        <div className="px-4 pt-2 space-y-3">
+          {/* Week navigation in no-plan state */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <button
+              className="tappable"
+              onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, -1)))}
+              style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
+            >
+              <Icon name="chevron-left" size={16} />
+            </button>
+            <span
+              style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", cursor: isCurrentWeek ? "default" : "pointer" }}
+              onClick={() => !isCurrentWeek && setViewingWeekStart(thisWeekStart)}
+            >
+              {weekLabel}
+            </span>
+            <button
+              className="tappable"
+              onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, 1)))}
+              style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
+              disabled={viewingWeekStart >= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1))}
+            >
+              <Icon name="chevron-right" size={16} />
+            </button>
+          </div>
           {generate.isPending ? (
             <GeneratingProgress kind="workout" estimatedSeconds={45} />
           ) : (
             <Card tone="gradient">
-              <div className="eyebrow">This week</div>
               <div
                 className="font-display mt-1"
                 style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
@@ -113,7 +154,7 @@ export function WorkoutsPage() {
               </div>
               <Button
                 className="w-full mt-5"
-                onClick={() => generate.mutate()}
+                onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
               >
                 <Icon name="sparkle" size={16} />
                 Generate plan
@@ -296,6 +337,30 @@ export function WorkoutsPage() {
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
+        {/* Week navigation */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <button
+            className="tappable"
+            onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, -1)))}
+            style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
+          >
+            <Icon name="chevron-left" size={16} />
+          </button>
+          <span
+            style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", cursor: isCurrentWeek ? "default" : "pointer" }}
+            onClick={() => !isCurrentWeek && setViewingWeekStart(thisWeekStart)}
+          >
+            {weekLabel}
+          </span>
+          <button
+            className="tappable"
+            onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, 1)))}
+            style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
+            disabled={viewingWeekStart >= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1))}
+          >
+            <Icon name="chevron-right" size={16} />
+          </button>
+        </div>
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
@@ -633,7 +698,7 @@ export function WorkoutsPage() {
         <Button
           variant="ghost"
           className="w-full"
-          onClick={() => generate.mutate()}
+          onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
           disabled={generate.isPending}
         >
           <Icon name="sparkle" size={16} />

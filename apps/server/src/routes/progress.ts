@@ -1,9 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "@platform/db";
+import { ALL_DAYS } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { computeTargets } from "../services/targets.js";
 import { computeStreaks } from "../services/streakCalculator.js";
+import {
+  findActiveWorkoutPlan,
+  findActiveMealPlan,
+} from "../services/activePlan.js";
 
 const router = Router();
 
@@ -110,8 +115,8 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
 
   const [profile, workoutPlan, mealPlan, hydrationLog] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
-    prisma.weeklyPlan.findFirst({ where: { userId, isActive: true }, orderBy: { createdAt: "desc" } }),
-    prisma.weeklyMealPlan.findFirst({ where: { userId, isActive: true }, orderBy: { createdAt: "desc" } }),
+    findActiveWorkoutPlan(userId),
+    findActiveMealPlan(userId),
     prisma.hydrationLog.findUnique({ where: { userId_date: { userId, date: todayUTC() } } }),
   ]);
 
@@ -122,10 +127,8 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
     const wc = await prisma.workoutCompletion.findUnique({
       where: { userId_planId_dayKey: { userId, planId: workoutPlan.id, dayKey } },
     });
-    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
     const date = new Date(dayKey + "T12:00:00");
-    const dayIdx = (date.getDay() + 6) % 7;
-    const dayLabel = DAYS[dayIdx];
+    const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number }[] }[] };
     const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
     const totalSets = dayEntry?.exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
@@ -145,10 +148,8 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
     const mc = await prisma.mealCompletion.findUnique({
       where: { userId_planId_dayKey: { userId, planId: mealPlan.id, dayKey } },
     });
-    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
     const date = new Date(dayKey + "T12:00:00");
-    const dayIdx = (date.getDay() + 6) % 7;
-    const dayLabel = DAYS[dayIdx];
+    const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const planJson = mealPlan.planJson as { days?: { day: string; meals?: { calories: number; proteinG: number }[] }[] };
     const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
     const totalMeals = dayEntry?.meals?.length ?? 0;
@@ -191,7 +192,7 @@ router.get("/history", requireAuth, async (req, res) => {
   const fromDate = new Date(from + "T00:00:00Z");
   const toDate = new Date(to + "T23:59:59Z");
 
-  const [workoutCompletions, mealCompletions, hydrationLogs, profile, workoutPlan, mealPlan] = await Promise.all([
+  const [workoutCompletions, mealCompletions, hydrationLogs, profile, allWorkoutPlans, allMealPlans] = await Promise.all([
     prisma.workoutCompletion.findMany({
       where: { userId, dayKey: { gte: from, lte: to } },
     }),
@@ -202,8 +203,14 @@ router.get("/history", requireAuth, async (req, res) => {
       where: { userId, date: { gte: fromDate, lte: toDate } },
     }),
     prisma.profile.findUnique({ where: { userId } }),
-    prisma.weeklyPlan.findFirst({ where: { userId, isActive: true }, orderBy: { createdAt: "desc" } }),
-    prisma.weeklyMealPlan.findFirst({ where: { userId, isActive: true }, orderBy: { createdAt: "desc" } }),
+    prisma.weeklyPlan.findMany({
+      where: { userId },
+      orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.weeklyMealPlan.findMany({
+      where: { userId },
+      orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
+    }),
   ]);
 
   const hydrationGoal = profile?.hydrationGoal ?? 8;
@@ -237,19 +244,18 @@ router.get("/history", requireAuth, async (req, res) => {
     day.workout.done = wc.completedAt != null;
   }
 
-  // Fill workout totals from plan
-  if (workoutPlan) {
+  // Fill workout totals from per-dayKey plan resolution
+  // For each dayKey, find the plan whose weekStartDate <= dayKey (newest first)
+  for (const dk of Object.keys(days)) {
+    const rec = days[dk];
+    if (!rec) continue;
+    const dkDate = new Date(dk + "T12:00:00");
+    const workoutPlan = allWorkoutPlans.find((p) => p.weekStartDate <= dkDate);
+    if (!workoutPlan) continue;
     const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number }[] }[] };
-    const DAYS_LIST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-    for (const dk of Object.keys(days)) {
-      const rec = days[dk];
-      if (!rec) continue;
-      const date = new Date(dk + "T12:00:00");
-      const dayIdx = (date.getDay() + 6) % 7;
-      const dayLabel = DAYS_LIST[dayIdx];
-      const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
-      rec.workout.total = dayEntry?.exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
-    }
+    const dayLabel = ALL_DAYS[(dkDate.getDay() + 6) % 7]!;
+    const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
+    rec.workout.total = dayEntry?.exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
   }
 
   // Fill meal data
@@ -261,26 +267,24 @@ router.get("/history", requireAuth, async (req, res) => {
     day.meals.done = mc.completedAt != null;
   }
 
-  // Fill meal totals from plan
-  if (mealPlan) {
+  // Fill meal totals from per-dayKey plan resolution
+  for (const dk of Object.keys(days)) {
+    const rec = days[dk];
+    if (!rec) continue;
+    const dkDate = new Date(dk + "T12:00:00");
+    const mealPlan = allMealPlans.find((p) => p.weekStartDate <= dkDate);
+    if (!mealPlan) continue;
     const planJson = mealPlan.planJson as { days?: { day: string; meals?: { calories: number; proteinG: number }[] }[] };
-    const DAYS_LIST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-    for (const dk of Object.keys(days)) {
-      const rec = days[dk];
-      if (!rec) continue;
-      const date = new Date(dk + "T12:00:00");
-      const dayIdx = (date.getDay() + 6) % 7;
-      const dayLabel = DAYS_LIST[dayIdx];
-      const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
-      rec.meals.total = dayEntry?.meals?.length ?? 0;
+    const dayLabel = ALL_DAYS[(dkDate.getDay() + 6) % 7]!;
+    const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
+    rec.meals.total = dayEntry?.meals?.length ?? 0;
 
-      // Fill calorie/protein from completed meal indices
-      const mc = mealCompletions.find((c) => c.dayKey === dk);
-      if (mc && dayEntry?.meals) {
-        const indices = mc.indicesJson as number[];
-        rec.meals.calories = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.calories ?? 0), 0);
-        rec.meals.protein = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.proteinG ?? 0), 0);
-      }
+    // Fill calorie/protein from completed meal indices
+    const mc = mealCompletions.find((c) => c.dayKey === dk);
+    if (mc && dayEntry?.meals) {
+      const indices = mc.indicesJson as number[];
+      rec.meals.calories = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.calories ?? 0), 0);
+      rec.meals.protein = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.proteinG ?? 0), 0);
     }
   }
 
@@ -316,7 +320,7 @@ router.get("/streaks", requireAuth, async (req, res) => {
       where: { userId, date: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
       orderBy: { date: "desc" },
     }),
-    prisma.weeklyPlan.findFirst({ where: { userId, isActive: true }, orderBy: { createdAt: "desc" } }),
+    findActiveWorkoutPlan(userId),
   ]);
 
   const hydrationGoal = profile?.hydrationGoal ?? 8;
@@ -330,7 +334,6 @@ router.get("/streaks", requireAuth, async (req, res) => {
   const restDays = new Set<string>();
   if (workoutPlan) {
     const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: unknown[] }[] };
-    const DAYS_LIST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
     const restDayNames = new Set(
       planJson.days?.filter((d) => !d.exercises || d.exercises.length === 0).map((d) => d.day) ?? []
     );
@@ -338,8 +341,7 @@ router.get("/streaks", requireAuth, async (req, res) => {
     const cursor = new Date();
     for (let i = 0; i < 90; i++) {
       const dk = localDayKeyFromDate(cursor);
-      const dayIdx = (cursor.getDay() + 6) % 7;
-      const dayLabel = DAYS_LIST[dayIdx]!;
+      const dayLabel = ALL_DAYS[(cursor.getDay() + 6) % 7]!;
       if (restDayNames.has(dayLabel)) restDays.add(dk);
       cursor.setDate(cursor.getDate() - 1);
     }

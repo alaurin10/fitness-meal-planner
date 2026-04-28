@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
+import type { WeekStartDay } from "@platform/shared";
 
 export interface AppSettings {
   unitSystem: "imperial" | "metric";
+  weekStartDay?: WeekStartDay;
 }
 
 export function useSettings() {

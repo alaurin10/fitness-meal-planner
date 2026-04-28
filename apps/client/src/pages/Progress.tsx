@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Heatmap } from "../components/Heatmap";
@@ -10,6 +11,7 @@ import { useLogProgress, useProgress } from "../hooks/useProgress";
 import { useStreaks } from "../hooks/useStreaks";
 import { useHistory } from "../hooks/useHistory";
 import { useSettings } from "../hooks/useSettings";
+import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { formatWeight, kgToPounds, weightUnitLabel } from "../lib/units";
 
 export function ProgressPage() {
@@ -21,6 +23,7 @@ export function ProgressPage() {
   const [toast, setToast] = useState(false);
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const unitLabel = weightUnitLabel(unitSystem);
+  const weekStartDay = useWeekStartDay();
 
   // Analytics data
   const streaksQuery = useStreaks();
@@ -31,15 +34,14 @@ export function ProgressPage() {
   const historyFrom = dayKeyStr(twelveWeeksAgo);
   const historyQuery = useHistory(historyFrom, todayKey);
 
-  // Compute week start (Monday) for "This Week" bars
-  const weekStart = new Date(today);
-  const dayOfWeek = (weekStart.getDay() + 6) % 7;
-  weekStart.setDate(weekStart.getDate() - dayOfWeek);
+  // Compute week start based on user setting
+  const weekStart = sharedStartOfWeek(today, weekStartDay);
 
   const weekDays = useMemo(() => {
     if (!historyQuery.data) return null;
-    const LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-    const todayIdx = (today.getDay() + 6) % 7;
+    const rotated = rotateDays(weekStartDay);
+    const LABELS = rotated.map((d) => d[0]!);
+    const todayIdx = dayIdxFromDate(today, weekStartDay);
     return LABELS.map((label, i) => {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
@@ -71,7 +73,7 @@ export function ProgressPage() {
   // Compute weekly summary stats
   const weekStats = useMemo(() => {
     if (!historyQuery.data) return null;
-    const todayIdx = (today.getDay() + 6) % 7;
+    const todayIdx = dayIdxFromDate(today, weekStartDay);
     let workoutsDone = 0, workoutsTotal = 0, totalSets = 0;
     let totalCal = 0, totalProtein = 0, calDays = 0;
     let hydrationHits = 0, hydrationDays = 0;
@@ -407,7 +409,7 @@ export function ProgressPage() {
         <div className="px-4 pt-6 pb-4">
           <div className="eyebrow" style={{ marginBottom: 10 }}>12-week history</div>
           <Card>
-            <Heatmap data={heatmapData} weeks={12} color="var(--moss)" />
+            <Heatmap data={heatmapData} weeks={12} color="var(--moss)" weekStartDay={weekStartDay} />
             <div style={{ display: "flex", gap: 4, marginTop: 10, alignItems: "center", fontSize: 10, color: "var(--muted)" }}>
               <span>Less</span>
               {[0, 1, 2, 3].map((level) => (

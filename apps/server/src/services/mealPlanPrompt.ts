@@ -1,4 +1,5 @@
 import type { Profile } from "@platform/db";
+import type { DayLabel } from "@platform/shared";
 import type { TrainingSchedule } from "./schedule.js";
 
 export function buildSystemPrompt(): string {
@@ -66,6 +67,7 @@ const COMPLEXITY_GUIDANCE: Record<string, string> = {
 export function buildUserPrompt(args: {
   profile: Profile;
   schedule: TrainingSchedule;
+  daysToGenerate?: DayLabel[];
 }): string {
   const { profile, schedule } = args;
 
@@ -110,7 +112,13 @@ export function buildUserPrompt(args: {
     `Suggested dailyCalorieTarget: ${suggestedTarget}. You may adjust ±150 kcal if it helps macro targets.`,
   );
   lines.push("");
-  lines.push("Produce the full 7-day plan as JSON only.");
+  if (args.daysToGenerate && args.daysToGenerate.length < 7) {
+    lines.push(
+      `Produce a plan covering ONLY these days, in this order: ${args.daysToGenerate.join(", ")}. The "days" array must contain exactly ${args.daysToGenerate.length} entries with these exact day labels. Output JSON only.`,
+    );
+  } else {
+    lines.push("Produce the full 7-day plan as JSON only.");
+  }
   return lines.join("\n");
 }
 

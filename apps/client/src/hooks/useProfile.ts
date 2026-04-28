@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 
+import type { DayLabel } from "@platform/shared";
+
 export type MealComplexity = "varied" | "simple" | "prep";
 
 export const EQUIPMENT_OPTIONS = [
@@ -27,6 +29,7 @@ export interface Profile {
   heightIn: number | null;
   experienceLevel: "beginner" | "intermediate" | "advanced";
   trainingDaysPerWeek: number;
+  trainingDays: DayLabel[];
   goal: "build_muscle" | "lose_fat" | "maintain";
   caloricTarget: number | null;
   proteinTargetG: number | null;
@@ -45,6 +48,7 @@ export interface ProfileInput {
   heightIn: number | null;
   experienceLevel: Profile["experienceLevel"];
   trainingDaysPerWeek: number;
+  trainingDays?: DayLabel[];
   goal: Profile["goal"];
   caloricTarget?: number | null;
   proteinTargetG?: number | null;

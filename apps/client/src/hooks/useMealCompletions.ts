@@ -38,7 +38,7 @@ export function useMealCompletions(
     enabled: !!planId,
     queryFn: async () => {
       const { data } = await api.get<{ completion: CompletionRecord | null }>(
-        `/api/meals/completions?dayKey=${dayKey}`,
+        `/api/meals/completions?dayKey=${dayKey}${planId ? `&planId=${planId}` : ""}`,
       );
       return data.completion;
     },
