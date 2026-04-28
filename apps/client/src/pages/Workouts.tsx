@@ -46,8 +46,14 @@ export function WorkoutsPage() {
     DAYS[todayIdx] ?? "Mon",
   );
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
-  const completion = useWorkoutCompletions(plan?.id, localDayKey());
-  const workoutSession = useWorkoutSession(plan?.id, localDayKey());
+  const activeDayKey = (() => {
+    const offset = DAYS.indexOf(activeDay) - todayIdx;
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return localDayKey(d);
+  })();
+  const completion = useWorkoutCompletions(plan?.id, activeDayKey);
+  const workoutSession = useWorkoutSession(plan?.id, activeDayKey);
   const updateLoad = useUpdateExerciseLoad();
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
