@@ -14,6 +14,7 @@ import {
   type MealComplexity,
   type Profile,
   type ProfileInput,
+  type WorkoutStyle,
 } from "../hooks/useProfile";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
@@ -40,6 +41,7 @@ const EMPTY: ProfileInput = {
   proteinTargetG: null,
   dietaryNotes: null,
   mealComplexity: "varied",
+  workoutStyle: "ppl",
   equipment: [],
   hydrationGoal: 8,
   trainingDays: [],
@@ -75,6 +77,31 @@ const MEAL_COMPLEXITY_LABEL: Record<MealComplexity, string> = {
   varied: "Creative",
   simple: "Simple",
   prep: "Meal prep",
+};
+
+const WORKOUT_STYLES: Array<{
+  value: WorkoutStyle;
+  label: string;
+  hint: string;
+  icon: IconName;
+}> = [
+  {
+    value: "ppl",
+    label: "PPL / Upper-Lower",
+    hint: "Push / Pull / Legs split, or Upper / Lower when training ≤4 days.",
+    icon: "dumbbell",
+  },
+  {
+    value: "muscle_group",
+    label: "Muscle Groups",
+    hint: "Each day targets a primary muscle group — e.g. Chest & Triceps, Back & Biceps.",
+    icon: "flame",
+  },
+];
+
+const WORKOUT_STYLE_LABEL: Record<WorkoutStyle, string> = {
+  ppl: "PPL / Upper-Lower",
+  muscle_group: "Muscle Groups",
 };
 
 const EQUIPMENT: Array<{ value: EquipmentId; label: string }> = [
@@ -336,6 +363,21 @@ export function ProfilePage() {
             <SummaryRow
               label="Plan style"
               value={MEAL_COMPLEXITY_LABEL[p.mealComplexity ?? "varied"]}
+              last
+            />
+          </Card>
+        </div>
+        </div>
+
+        <div>
+        <div className="px-6 pt-5 pb-2 md:px-0 md:pt-5">
+          <div className="eyebrow">Workout style</div>
+        </div>
+        <div className="px-4 md:px-0">
+          <Card>
+            <SummaryRow
+              label="Split"
+              value={WORKOUT_STYLE_LABEL[p.workoutStyle ?? "ppl"]}
               last
             />
           </Card>
@@ -818,6 +860,67 @@ export function ProfilePage() {
               }}
             >
               {MEAL_COMPLEXITY.find((o) => o.value === form.mealComplexity)?.hint}
+            </div>
+          </Card>
+        </div>
+
+        <div className="px-6 pt-5 pb-2">
+          <div className="eyebrow">Workout style</div>
+        </div>
+        <div className="px-4">
+          <Card>
+            <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>
+              How should workouts be structured?
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+              }}
+            >
+              {WORKOUT_STYLES.map((opt) => {
+                const selected = form.workoutStyle === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => upd("workoutStyle", opt.value)}
+                    className="tappable"
+                    style={{
+                      padding: "14px 10px 12px",
+                      border:
+                        "1px solid " +
+                        (selected ? "var(--accent)" : "var(--hair)"),
+                      background: selected
+                        ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+                        : "var(--paper)",
+                      color: selected ? "var(--accent-2)" : "var(--sumi)",
+                      borderRadius: "calc(var(--radius) * 0.7)",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "var(--font-body)",
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <Icon name={opt.icon} size={18} />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 10,
+                lineHeight: 1.5,
+              }}
+            >
+              {WORKOUT_STYLES.find((o) => o.value === form.workoutStyle)?.hint}
             </div>
           </Card>
         </div>
@@ -1341,6 +1444,7 @@ function profileToForm(profile: Profile): ProfileInput {
     proteinTargetG: profile.proteinTargetG,
     dietaryNotes: profile.dietaryNotes,
     mealComplexity: profile.mealComplexity ?? "varied",
+    workoutStyle: profile.workoutStyle ?? "ppl",
     equipment: profile.equipment ?? [],
     hydrationGoal: profile.hydrationGoal ?? 8,
     trainingDays: profile.trainingDays ?? [],

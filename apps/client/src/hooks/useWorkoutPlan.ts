@@ -3,6 +3,8 @@ import { useApi } from "../lib/api";
 
 export interface Exercise {
   name: string;
+  muscleGroup: string;
+  description: string;
   sets: number;
   reps: string;
   loadLbs: number | null;

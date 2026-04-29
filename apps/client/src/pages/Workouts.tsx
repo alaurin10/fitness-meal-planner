@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
@@ -90,32 +89,12 @@ export function WorkoutsPage() {
     );
   }
 
-  const headerRight = (
-    <Link to="/progress" aria-label="Progress" className="tappable">
-      <span
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 999,
-          border: "1px solid var(--hair)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--sumi)",
-        }}
-      >
-        <Icon name="progress" size={18} />
-      </span>
-    </Link>
-  );
-
   if (!plan) {
     return (
       <Layout>
         <PhoneHeader
           title="Workouts"
           subtitle="No plan yet. Generate one shaped by your profile."
-          right={headerRight}
         />
         <div className="px-4 pt-2 space-y-3">
           {/* Week navigation in no-plan state */}
@@ -332,7 +311,6 @@ export function WorkoutsPage() {
       <PhoneHeader
         title="Workouts"
         subtitle={plan.planJson.summary}
-        right={headerRight}
       />
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
@@ -545,6 +523,24 @@ export function WorkoutsPage() {
                   >
                     <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
                       {ex.name}
+                      {ex.muscleGroup && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            color: "var(--accent-2)",
+                            background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                            padding: "2px 7px",
+                            borderRadius: 999,
+                            verticalAlign: "middle",
+                            letterSpacing: "0.03em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {ex.muscleGroup}
+                        </span>
+                      )}
                     </div>
                     {editingLoadIdx === i ? (
                       <LoadEditor
@@ -632,6 +628,18 @@ export function WorkoutsPage() {
                       </>
                     )}
                   </div>
+                  {ex.description && (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--sumi)",
+                        marginTop: 6,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {ex.description}
+                    </div>
+                  )}
                   {ex.notes && (
                     <div
                       style={{

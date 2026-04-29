@@ -1,9 +1,11 @@
 import { useAuth, UserButton } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApi } from "../lib/api";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
+import { Icon } from "./Icon";
 import { Wordmark } from "./Primitives";
 
 interface Props {
@@ -14,6 +16,7 @@ export function Layout({ children }: Props) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -67,7 +70,15 @@ export function Layout({ children }: Props) {
           }}
         >
           <Wordmark />
-          <UserButton />
+          <UserButton>
+            <UserButton.MenuItems>
+              <UserButton.Action
+                label="My Profile"
+                labelIcon={<Icon name="profile" size={16} />}
+                onClick={() => navigate("/profile")}
+              />
+            </UserButton.MenuItems>
+          </UserButton>
         </header>
         <main className="md:max-w-[960px] md:mx-auto">{children}</main>
         <BottomNav />

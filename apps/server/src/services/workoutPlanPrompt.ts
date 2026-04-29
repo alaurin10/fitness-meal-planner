@@ -9,9 +9,12 @@ export function buildSystemPrompt(): string {
     "Rules:",
     "- Respond with VALID JSON ONLY. No prose before or after.",
     "- The JSON must match this TypeScript type exactly:",
-    "  { summary: string; progressionNotes: string; days: Array<{ day: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; focus: string; exercises: Array<{ name: string; sets: number; reps: string; loadLbs: number | null; restSeconds: number; notes?: string }> }> }",
+    "  { summary: string; progressionNotes: string; days: Array<{ day: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; focus: string; exercises: Array<{ name: string; muscleGroup: string; description: string; sets: number; reps: string; loadLbs: number | null; restSeconds: number; notes?: string }> }> }",
+    "- `muscleGroup` is the primary muscle group the exercise targets (e.g. 'Chest', 'Back', 'Quads', 'Core'). Use one concise label.",
+    "- `description` is 1-2 sentences explaining how to perform the exercise (stance, grip, motion cues).",
     "- `reps` is a string like '8-10' or '5'.",
     "- `loadLbs` is a recommended working load. Use null for bodyweight. For bar lifts, anchor to the athlete's most recent PR if provided.",
+    "- Include 1-2 core / ab exercises at the END of every training day.",
     "- `summary` is one paragraph explaining the week's focus.",
     "- `progressionNotes` is one paragraph explaining what changed from the previous week and why.",
     "- Only include as many day entries as specified by the caller (see daysToGenerate).",
@@ -52,6 +55,8 @@ export function buildUserPrompt(args: {
 }): string {
   const { profile, recentProgress, previousPlan } = args;
 
+  const workoutStyle = (profile as Profile & { workoutStyle?: string }).workoutStyle ?? "ppl";
+
   const profileBlock = {
     age: profile.age,
     weightLbs: profile.weightLbs,
@@ -59,6 +64,7 @@ export function buildUserPrompt(args: {
     experienceLevel: profile.experienceLevel,
     trainingDaysPerWeek: profile.trainingDaysPerWeek,
     goal: profile.goal,
+    workoutStyle,
     equipment: profile.equipment ?? [],
   };
 
@@ -83,6 +89,16 @@ export function buildUserPrompt(args: {
   }
   lines.push("");
   lines.push(describeEquipment(profile.equipment));
+  lines.push("");
+  if (workoutStyle === "ppl") {
+    lines.push(
+      "Workout style: Push / Pull / Legs. For 4 or fewer training days, use an Upper / Lower split instead. The `focus` field should reflect the PPL or Upper/Lower category (e.g. 'Push', 'Pull', 'Legs', 'Upper Body', 'Lower Body').",
+    );
+  } else {
+    lines.push(
+      "Workout style: Muscle Groups. Structure each training day around a primary muscle group (e.g. 'Chest & Triceps', 'Back & Biceps', 'Shoulders & Arms', 'Legs'). The `focus` field should name the targeted muscle groups.",
+    );
+  }
   lines.push("");
   if (previousPlan) {
     lines.push("Previous plan (evolve this, do not restart):");

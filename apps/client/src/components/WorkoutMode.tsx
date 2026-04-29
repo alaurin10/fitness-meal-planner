@@ -254,6 +254,22 @@ function ActiveScreen({
       >
         {exercise.name}
       </div>
+      {exercise.muscleGroup && (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: "var(--accent-2)",
+            background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+            padding: "3px 10px",
+            borderRadius: 999,
+            letterSpacing: "0.03em",
+            textTransform: "uppercase",
+          }}
+        >
+          {exercise.muscleGroup}
+        </span>
+      )}
       {/* Set indicator dots */}
       <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
         {Array.from({ length: exercise.sets }, (_, i) => {
@@ -297,6 +313,19 @@ function ActiveScreen({
         <Stat label="Reps" value={exercise.reps} />
         <Stat label="Load" value={loadLabel} />
       </div>
+      {exercise.description && (
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--sumi)",
+            maxWidth: 360,
+            lineHeight: 1.5,
+            textAlign: "center",
+          }}
+        >
+          {exercise.description}
+        </div>
+      )}
       {exercise.notes && (
         <div
           style={{

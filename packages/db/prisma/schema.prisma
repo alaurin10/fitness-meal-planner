@@ -53,6 +53,8 @@ model Profile {
   dietaryNotes        String?
   // Meal-plan style preference: "varied" | "simple" | "prep"
   mealComplexity      String   @default("varied")
+  // Workout split style: "ppl" (Push/Pull/Legs or Upper/Lower) | "muscle_group"
+  workoutStyle        String   @default("ppl")
   // Equipment available for workouts. Empty array => bodyweight only.
   // Known values: "barbell", "dumbbells", "kettlebells", "pull_up_bar",
   // "bench", "squat_rack", "cable_machine", "resistance_bands", "cardio_machine".

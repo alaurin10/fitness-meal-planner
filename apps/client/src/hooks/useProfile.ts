@@ -19,6 +19,8 @@ export const EQUIPMENT_OPTIONS = [
 
 export type EquipmentId = (typeof EQUIPMENT_OPTIONS)[number];
 
+export type WorkoutStyle = "ppl" | "muscle_group";
+
 export interface Profile {
   id: string;
   userId: string;
@@ -35,6 +37,7 @@ export interface Profile {
   proteinTargetG: number | null;
   dietaryNotes: string | null;
   mealComplexity: MealComplexity;
+  workoutStyle: WorkoutStyle;
   equipment: EquipmentId[];
   hydrationGoal: number;
   updatedAt: string;
@@ -54,6 +57,7 @@ export interface ProfileInput {
   proteinTargetG?: number | null;
   dietaryNotes?: string | null;
   mealComplexity: MealComplexity;
+  workoutStyle: WorkoutStyle;
   equipment: EquipmentId[];
   hydrationGoal?: number;
 }

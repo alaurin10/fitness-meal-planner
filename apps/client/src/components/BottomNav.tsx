@@ -7,7 +7,7 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
   { to: "/meals", label: "Meals", icon: "leaf" },
   { to: "/recipes", label: "Recipes", icon: "fork" },
   { to: "/groceries", label: "Groceries", icon: "groceries" },
-  { to: "/profile", label: "Profile", icon: "profile" },
+  { to: "/progress", label: "Progress", icon: "progress" },
 ];
 
 export function BottomNav() {

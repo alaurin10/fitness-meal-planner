@@ -12,6 +12,8 @@ export const weekdaySchema = z.enum([
 
 export const exerciseSchema = z.object({
   name: z.string().min(1),
+  muscleGroup: z.string().min(1).catch(""),
+  description: z.string().min(1).catch(""),
   sets: z.number().int().positive().catch(3),
   reps: z.string().min(1).catch("—"),
   loadLbs: z.number().nullable().catch(null),

@@ -32,6 +32,7 @@ const profileSchema = z.object({
   proteinTargetG: z.number().int().positive().nullable().optional(),
   dietaryNotes: z.string().max(500).nullable().optional(),
   mealComplexity: z.enum(["varied", "simple", "prep"]).default("varied"),
+  workoutStyle: z.enum(["ppl", "muscle_group"]).default("ppl"),
   equipment: z.array(z.enum(EQUIPMENT_OPTIONS)).default([]),
   hydrationGoal: z.number().int().min(1).max(20).optional(),
   trainingDays: z.array(z.enum(ALL_DAYS as unknown as [string, ...string[]])).default([]),
