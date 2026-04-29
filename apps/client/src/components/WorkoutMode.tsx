@@ -358,17 +358,37 @@ function RestScreen({
   nextLabel: string;
   onContinue: () => void;
 }) {
+  // Anchor the countdown to a wall-clock deadline rather than decrementing a
+  // counter on each tick. Mobile browsers throttle setInterval when the tab is
+  // backgrounded, so a tick-based timer effectively pauses; reading Date.now()
+  // gives the correct remaining seconds the moment the page is foregrounded.
+  const [deadline, setDeadline] = useState(() => Date.now() + seconds * 1000);
   const [remaining, setRemaining] = useState(seconds);
   const finishedRef = useRef(false);
 
   useEffect(() => {
     finishedRef.current = false;
+    const target = Date.now() + seconds * 1000;
+    setDeadline(target);
     setRemaining(seconds);
-    const id = window.setInterval(() => {
-      setRemaining((r) => Math.max(0, r - 1));
-    }, 1000);
-    return () => window.clearInterval(id);
   }, [seconds]);
+
+  useEffect(() => {
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setRemaining(left);
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [deadline]);
 
   // Auto-advance once the timer reaches 0 (only fire once).
   useEffect(() => {
