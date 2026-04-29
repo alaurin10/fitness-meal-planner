@@ -148,226 +148,10 @@ export function ProgressPage() {
         }
       />
 
-      {/* Chart */}
-      <div className="px-4 pt-1">
-        <Card>
-          <div className="flex items-end justify-between mb-3">
-            <div>
-              <div className="eyebrow">Weight · recent</div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 6,
-                  marginTop: 6,
-                }}
-              >
-                <span
-                  className="font-display"
-                  style={{ fontSize: 32, color: "var(--ink)", lineHeight: 1 }}
-                >
-                  {latest != null ? latest.toFixed(1) : "—"}
-                </span>
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>{unitLabel}</span>
-                {delta != null && delta !== 0 && (
-                  <Chip
-                    variant={delta < 0 ? "moss" : "honey"}
-                    style={{ marginLeft: 6 }}
-                  >
-                    {delta > 0 ? "+" : ""}
-                    {delta.toFixed(1)}
-                  </Chip>
-                )}
-              </div>
-            </div>
-          </div>
-          {series.length > 1 ? (
-            <Sparkline
-              data={series.slice(-14)}
-              width={340}
-              height={80}
-              color="var(--accent)"
-            />
-          ) : (
-            <div
-              style={{
-                padding: "18px 0",
-                textAlign: "center",
-                color: "var(--muted)",
-                fontSize: 12,
-              }}
-            >
-              Two or more entries draws a line.
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Log entry */}
-      <div className="px-4 pt-4">
-        <Card>
-          <div className="eyebrow mb-3">Log today</div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              log.mutate(
-                {
-                  weightLbs: weight
-                    ? unitSystem === "metric"
-                      ? kgToPounds(Number(weight))
-                      : Number(weight)
-                    : null,
-                  note: note || undefined,
-                },
-                {
-                  onSuccess: () => {
-                    setWeight("");
-                    setNote("");
-                    setToast(true);
-                    setTimeout(() => setToast(false), 1800);
-                  },
-                },
-              );
-            }}
-          >
-            <div className="flex gap-2.5 mb-2.5">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Weight"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="field-input"
-                  style={{ paddingRight: 36 }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: 12,
-                    color: "var(--muted)",
-                  }}
-                >
-                  {unitLabel}
-                </span>
-              </div>
-              <Button
-                type="submit"
-                variant="accent"
-                disabled={!weight || log.isPending}
-              >
-                {log.isPending ? "…" : "Log"}
-              </Button>
-            </div>
-            <input
-              type="text"
-              placeholder="Note (optional)"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="field-input"
-            />
-            {toast && (
-              <div
-                className="fade-up"
-                style={{
-                  marginTop: 10,
-                  fontSize: 12,
-                  color: "var(--moss)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Icon name="check" size={14} /> Saved. Nice work.
-              </div>
-            )}
-          </form>
-        </Card>
-      </div>
-
-      {/* Recent */}
-      {isLoading && (
-        <div className="px-4 pt-4">
-          <Card>Loading history…</Card>
-        </div>
-      )}
-      {logs && logs.length > 0 && (
-        <>
-          <div className="px-6 pt-4 pb-2">
-            <div className="eyebrow">Recent entries</div>
-          </div>
-          <div className="px-4">
-            <Card flush>
-              {logs.map((l, i) => (
-                <div
-                  key={l.id}
-                  style={{
-                    padding: "14px 18px",
-                    borderBottom:
-                      i < logs.length - 1 ? "1px solid var(--hair)" : "none",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--ink)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {new Date(l.loggedAt).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </div>
-                    {l.note && (
-                      <div
-                        style={{
-                          fontSize: 11.5,
-                          color: "var(--muted)",
-                          marginTop: 3,
-                        }}
-                      >
-                        {l.note}
-                      </div>
-                    )}
-                  </div>
-                  {l.weightLbs != null && (
-                    <div
-                      className="font-display"
-                      style={{ fontSize: 17, color: "var(--sumi)" }}
-                    >
-                      {formatWeight(l.weightLbs, unitSystem)}
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--muted)",
-                          marginLeft: 2,
-                        }}
-                      >
-                        {unitLabel}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </Card>
-          </div>
-        </>
-      )}
-
       {/* ── Streaks ──────────────────────────────────────────────────── */}
       {streaksQuery.data && (
-        <div className="px-4 pt-6">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Streaks</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="px-4 pt-1">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
             <StreakCard label="Workout" current={streaksQuery.data.workout.current} best={streaksQuery.data.workout.best} color="var(--moss)" />
             <StreakCard label="Meals" current={streaksQuery.data.meals.current} best={streaksQuery.data.meals.best} color="var(--honey)" />
             <StreakCard label="Hydration" current={streaksQuery.data.hydration.current} best={streaksQuery.data.hydration.best} color="var(--accent)" />
@@ -378,15 +162,15 @@ export function ProgressPage() {
 
       {/* ── This Week ────────────────────────────────────────────────── */}
       {weekStats && weekDays && (
-        <div className="px-4 pt-6">
+        <div className="px-4 pt-4">
           <div className="eyebrow" style={{ marginBottom: 10 }}>This week</div>
           <Card>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 16, fontSize: 12.5, color: "var(--sumi)" }}>
-              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.workoutsDone}</b> / {weekStats.workoutsTotal} workouts</span>
-              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.totalSets}</b> sets</span>
-              <span>Avg <b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.avgCalories}</b> kcal</span>
-              <span>Avg <b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.avgProtein}</b>g protein</span>
-              <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{weekStats.hydrationRate}%</b> hydration</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+              <StatCell label="Workouts" value={`${weekStats.workoutsDone}/${weekStats.workoutsTotal}`} color="var(--moss)" />
+              <StatCell label="Avg kcal" value={weekStats.avgCalories.toLocaleString()} color="var(--accent)" />
+              <StatCell label="Avg protein" value={`${weekStats.avgProtein}g`} color="var(--honey)" />
+              <StatCell label="Sets" value={weekStats.totalSets.toString()} color="var(--moss)" />
+              <StatCell label="Hydration" value={`${weekStats.hydrationRate}%`} color="var(--accent)" />
             </div>
             <WeeklyBars days={weekDays} height={100} />
             <div style={{ display: "flex", gap: 12, marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
@@ -404,9 +188,9 @@ export function ProgressPage() {
         </div>
       )}
 
-      {/* ── History Heatmap ──────────────────────────────────────────── */}
+      {/* ── 12-week History Heatmap ──────────────────────────────────── */}
       {heatmapData.length > 0 && (
-        <div className="px-4 pt-6 pb-4">
+        <div className="px-4 pt-4">
           <div className="eyebrow" style={{ marginBottom: 10 }}>12-week history</div>
           <Card>
             <Heatmap data={heatmapData} weeks={12} color="var(--moss)" weekStartDay={weekStartDay} />
@@ -435,7 +219,227 @@ export function ProgressPage() {
           </Card>
         </div>
       )}
+
+      {/* ── Weight ───────────────────────────────────────────────────── */}
+      <div className="px-4 pt-4">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Weight</div>
+        <Card>
+          <div className="flex items-end justify-between mb-2">
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span
+                className="font-display"
+                style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1 }}
+              >
+                {latest != null ? latest.toFixed(1) : "—"}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{unitLabel}</span>
+              {delta != null && delta !== 0 && (
+                <Chip
+                  variant={delta < 0 ? "moss" : "honey"}
+                  style={{ marginLeft: 4 }}
+                >
+                  {delta > 0 ? "+" : ""}
+                  {delta.toFixed(1)}
+                </Chip>
+              )}
+            </div>
+          </div>
+          {series.length > 1 ? (
+            <Sparkline
+              data={series.slice(-14)}
+              width={340}
+              height={64}
+              color="var(--accent)"
+            />
+          ) : (
+            <div
+              style={{
+                padding: "12px 0",
+                textAlign: "center",
+                color: "var(--muted)",
+                fontSize: 12,
+              }}
+            >
+              Two or more entries draws a line.
+            </div>
+          )}
+
+          {/* Inline log form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              log.mutate(
+                {
+                  weightLbs: weight
+                    ? unitSystem === "metric"
+                      ? kgToPounds(Number(weight))
+                      : Number(weight)
+                    : null,
+                  note: note || undefined,
+                },
+                {
+                  onSuccess: () => {
+                    setWeight("");
+                    setNote("");
+                    setToast(true);
+                    setTimeout(() => setToast(false), 1800);
+                  },
+                },
+              );
+            }}
+            style={{ borderTop: "1px solid var(--hair)", marginTop: 12, paddingTop: 12 }}
+          >
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Weight"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="field-input"
+                  style={{ paddingRight: 36, height: 36, fontSize: 13 }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 14,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    fontSize: 11,
+                    color: "var(--muted)",
+                  }}
+                >
+                  {unitLabel}
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder="Note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="field-input"
+                style={{ flex: 1, height: 36, fontSize: 13 }}
+              />
+              <Button
+                type="submit"
+                variant="accent"
+                disabled={!weight || log.isPending}
+                style={{ height: 36, minWidth: 0, paddingInline: 14 }}
+              >
+                {log.isPending ? "…" : "Log"}
+              </Button>
+            </div>
+            {toast && (
+              <div
+                className="fade-up"
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: "var(--moss)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Icon name="check" size={14} /> Saved
+              </div>
+            )}
+          </form>
+        </Card>
+      </div>
+
+      {/* ── Recent entries ───────────────────────────────────────────── */}
+      {isLoading && (
+        <div className="px-4 pt-4">
+          <Card>Loading history…</Card>
+        </div>
+      )}
+      {logs && logs.length > 0 && (
+        <div className="px-4 pt-4 pb-4">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Recent entries</div>
+          <Card flush>
+            {logs.slice(0, 5).map((l, i, arr) => (
+              <div
+                key={l.id}
+                style={{
+                  padding: "10px 16px",
+                  borderBottom:
+                    i < arr.length - 1 ? "1px solid var(--hair)" : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: "var(--ink)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {new Date(l.loggedAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </div>
+                  {l.note && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--muted)",
+                        marginTop: 2,
+                      }}
+                    >
+                      {l.note}
+                    </div>
+                  )}
+                </div>
+                {l.weightLbs != null && (
+                  <div
+                    className="font-display"
+                    style={{ fontSize: 15, color: "var(--sumi)" }}
+                  >
+                    {formatWeight(l.weightLbs, unitSystem)}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "var(--muted)",
+                        marginLeft: 2,
+                      }}
+                    >
+                      {unitLabel}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
     </Layout>
+  );
+}
+
+function StatCell({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div
+      style={{
+        padding: "8px 10px",
+        borderRadius: "var(--radius-sm)",
+        background: `color-mix(in srgb, ${color} 8%, transparent)`,
+        textAlign: "center",
+      }}
+    >
+      <div className="font-display" style={{ fontSize: 18, color: "var(--ink)", lineHeight: 1.2 }}>
+        {value}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>
+        {label}
+      </div>
+    </div>
   );
 }
 
