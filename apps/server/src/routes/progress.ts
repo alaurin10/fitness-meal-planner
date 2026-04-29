@@ -102,11 +102,6 @@ router.post("/", requireAuth, async (req, res) => {
 
 // ── Daily Summary ────────────────────────────────────────────────────
 
-function todayUTC(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
 router.get("/daily-summary", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
   const dayKey = typeof req.query.dayKey === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dayKey)
@@ -117,7 +112,9 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
     prisma.profile.findUnique({ where: { userId } }),
     findActiveWorkoutPlan(userId),
     findActiveMealPlan(userId),
-    prisma.hydrationLog.findUnique({ where: { userId_date: { userId, date: todayUTC() } } }),
+    prisma.hydrationLog.findUnique({
+      where: { userId_date: { userId, date: new Date(dayKey + "T00:00:00.000Z") } },
+    }),
   ]);
 
   // Workout progress
@@ -288,9 +285,10 @@ router.get("/history", requireAuth, async (req, res) => {
     }
   }
 
-  // Fill hydration
+  // Fill hydration. Hydration logs store midnight UTC of the user's local
+  // dayKey, so convert back via UTC components — not local — to recover it.
   for (const hl of hydrationLogs) {
-    const dk = localDayKeyFromDate(hl.date);
+    const dk = dayKeyFromHydrationDate(hl.date);
     const day = days[dk];
     if (!day) continue;
     day.hydration.cups = hl.cups;
@@ -328,7 +326,7 @@ router.get("/streaks", requireAuth, async (req, res) => {
   // Build sets of completed dates
   const workoutDates = new Set(workoutCompletions.filter((wc) => wc.completedAt != null).map((wc) => wc.dayKey));
   const mealDates = new Set(mealCompletions.filter((mc) => mc.completedAt != null).map((mc) => mc.dayKey));
-  const hydrationDates = new Set(hydrationLogs.filter((hl) => hl.cups >= hydrationGoal).map((hl) => localDayKeyFromDate(hl.date)));
+  const hydrationDates = new Set(hydrationLogs.filter((hl) => hl.cups >= hydrationGoal).map((hl) => dayKeyFromHydrationDate(hl.date)));
 
   // Rest days (days with no scheduled workout)
   const restDays = new Set<string>();
@@ -364,6 +362,12 @@ function localDayKey(): string {
 
 function localDayKeyFromDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// HydrationLog.date is stored as midnight UTC of the user's local dayKey, so
+// recover the original dayKey using UTC components.
+function dayKeyFromHydrationDate(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 export default router;
