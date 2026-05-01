@@ -414,7 +414,7 @@ export function WorkoutsPage() {
               </div>
               <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
                 {exercises.length
-                  ? `${exercises.length} lifts planned.`
+                  ? `${exercises.length} exercises planned.`
                   : "A calm day — recover well."}
               </div>
             </div>

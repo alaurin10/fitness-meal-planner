@@ -119,7 +119,7 @@ export function WorkoutMode({
         }}
       >
         <div className="eyebrow">
-          {dayLabel} · {exercise.name && phase !== "done" ? `Lift ${exerciseIdx + 1} of ${exercises.length}` : "Workout"}
+          {dayLabel} · {exercise.name && phase !== "done" ? `Exercise ${exerciseIdx + 1} of ${exercises.length}` : "Workout"}
         </div>
         <button
           type="button"
