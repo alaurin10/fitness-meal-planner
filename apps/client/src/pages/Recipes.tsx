@@ -172,13 +172,7 @@ export function RecipesPage() {
                 }
               }}
             >
-              <div
-                className="placeholder-photo"
-                style={{ width: 86, flexShrink: 0 }}
-              >
-                {abbr(r.name)}
-              </div>
-              <div style={{ padding: "12px 14px", flex: 1, minWidth: 0 }}>
+              <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
                 <div className="eyebrow">
                   {r.source === "AI" ? "From plan" : "Manual"} ·{" "}
                   {r.calories} kcal
@@ -232,13 +226,4 @@ export function RecipesPage() {
       </div>
     </Layout>
   );
-}
-
-function abbr(s: string) {
-  return s
-    .split(/[·,]/)[0]!
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase()
-    .slice(0, 14);
 }
