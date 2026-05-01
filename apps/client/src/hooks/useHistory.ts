@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 
 export interface DayRecord {
-  workout: { completed: number; total: number; done: boolean };
+  workout: { completed: number; total: number; done: boolean; volumeLbs: number };
   meals: { completed: number; total: number; calories: number; protein: number; done: boolean };
   hydration: { cups: number; goal: number; done: boolean };
 }
