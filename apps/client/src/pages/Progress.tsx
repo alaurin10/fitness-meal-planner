@@ -12,7 +12,9 @@ import { useStreaks } from "../hooks/useStreaks";
 import { useHistory } from "../hooks/useHistory";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
-import { formatWeight, kgToPounds, weightUnitLabel } from "../lib/units";
+import { formatLoad, formatWeight, kgToPounds, weightUnitLabel } from "../lib/units";
+
+const VOLUME_SERIES_DAYS = 14;
 
 export function ProgressPage() {
   const { data: logs, isLoading } = useProgress();
@@ -109,6 +111,42 @@ export function ProgressPage() {
     };
   }, [historyQuery.data]);
 
+  const loadStats = useMemo(() => {
+    if (!historyQuery.data) return null;
+    const days = historyQuery.data.days;
+    const todayIdx = dayIdxFromDate(today, weekStartDay);
+
+    const sumVolume = (start: Date, dayCount: number) => {
+      let total = 0;
+      for (let i = 0; i < dayCount; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        total += days[dayKeyStr(d)]?.workout.volumeLbs ?? 0;
+      }
+      return total;
+    };
+
+    const weekTotal = sumVolume(weekStart, todayIdx + 1);
+    const lastWeekStart = new Date(weekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekTotal = sumVolume(lastWeekStart, 7);
+
+    const seriesStart = new Date(today);
+    seriesStart.setDate(seriesStart.getDate() - (VOLUME_SERIES_DAYS - 1));
+    const series: number[] = [];
+    for (let i = 0; i < VOLUME_SERIES_DAYS; i++) {
+      const d = new Date(seriesStart);
+      d.setDate(d.getDate() + i);
+      series.push(days[dayKeyStr(d)]?.workout.volumeLbs ?? 0);
+    }
+
+    const deltaPct = lastWeekTotal > 0
+      ? Math.round(((weekTotal - lastWeekTotal) / lastWeekTotal) * 100)
+      : null;
+
+    return { weekTotal, lastWeekTotal, deltaPct, series };
+  }, [historyQuery.data]);
+
   // Heatmap data
   const heatmapData = useMemo(() => {
     if (!historyQuery.data) return [];
@@ -183,6 +221,58 @@ export function ProgressPage() {
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--honey)" }} /> Hydration
               </span>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Training load ────────────────────────────────────────────── */}
+      {loadStats && (
+        <div className="px-4 pt-4">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Training load</div>
+          <Card>
+            <div className="flex items-end justify-between mb-2">
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span
+                  className="font-display"
+                  style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1 }}
+                >
+                  {formatLoad(loadStats.weekTotal, unitSystem).toLocaleString()}
+                </span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>{unitLabel}</span>
+                {loadStats.deltaPct != null && loadStats.deltaPct !== 0 && (
+                  <Chip
+                    variant={loadStats.deltaPct > 0 ? "moss" : "honey"}
+                    style={{ marginLeft: 4 }}
+                  >
+                    {loadStats.deltaPct > 0 ? "+" : ""}
+                    {loadStats.deltaPct}% vs last week
+                  </Chip>
+                )}
+              </div>
+              <Icon name="dumbbell" size={18} style={{ color: "var(--moss)" }} />
+            </div>
+            {loadStats.series.some((v) => v > 0) ? (
+              <Sparkline
+                data={loadStats.series}
+                width={340}
+                height={64}
+                color="var(--moss)"
+              />
+            ) : (
+              <div
+                style={{
+                  padding: "12px 0",
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  fontSize: 12,
+                }}
+              >
+                Complete a set to start tracking volume.
+              </div>
+            )}
+            <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 8 }}>
+              Sum of weight × reps × completed sets this week. Bodyweight exercises count at half your profile weight.
             </div>
           </Card>
         </div>

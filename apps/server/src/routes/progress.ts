@@ -9,6 +9,7 @@ import {
   findActiveWorkoutPlan,
   findActiveMealPlan,
 } from "../services/activePlan.js";
+import { computeWorkoutVolumeLbs } from "../services/workoutVolume.js";
 
 const router = Router();
 
@@ -120,22 +121,31 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
   // Workout progress
   let workoutSets = { completed: 0, total: 0 };
   let workoutDone = false;
+  let workoutVolumeLbs = 0;
   if (workoutPlan) {
     const wc = await prisma.workoutCompletion.findUnique({
       where: { userId_planId_dayKey: { userId, planId: workoutPlan.id, dayKey } },
     });
     const date = new Date(dayKey + "T12:00:00");
     const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
-    const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number }[] }[] };
+    const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number; reps?: string | null; loadLbs?: number | null }[] }[] };
     const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
     const totalSets = dayEntry?.exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
     let completedSets = 0;
+    let setsJson: Record<string, number[]> = {};
     if (wc?.setsJson) {
-      const sets = wc.setsJson as Record<string, number[]>;
-      completedSets = Object.values(sets).reduce((s, arr) => s + arr.length, 0);
+      setsJson = wc.setsJson as Record<string, number[]>;
+      completedSets = Object.values(setsJson).reduce((s, arr) => s + arr.length, 0);
     }
     workoutSets = { completed: completedSets, total: totalSets };
     workoutDone = wc?.completedAt != null;
+    if (dayEntry?.exercises && completedSets > 0) {
+      workoutVolumeLbs = computeWorkoutVolumeLbs({
+        exercises: dayEntry.exercises,
+        completedSets: setsJson,
+        profileWeightLbs: profile?.weightLbs ?? null,
+      });
+    }
   }
 
   // Meal progress
@@ -158,7 +168,12 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
   }
 
   res.json({
-    workout: { ...workoutSets, done: workoutDone, isRestDay: workoutSets.total === 0 },
+    workout: {
+      ...workoutSets,
+      done: workoutDone,
+      isRestDay: workoutSets.total === 0,
+      volumeLbs: workoutVolumeLbs,
+    },
     meals: { ...mealProgress, done: mealsDone },
     hydration: {
       cups: hydrationLog?.cups ?? 0,
@@ -214,7 +229,7 @@ router.get("/history", requireAuth, async (req, res) => {
 
   // Build day-by-day records
   const days: Record<string, {
-    workout: { completed: number; total: number; done: boolean };
+    workout: { completed: number; total: number; done: boolean; volumeLbs: number };
     meals: { completed: number; total: number; calories: number; protein: number; done: boolean };
     hydration: { cups: number; goal: number; done: boolean };
   }> = {};
@@ -225,7 +240,7 @@ router.get("/history", requireAuth, async (req, res) => {
   while (cursor <= end) {
     const dk = localDayKeyFromDate(cursor);
     days[dk] = {
-      workout: { completed: 0, total: 0, done: false },
+      workout: { completed: 0, total: 0, done: false, volumeLbs: 0 },
       meals: { completed: 0, total: 0, calories: 0, protein: 0, done: false },
       hydration: { cups: 0, goal: hydrationGoal, done: false },
     };
@@ -241,18 +256,29 @@ router.get("/history", requireAuth, async (req, res) => {
     day.workout.done = wc.completedAt != null;
   }
 
-  // Fill workout totals from per-dayKey plan resolution
-  // For each dayKey, find the plan whose weekStartDate <= dayKey (newest first)
+  const workoutCompletionsByDay = new Map(
+    workoutCompletions.map((c) => [c.dayKey, c]),
+  );
   for (const dk of Object.keys(days)) {
     const rec = days[dk];
     if (!rec) continue;
     const dkDate = new Date(dk + "T12:00:00");
     const workoutPlan = allWorkoutPlans.find((p) => p.weekStartDate <= dkDate);
     if (!workoutPlan) continue;
-    const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number }[] }[] };
+    const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number; reps?: string | null; loadLbs?: number | null }[] }[] };
     const dayLabel = ALL_DAYS[(dkDate.getDay() + 6) % 7]!;
     const dayEntry = planJson.days?.find((d) => d.day === dayLabel);
-    rec.workout.total = dayEntry?.exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
+    const exercises = dayEntry?.exercises;
+    rec.workout.total = exercises?.reduce((s, e) => s + e.sets, 0) ?? 0;
+    if (exercises && rec.workout.completed > 0) {
+      const wc = workoutCompletionsByDay.get(dk);
+      const setsJson = (wc?.setsJson as Record<string, number[]> | undefined) ?? {};
+      rec.workout.volumeLbs = computeWorkoutVolumeLbs({
+        exercises,
+        completedSets: setsJson,
+        profileWeightLbs: profile?.weightLbs ?? null,
+      });
+    }
   }
 
   // Fill meal data

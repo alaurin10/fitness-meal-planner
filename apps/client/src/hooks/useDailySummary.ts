@@ -8,6 +8,7 @@ export interface DailySummary {
     total: number;
     done: boolean;
     isRestDay: boolean;
+    volumeLbs: number;
   };
   meals: {
     completed: number;
