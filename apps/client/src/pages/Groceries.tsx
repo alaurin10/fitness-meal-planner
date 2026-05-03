@@ -1,4 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  addWeeks,
+  localDayKey as sharedLocalDayKey,
+  startOfWeek as sharedStartOfWeek,
+} from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
@@ -14,6 +19,7 @@ import {
   useUpdateGroceryItem,
 } from "../hooks/useGroceries";
 import { useSettings } from "../hooks/useSettings";
+import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import {
   GROCERY_CATEGORIES,
   type GroceryCategory,
@@ -22,13 +28,26 @@ import {
 import { formatQuantity, type UnitSystem } from "../lib/units";
 
 export function GroceriesPage() {
-  const { data: list, isLoading } = useGroceries();
-  const toggle = useToggleItem();
-  const update = useUpdateGroceryItem();
-  const remove = useDeleteGroceryItem();
-  const add = useAddGroceryItem();
-  const clear = useClearChecked();
-  const rebuild = useRebuildGroceries();
+  const weekStartDay = useWeekStartDay();
+  const now = useMemo(() => new Date(), []);
+  const thisWeekStart = useMemo(
+    () => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)),
+    [now, weekStartDay],
+  );
+  const nextWeekStart = useMemo(
+    () => sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
+    [now, weekStartDay],
+  );
+  const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
+  const isCurrentWeek = viewingWeekStart === thisWeekStart;
+
+  const { data: list, isLoading } = useGroceries(viewingWeekStart);
+  const toggle = useToggleItem(viewingWeekStart);
+  const update = useUpdateGroceryItem(viewingWeekStart);
+  const remove = useDeleteGroceryItem(viewingWeekStart);
+  const add = useAddGroceryItem(viewingWeekStart);
+  const clear = useClearChecked(viewingWeekStart);
+  const rebuild = useRebuildGroceries(viewingWeekStart);
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
 
@@ -46,9 +65,16 @@ export function GroceriesPage() {
 
   return (
     <Layout>
+      <WeekSelector
+        viewingWeekStart={viewingWeekStart}
+        thisWeekStart={thisWeekStart}
+        nextWeekStart={nextWeekStart}
+        onChange={setViewingWeekStart}
+      />
       <ListBody
         items={items}
         hasList={!!list}
+        isCurrentWeek={isCurrentWeek}
         unitSystem={unitSystem}
         onToggle={(id, checked) => toggle.mutate({ itemId: id, checked })}
         onUpdate={(itemId, patch) => update.mutate({ itemId, patch })}
@@ -62,9 +88,67 @@ export function GroceriesPage() {
   );
 }
 
+function WeekSelector({
+  viewingWeekStart,
+  thisWeekStart,
+  nextWeekStart,
+  onChange,
+}: {
+  viewingWeekStart: string;
+  thisWeekStart: string;
+  nextWeekStart: string;
+  onChange: (week: string) => void;
+}) {
+  return (
+    <div className="px-4 pt-3 pb-1">
+      <div
+        style={{
+          display: "inline-flex",
+          background: "var(--bg)",
+          borderRadius: 999,
+          padding: 3,
+          gap: 2,
+          border: "1px solid var(--hair)",
+        }}
+      >
+        {(
+          [
+            { key: thisWeekStart, label: "This week" },
+            { key: nextWeekStart, label: "Next week" },
+          ] as const
+        ).map((opt) => {
+          const active = viewingWeekStart === opt.key;
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => onChange(opt.key)}
+              className="tappable"
+              style={{
+                padding: "6px 14px",
+                border: "none",
+                background: active ? "var(--ink)" : "transparent",
+                color: active ? "var(--paper)" : "var(--sumi)",
+                borderRadius: 999,
+                fontFamily: "var(--font-body)",
+                fontSize: 12.5,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface ListBodyProps {
   items: GroceryItem[];
   hasList: boolean;
+  isCurrentWeek: boolean;
   unitSystem: UnitSystem;
   onToggle: (id: string, checked: boolean) => void;
   onUpdate: (
@@ -85,6 +169,7 @@ interface ListBodyProps {
 function ListBody({
   items,
   hasList,
+  isCurrentWeek,
   unitSystem,
   onToggle,
   onUpdate,
@@ -139,10 +224,12 @@ function ListBody({
         title="Market"
         subtitle={
           total > 0
-            ? `${total - checked} items left for the week.`
+            ? `${total - checked} items left for ${isCurrentWeek ? "this week" : "next week"}.`
             : hasList
               ? "Empty list — add items below or rebuild from your plan."
-              : "Generate a meal plan, or just start adding items."
+              : isCurrentWeek
+                ? "Generate a meal plan, or just start adding items."
+                : "No items yet for next week — rebuild from your plan or add manually."
         }
       />
 

@@ -64,7 +64,11 @@ export function useRegenerateSlot() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { day: MealDay["day"]; index: number }) => {
+    mutationFn: async (args: {
+      day: MealDay["day"];
+      index: number;
+      weekStart?: string;
+    }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/regenerate",
         args,
@@ -86,6 +90,7 @@ export function useReplaceSlot() {
       day: MealDay["day"];
       index: number;
       meal: Meal;
+      weekStart?: string;
     }) => {
       const { data } = await api.put<PlanResult>("/api/meals/slot", args);
       return data;
@@ -101,7 +106,11 @@ export function useAddSlot() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { day: MealDay["day"]; meal: Meal }) => {
+    mutationFn: async (args: {
+      day: MealDay["day"];
+      meal: Meal;
+      weekStart?: string;
+    }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/add",
         args,
@@ -119,7 +128,11 @@ export function useDeleteSlot() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { day: MealDay["day"]; index: number }) => {
+    mutationFn: async (args: {
+      day: MealDay["day"];
+      index: number;
+      weekStart?: string;
+    }) => {
       const { data } = await api.delete<PlanResult>("/api/meals/slot", {
         data: args,
       });

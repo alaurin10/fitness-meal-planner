@@ -28,7 +28,7 @@ export default function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/workouts" element={<WorkoutsPage />} />
                 <Route path="/meals" element={<MealsPage />} />
-                <Route path="/meals/:day/:index" element={<RecipeDetailPage />} />
+                <Route path="/meals/:weekStart/:day/:index" element={<RecipeDetailPage />} />
                 <Route path="/recipes" element={<RecipesPage />} />
                 <Route path="/recipes/new" element={<RecipeEditorPage />} />
                 <Route path="/recipes/:id" element={<RecipeViewPage />} />

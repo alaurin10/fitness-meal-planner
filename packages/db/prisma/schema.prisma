@@ -94,10 +94,12 @@ model WeeklyMealPlan {
 
 // items JSON shape: [{ id, name, qty, category, checked, pushed }]
 // category ∈ Produce | Protein | Dairy | Pantry | Frozen | Other
+// One list per (userId, weekStartDate) — the grocery list is scoped to a single week.
 model GroceryList {
   id                  String          @id @default(cuid())
   userId              String
   user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate       DateTime
   weeklyMealPlanId    String?
   weeklyMealPlan      WeeklyMealPlan? @relation(fields: [weeklyMealPlanId], references: [id], onDelete: SetNull)
   items               Json
@@ -105,7 +107,8 @@ model GroceryList {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
-  @@index([userId, createdAt])
+  @@unique([userId, weekStartDate])
+  @@index([userId, weekStartDate])
 }
 
 model ProgressLog {

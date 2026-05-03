@@ -27,9 +27,9 @@ function inferSlotLabel(meal: Meal, idx: number) {
 }
 
 export function RecipeDetailPage() {
-  const params = useParams<{ day: string; index: string }>();
+  const params = useParams<{ weekStart: string; day: string; index: string }>();
   const navigate = useNavigate();
-  const { data: plan, isLoading } = useCurrentMealPlan();
+  const { data: plan, isLoading } = useCurrentMealPlan(params.weekStart);
   const save = useSaveMealAsRecipe();
   const completions = useMealCompletions(plan?.id, localDayKey());
 
