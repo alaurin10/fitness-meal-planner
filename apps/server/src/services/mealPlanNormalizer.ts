@@ -55,17 +55,19 @@ export function normalizeMealPlan(raw: unknown): MealPlanJson {
 const DEFAULT_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 
 function normalizeMeal(m: LegacyMeal, idx: number): MealJson {
-  const ingredients = (m.ingredients ?? []).map((ing) => {
-    const quantity = ing.quantity
-      ? { ...ing.quantity, unit: normalizeUnit(ing.quantity.unit) }
-      : parseQuantityString(ing.qty);
-    return {
-      name: ing.name,
-      quantity,
-      category: ing.category as MealJson["ingredients"][number]["category"],
-      note: ing.note,
-    };
-  });
+  const ingredients = (m.ingredients ?? [])
+    .filter((ing) => typeof ing?.name === "string" && ing.name.trim().length > 0)
+    .map((ing) => {
+      const quantity = ing.quantity
+        ? { ...ing.quantity, unit: normalizeUnit(ing.quantity.unit) }
+        : parseQuantityString(ing.qty);
+      return {
+        name: ing.name,
+        quantity,
+        category: ing.category as MealJson["ingredients"][number]["category"],
+        note: ing.note,
+      };
+    });
 
   const steps =
     m.steps && m.steps.length > 0
