@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import {
   prisma,
@@ -7,14 +7,17 @@ import {
   GROCERY_CATEGORIES,
   type GroceryItem,
 } from "@platform/db";
+import {
+  startOfWeek,
+  parseLocalDate,
+  type WeekStartDay,
+} from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
-import { buildGroceryItems } from "../services/groceryAggregator.js";
 import {
   classifyCategoryForUser,
   learnCategory,
 } from "../services/groceryCategorizer.js";
-import { mergeGroceryItems } from "../services/groceryMerge.js";
-import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
+import { rebuildGroceries as rebuildGroceriesForWeek } from "./meals.js";
 
 const router = Router();
 
@@ -38,10 +41,52 @@ const createSchema = z.object({
   note: z.string().max(200).optional(),
 });
 
-async function findCurrentList(userId: string) {
-  return prisma.groceryList.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
+async function resolveWeekStart(
+  userId: string,
+  req: Request,
+): Promise<Date> {
+  const param = typeof req.query.weekStart === "string" ? req.query.weekStart : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(param)) {
+    return parseLocalDate(param);
+  }
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  return startOfWeek(new Date(), weekStartDay);
+}
+
+async function resolveWeekStartFromBody(
+  userId: string,
+  req: Request,
+): Promise<Date> {
+  const param =
+    typeof req.body?.weekStart === "string" ? req.body.weekStart : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(param)) {
+    return parseLocalDate(param);
+  }
+  return resolveWeekStart(userId, req);
+}
+
+async function findListForWeek(userId: string, weekStartDate: Date) {
+  return prisma.groceryList.findUnique({
+    where: { userId_weekStartDate: { userId, weekStartDate } },
+  });
+}
+
+async function ensureListForWeek(userId: string, weekStartDate: Date) {
+  const existing = await findListForWeek(userId, weekStartDate);
+  if (existing) return existing;
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: { id: userId },
+  });
+  return prisma.groceryList.create({
+    data: {
+      userId,
+      weekStartDate,
+      weeklyMealPlanId: null,
+      items: toJson([]),
+    },
   });
 }
 
@@ -62,7 +107,8 @@ function sortItems(items: GroceryItem[]): GroceryItem[] {
 
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStart(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   res.json({ list });
 });
 
@@ -73,22 +119,8 @@ router.post("/items", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  let list = await findCurrentList(userId);
-  if (!list) {
-    // Allow adding manual items even before any plan exists.
-    await prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: { id: userId },
-    });
-    list = await prisma.groceryList.create({
-      data: {
-        userId,
-        weeklyMealPlanId: null,
-        items: toJson([]),
-      },
-    });
-  }
+  const weekStartDate = await resolveWeekStartFromBody(userId, req);
+  const list = await ensureListForWeek(userId, weekStartDate);
   const trimmedName = parsed.data.name.trim();
   const resolvedCategory =
     parsed.data.category ?? (await classifyCategoryForUser(userId, trimmedName));
@@ -121,7 +153,8 @@ router.patch("/items/:itemId", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStart(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -165,7 +198,8 @@ router.patch("/items/:itemId", requireAuth, async (req, res) => {
 
 router.delete("/items/:itemId", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStart(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -181,33 +215,15 @@ router.delete("/items/:itemId", requireAuth, async (req, res) => {
 
 router.post("/rebuild", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
-  if (!list) {
-    res.status(404).json({ error: "No grocery list" });
-    return;
-  }
-  const plan = list.weeklyMealPlanId
-    ? await prisma.weeklyMealPlan.findFirst({
-        where: { id: list.weeklyMealPlanId, userId },
-      })
-    : await prisma.weeklyMealPlan.findFirst({
-        where: { userId, isActive: true },
-        orderBy: { createdAt: "desc" },
-      });
-  const fresh: GroceryItem[] = plan
-    ? buildGroceryItems(normalizeMealPlan(plan.planJson))
-    : [];
-  const merged = mergeGroceryItems(fresh, readItems(list.items));
-  const updated = await prisma.groceryList.update({
-    where: { id: list.id },
-    data: { items: toJson(merged) },
-  });
+  const weekStartDate = await resolveWeekStartFromBody(userId, req);
+  const updated = await rebuildGroceriesForWeek(userId, weekStartDate);
   res.json({ list: updated });
 });
 
 router.post("/clear-checked", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStartFromBody(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -222,7 +238,8 @@ router.post("/clear-checked", requireAuth, async (req, res) => {
 
 router.post("/push", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStartFromBody(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -240,7 +257,8 @@ router.post("/push", requireAuth, async (req, res) => {
 
 router.get("/pending", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStart(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.json({ items: [] });
     return;
@@ -251,7 +269,8 @@ router.get("/pending", requireAuth, async (req, res) => {
 
 router.post("/confirm-push", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const weekStartDate = await resolveWeekStartFromBody(userId, req);
+  const list = await findListForWeek(userId, weekStartDate);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;

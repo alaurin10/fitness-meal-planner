@@ -25,6 +25,7 @@ export interface GroceryItem {
 export interface GroceryList {
   id: string;
   userId: string;
+  weekStartDate: string;
   weeklyMealPlanId: string | null;
   items: GroceryItem[];
   pushedToRemindersAt: string | null;

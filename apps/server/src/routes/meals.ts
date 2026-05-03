@@ -120,11 +120,22 @@ router.post("/generate", requireAuth, async (req, res) => {
         },
       });
 
+      // Cap storage at previous + current + next week. Anything before the
+      // previous week (and its grocery list) gets pruned. MealCompletion
+      // cascades on plan delete via the schema relation.
+      const cutoff = addWeeks(thisWeek, -1);
+      await tx.weeklyMealPlan.deleteMany({
+        where: { userId, weekStartDate: { lt: cutoff } },
+      });
+      await tx.groceryList.deleteMany({
+        where: { userId, weekStartDate: { lt: cutoff } },
+      });
+
       return { plan };
     });
 
-    // Rebuild merged grocery list across all active plans
-    const groceryList = await rebuildGroceries(userId);
+    // Rebuild grocery list for just the targeted week
+    const groceryList = await rebuildGroceries(userId, target);
 
     res.json({ plan: result.plan, groceryList });
   } catch (err) {
@@ -175,16 +186,32 @@ router.post("/empty", requireAuth, async (req, res) => {
         isActive: true,
       },
     });
+
+    // Cap storage at previous + current + next week.
+    const cutoff = addWeeks(thisWeek, -1);
+    await tx.weeklyMealPlan.deleteMany({
+      where: { userId, weekStartDate: { lt: cutoff } },
+    });
+    await tx.groceryList.deleteMany({
+      where: { userId, weekStartDate: { lt: cutoff } },
+    });
+
     return { plan };
   });
 
-  const groceryList = await rebuildGroceries(userId);
+  const groceryList = await rebuildGroceries(userId, target);
   res.json({ plan: result.plan, groceryList });
 });
+
+const weekStartField = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .optional();
 
 const slotLocSchema = z.object({
   day: z.enum(DAYS),
   index: z.number().int().nonnegative(),
+  weekStart: weekStartField,
 });
 
 const slotMealSchema = slotLocSchema.extend({
@@ -194,11 +221,13 @@ const slotMealSchema = slotLocSchema.extend({
 const slotAddSchema = z.object({
   day: z.enum(DAYS),
   meal: mealSchema,
+  weekStart: weekStartField,
 });
 
 const slotRegenSchema = z.object({
   day: z.enum(DAYS),
   index: z.number().int().nonnegative(),
+  weekStart: weekStartField,
 });
 
 // Replace a meal at (day, index) with the provided meal payload. Used for
@@ -211,17 +240,21 @@ router.put("/slot", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
-      const day = planJson.days.find((d) => d.day === parsed.data.day);
-      if (!day) throw new Error("Day not found in plan");
-      if (parsed.data.index >= day.meals.length) {
-        day.meals.push(parsed.data.meal);
-      } else {
-        day.meals[parsed.data.index] = parsed.data.meal;
-      }
-      return planJson;
-    });
-    const groceryList = await rebuildGroceries(userId, plan.id);
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (planJson) => {
+        const day = planJson.days.find((d) => d.day === parsed.data.day);
+        if (!day) throw new Error("Day not found in plan");
+        if (parsed.data.index >= day.meals.length) {
+          day.meals.push(parsed.data.meal);
+        } else {
+          day.meals[parsed.data.index] = parsed.data.meal;
+        }
+        return planJson;
+      },
+    );
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -240,13 +273,17 @@ router.post("/slot/add", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
-      const day = planJson.days.find((d) => d.day === parsed.data.day);
-      if (!day) throw new Error("Day not found in plan");
-      day.meals.push(parsed.data.meal);
-      return planJson;
-    });
-    const groceryList = await rebuildGroceries(userId, plan.id);
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (planJson) => {
+        const day = planJson.days.find((d) => d.day === parsed.data.day);
+        if (!day) throw new Error("Day not found in plan");
+        day.meals.push(parsed.data.meal);
+        return planJson;
+      },
+    );
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -265,13 +302,17 @@ router.delete("/slot", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
-      const day = planJson.days.find((d) => d.day === parsed.data.day);
-      if (!day) throw new Error("Day not found in plan");
-      day.meals.splice(parsed.data.index, 1);
-      return planJson;
-    });
-    const groceryList = await rebuildGroceries(userId, plan.id);
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (planJson) => {
+        const day = planJson.days.find((d) => d.day === parsed.data.day);
+        if (!day) throw new Error("Day not found in plan");
+        day.meals.splice(parsed.data.index, 1);
+        return planJson;
+      },
+    );
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -294,12 +335,14 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Create a profile first" });
     return;
   }
-  const active = await findActiveMealPlan(userId);
-  if (!active) {
+  const targetPlan = parsed.data.weekStart
+    ? await findMealPlanForWeek(userId, parseLocalDate(parsed.data.weekStart))
+    : await findActiveMealPlan(userId);
+  if (!targetPlan) {
     res.status(404).json({ error: "No active meal plan" });
     return;
   }
-  const planJson = normalizeMealPlan(active.planJson);
+  const planJson = normalizeMealPlan(targetPlan.planJson);
   const dayEntry = planJson.days.find((d) => d.day === parsed.data.day);
   if (!dayEntry) {
     res.status(400).json({ error: "Day not found in plan" });
@@ -334,17 +377,21 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
       avoidNames: existing ? [existing.name] : [],
     });
 
-    const { plan } = await mutateActivePlan(userId, (json) => {
-      const dEntry = json.days.find((d) => d.day === parsed.data.day);
-      if (!dEntry) throw new Error("Day not found in plan");
-      if (parsed.data.index >= dEntry.meals.length) {
-        dEntry.meals.push(newMeal);
-      } else {
-        dEntry.meals[parsed.data.index] = newMeal;
-      }
-      return json;
-    });
-    const groceryList = await rebuildGroceries(userId, plan.id);
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (json) => {
+        const dEntry = json.days.find((d) => d.day === parsed.data.day);
+        if (!dEntry) throw new Error("Day not found in plan");
+        if (parsed.data.index >= dEntry.meals.length) {
+          dEntry.meals.push(newMeal);
+        } else {
+          dEntry.meals[parsed.data.index] = newMeal;
+        }
+        return json;
+      },
+    );
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -374,81 +421,58 @@ function pickSlot(
   return order[index] ?? "snack";
 }
 
-async function mutateActivePlan(
+async function mutatePlanForWeek(
   userId: string,
+  weekStart: string | undefined,
   mutator: (json: MealPlanJson) => MealPlanJson,
 ) {
-  const active = await findActiveMealPlan(userId);
-  if (!active) {
-    throw new Error("No active meal plan");
+  const target = weekStart
+    ? await findMealPlanForWeek(userId, parseLocalDate(weekStart))
+    : await findActiveMealPlan(userId);
+  if (!target) {
+    throw new Error("No meal plan for the requested week");
   }
-  const next = mutator(normalizeMealPlan(active.planJson));
+  const next = mutator(normalizeMealPlan(target.planJson));
   const updated = await prisma.weeklyMealPlan.update({
-    where: { id: active.id },
+    where: { id: target.id },
     data: { planJson: next as unknown as object },
   });
   return { plan: updated };
 }
 
 /**
- * Rebuild the merged grocery list from all currently-relevant meal plans.
- * When called with a specific planId (after a slot mutation), we also use
- * that plan; otherwise we gather all plans with weekStartDate >= current week.
+ * Rebuild the grocery list for a specific week from that week's meal plan.
+ * Each (userId, weekStartDate) gets its own grocery list. Manual items and
+ * check state on the existing list are preserved.
  */
-async function rebuildGroceries(userId: string, planId?: string) {
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
-  const thisWeek = startOfWeek(new Date(), weekStartDay);
+export async function rebuildGroceries(userId: string, weekStartDate: Date) {
+  const plan = await findMealPlanForWeek(userId, weekStartDate);
+  const fresh: GroceryItem[] = plan
+    ? buildGroceryItems(normalizeMealPlan(plan.planJson))
+    : [];
 
-  // Fetch all plans from current week onward, newest first per week
-  const allPlans = await prisma.weeklyMealPlan.findMany({
-    where: { userId, weekStartDate: { gte: thisWeek } },
-    orderBy: [{ weekStartDate: "asc" }, { createdAt: "desc" }],
-  });
-
-  // Deduplicate: take only the latest plan per weekStartDate
-  const plansByWeek = new Map<string, typeof allPlans[number]>();
-  for (const p of allPlans) {
-    const key = p.weekStartDate.toISOString();
-    if (!plansByWeek.has(key)) {
-      plansByWeek.set(key, p);
-    }
-  }
-
-  // Build aggregated grocery items from all qualifying plans
-  const allFresh: GroceryItem[] = [];
-  for (const plan of plansByWeek.values()) {
-    const planJson = normalizeMealPlan(plan.planJson);
-    const items = buildGroceryItems(planJson);
-    allFresh.push(...items);
-  }
-
-  // Merge with existing list to preserve manual items + check state
-  const existing = await prisma.groceryList.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
+  const existing = await prisma.groceryList.findUnique({
+    where: { userId_weekStartDate: { userId, weekStartDate } },
   });
   const merged = mergeGroceryItems(
-    allFresh,
+    fresh,
     Array.isArray(existing?.items) ? (existing!.items as never) : [],
   );
-
-  // Link to the most recently relevant plan
-  const linkPlanId = planId ?? plansByWeek.values().next().value?.id ?? null;
 
   if (existing) {
     return prisma.groceryList.update({
       where: { id: existing.id },
       data: {
         items: merged as unknown as object,
-        ...(linkPlanId ? { weeklyMealPlanId: linkPlanId } : {}),
+        weeklyMealPlanId: plan?.id ?? null,
       },
     });
   }
   return prisma.groceryList.create({
     data: {
       userId,
-      weeklyMealPlanId: linkPlanId,
+      weekStartDate,
+      weeklyMealPlanId: plan?.id ?? null,
       items: merged as unknown as object,
     },
   });

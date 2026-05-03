@@ -163,13 +163,13 @@ export function MealsPage() {
 
   function handleRegenerate(index: number) {
     setOpenMenu(null);
-    regenSlot.mutate({ day: activeDay, index });
+    regenSlot.mutate({ day: activeDay, index, weekStart: viewingWeekStart });
   }
 
   function handleDelete(index: number) {
     setOpenMenu(null);
     if (!window.confirm("Remove this meal from the day?")) return;
-    deleteSlot.mutate({ day: activeDay, index });
+    deleteSlot.mutate({ day: activeDay, index, weekStart: viewingWeekStart });
   }
 
   function handleSwap(index: number, slotHint?: MealSlot) {
@@ -186,9 +186,14 @@ export function MealsPage() {
     const meal: Meal = recipeToMeal(recipe);
     if (picker.slot) meal.slot = picker.slot;
     if (picker.kind === "replace") {
-      replaceSlot.mutate({ day: picker.day, index: picker.index, meal });
+      replaceSlot.mutate({
+        day: picker.day,
+        index: picker.index,
+        meal,
+        weekStart: viewingWeekStart,
+      });
     } else {
-      addSlot.mutate({ day: picker.day, meal });
+      addSlot.mutate({ day: picker.day, meal, weekStart: viewingWeekStart });
     }
     setPicker(null);
   }
@@ -205,6 +210,7 @@ export function MealsPage() {
             className="tappable"
             onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, -1)))}
             style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
+            disabled={viewingWeekStart <= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), -1))}
           >
             <Icon name="chevron-left" size={16} />
           </button>
@@ -336,11 +342,11 @@ export function MealsPage() {
                 className="flex tappable"
                 role="button"
                 tabIndex={0}
-                onClick={() => navigate(`/meals/${activeDay}/${i}`)}
+                onClick={() => navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    navigate(`/meals/${activeDay}/${i}`);
+                    navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`);
                   }
                 }}
                 style={{
