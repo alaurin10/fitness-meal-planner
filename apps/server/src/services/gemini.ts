@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { jsonrepair } from "jsonrepair";
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash"];
 
 let client: GoogleGenAI | null = null;
 

@@ -13,6 +13,7 @@ import {
   type MealJson,
   type MealPlanJson,
 } from "./mealPlanSchema.js";
+import { normalizeMealPlan } from "./mealPlanNormalizer.js";
 import type { TrainingSchedule } from "./schedule.js";
 
 export async function generateMealPlan(args: {
@@ -43,7 +44,7 @@ export async function generateMealPlan(args: {
     );
   }
 
-  const validated = mealPlanSchema.safeParse(parsed);
+  const validated = mealPlanSchema.safeParse(normalizeMealPlan(parsed));
   if (!validated.success) {
     throw new Error(
       `Generated meal plan failed validation: ${validated.error.message}`,

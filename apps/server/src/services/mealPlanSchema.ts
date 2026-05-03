@@ -23,7 +23,7 @@ export const CANONICAL_UNITS = [
 
 export const quantitySchema = z.object({
   amount: z.number().nonnegative(),
-  unit: z.string(),
+  unit: z.string().default(""),
   display: z.string().optional(),
 });
 
@@ -52,7 +52,7 @@ export const mealSchema = z.object({
   carbsG: z.number().int().nonnegative().optional(),
   fatG: z.number().int().nonnegative().optional(),
   ingredients: z.array(ingredientSchema).min(1),
-  steps: z.array(stepSchema).min(1),
+  steps: z.array(stepSchema).default([]),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
   isLeftover: z.boolean().optional(),
