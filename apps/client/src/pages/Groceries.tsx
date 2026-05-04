@@ -14,6 +14,8 @@ import {
   useToggleItem,
   useUpdateGroceryItem,
 } from "../hooks/useGroceries";
+import type { WeekKey } from "../hooks/useMealPlan";
+import { WeekToggle } from "../components/WeekToggle";
 import {
   GROCERY_CATEGORIES,
   type GroceryCategory,
@@ -21,14 +23,15 @@ import {
 } from "../lib/types";
 
 export function GroceriesPage() {
-  const { data: list, isLoading } = useGroceries();
-  const toggle = useToggleItem();
-  const update = useUpdateGroceryItem();
-  const remove = useDeleteGroceryItem();
-  const add = useAddGroceryItem();
-  const clear = useClearChecked();
-  const push = usePushToReminders();
-  const rebuild = useRebuildGroceries();
+  const [week, setWeek] = useState<WeekKey>("current");
+  const { data: list, isLoading } = useGroceries(week);
+  const toggle = useToggleItem(week);
+  const update = useUpdateGroceryItem(week);
+  const remove = useDeleteGroceryItem(week);
+  const add = useAddGroceryItem(week);
+  const clear = useClearChecked(week);
+  const push = usePushToReminders(week);
+  const rebuild = useRebuildGroceries(week);
 
   if (isLoading) {
     return (
@@ -45,6 +48,8 @@ export function GroceriesPage() {
   return (
     <Layout>
       <ListBody
+        week={week}
+        onWeekChange={setWeek}
         items={items}
         pushedAt={list?.pushedToRemindersAt ?? null}
         hasList={!!list}
@@ -63,6 +68,8 @@ export function GroceriesPage() {
 }
 
 interface ListBodyProps {
+  week: WeekKey;
+  onWeekChange: (week: WeekKey) => void;
   items: GroceryItem[];
   pushedAt: string | null;
   hasList: boolean;
@@ -85,6 +92,8 @@ interface ListBodyProps {
 }
 
 function ListBody({
+  week,
+  onWeekChange,
   items,
   pushedAt,
   hasList,
@@ -135,9 +144,15 @@ function ListBody({
             ? `${total - checked} items left for the week.`
             : hasList
               ? "Empty list — add items below or rebuild from your plan."
-              : "Generate a meal plan, or just start adding items."
+              : week === "next"
+                ? "Generate next week's meal plan to start a list."
+                : "Generate a meal plan, or just start adding items."
         }
       />
+
+      <div className="px-4 pt-2 pb-1 flex justify-center">
+        <WeekToggle value={week} onChange={onWeekChange} />
+      </div>
 
       {/* Progress hero */}
       <div className="px-4 pt-1">

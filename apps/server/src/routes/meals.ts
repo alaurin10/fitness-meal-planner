@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, MEAL_SLOTS } from "@platform/db";
+import { prisma, MEAL_SLOTS, Prisma } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateMealPlan, generateSingleMeal } from "../services/mealPlan.js";
@@ -14,17 +14,25 @@ import {
   type MealJson,
   type MealPlanJson,
 } from "../services/mealPlanSchema.js";
+import {
+  parseWeekParam,
+  weekStartFor,
+  startOfWeek,
+  type WeekKey,
+} from "../services/weekStart.js";
 
 const router = Router();
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
+const weekBodySchema = z
+  .object({ week: z.enum(["current", "next"]).optional() })
+  .optional();
+
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const plan = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const week = parseWeekParam(req.query.week);
+  const plan = await findPlanForWeek(userId, week);
   if (!plan) {
     res.json({ plan: null });
     return;
@@ -36,6 +44,7 @@ router.get("/current", requireAuth, async (req, res) => {
 
 router.post("/generate", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
+  const week = parseWeekParam(req.body?.week);
   const profile = await prisma.profile.findUnique({ where: { userId } });
   if (!profile) {
     res.status(400).json({ error: "Create a profile first" });
@@ -45,27 +54,19 @@ router.post("/generate", requireAuth, async (req, res) => {
   try {
     const schedule = await getTrainingSchedule(userId);
     const planJson = await generateMealPlan({ profile, schedule });
-
-    const weekStart = startOfWeek(new Date());
+    const weekStart = weekStartFor(week);
     const fresh = buildGroceryItems(planJson);
 
     const result = await prisma.$transaction(async (tx) => {
-      // Preserve manual items + check state from the most recent
-      // grocery list so regenerating a plan doesn't wipe what the user
-      // already gathered or hand-added.
-      const previous = await tx.groceryList.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      });
-      const previousItems: GroceryItem[] = Array.isArray(previous?.items)
-        ? (previous!.items as unknown as GroceryItem[])
-        : [];
+      // Carry over manual / hand-edited items from the SAME week's prior
+      // grocery list so regenerating this week's plan doesn't wipe what
+      // the user already gathered.
+      const previousItems = await readPreviousItemsForWeek(tx, userId, weekStart);
       const merged = mergeGroceryItems(fresh, previousItems);
 
-      await tx.weeklyMealPlan.updateMany({
-        where: { userId, isActive: true },
-        data: { isActive: false },
-      });
+      await deletePlansForWeek(tx, userId, weekStart);
+      await deletePastPlans(tx, userId);
+
       const plan = await tx.weeklyMealPlan.create({
         data: {
           userId,
@@ -96,6 +97,10 @@ router.post("/generate", requireAuth, async (req, res) => {
 // the week manually.
 router.post("/empty", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
+  const parsedBody = weekBodySchema.safeParse(req.body);
+  const week: WeekKey = parsedBody.success
+    ? parseWeekParam(parsedBody.data?.week)
+    : "current";
   await prisma.user.upsert({
     where: { id: userId },
     update: {},
@@ -106,13 +111,12 @@ router.post("/empty", requireAuth, async (req, res) => {
     dailyCalorieTarget: 0,
     days: DAYS.map((day) => ({ day, meals: [] })),
   };
-  const weekStart = startOfWeek(new Date());
+  const weekStart = weekStartFor(week);
 
   const result = await prisma.$transaction(async (tx) => {
-    await tx.weeklyMealPlan.updateMany({
-      where: { userId, isActive: true },
-      data: { isActive: false },
-    });
+    await deletePlansForWeek(tx, userId, weekStart);
+    await deletePastPlans(tx, userId);
+
     const plan = await tx.weeklyMealPlan.create({
       data: {
         userId,
@@ -137,6 +141,7 @@ router.post("/empty", requireAuth, async (req, res) => {
 const slotLocSchema = z.object({
   day: z.enum(DAYS),
   index: z.number().int().nonnegative(),
+  week: z.enum(["current", "next"]).optional(),
 });
 
 const slotMealSchema = slotLocSchema.extend({
@@ -146,11 +151,13 @@ const slotMealSchema = slotLocSchema.extend({
 const slotAddSchema = z.object({
   day: z.enum(DAYS),
   meal: mealSchema,
+  week: z.enum(["current", "next"]).optional(),
 });
 
 const slotRegenSchema = z.object({
   day: z.enum(DAYS),
   index: z.number().int().nonnegative(),
+  week: z.enum(["current", "next"]).optional(),
 });
 
 // Replace a meal at (day, index) with the provided meal payload. Used for
@@ -163,7 +170,8 @@ router.put("/slot", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
+    const week = parseWeekParam(parsed.data.week);
+    const { plan } = await mutatePlanForWeek(userId, week, (planJson) => {
       const day = planJson.days.find((d) => d.day === parsed.data.day);
       if (!day) throw new Error("Day not found in plan");
       if (parsed.data.index >= day.meals.length) {
@@ -192,7 +200,8 @@ router.post("/slot/add", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
+    const week = parseWeekParam(parsed.data.week);
+    const { plan } = await mutatePlanForWeek(userId, week, (planJson) => {
       const day = planJson.days.find((d) => d.day === parsed.data.day);
       if (!day) throw new Error("Day not found in plan");
       day.meals.push(parsed.data.meal);
@@ -217,7 +226,8 @@ router.delete("/slot", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const { plan } = await mutateActivePlan(userId, (planJson) => {
+    const week = parseWeekParam(parsed.data.week);
+    const { plan } = await mutatePlanForWeek(userId, week, (planJson) => {
       const day = planJson.days.find((d) => d.day === parsed.data.day);
       if (!day) throw new Error("Day not found in plan");
       day.meals.splice(parsed.data.index, 1);
@@ -246,12 +256,10 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Create a profile first" });
     return;
   }
-  const active = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const week = parseWeekParam(parsed.data.week);
+  const active = await findPlanForWeek(userId, week);
   if (!active) {
-    res.status(404).json({ error: "No active meal plan" });
+    res.status(404).json({ error: "No meal plan for that week" });
     return;
   }
   const planJson = normalizeMealPlan(active.planJson);
@@ -289,7 +297,7 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
       avoidNames: existing ? [existing.name] : [],
     });
 
-    const { plan } = await mutateActivePlan(userId, (json) => {
+    const { plan } = await mutatePlanForWeek(userId, week, (json) => {
       const dEntry = json.days.find((d) => d.day === parsed.data.day);
       if (!dEntry) throw new Error("Day not found in plan");
       if (parsed.data.index >= dEntry.meals.length) {
@@ -329,16 +337,22 @@ function pickSlot(
   return order[index] ?? "snack";
 }
 
-async function mutateActivePlan(
-  userId: string,
-  mutator: (json: MealPlanJson) => MealPlanJson,
-) {
-  const active = await prisma.weeklyMealPlan.findFirst({
-    where: { userId, isActive: true },
+export async function findPlanForWeek(userId: string, week: WeekKey) {
+  const weekStart = weekStartFor(week);
+  return prisma.weeklyMealPlan.findFirst({
+    where: { userId, weekStartDate: weekStart, isActive: true },
     orderBy: { createdAt: "desc" },
   });
+}
+
+async function mutatePlanForWeek(
+  userId: string,
+  week: WeekKey,
+  mutator: (json: MealPlanJson) => MealPlanJson,
+) {
+  const active = await findPlanForWeek(userId, week);
   if (!active) {
-    throw new Error("No active meal plan");
+    throw new Error("No meal plan for that week");
   }
   const next = mutator(normalizeMealPlan(active.planJson));
   const updated = await prisma.weeklyMealPlan.update({
@@ -378,13 +392,57 @@ async function rebuildGroceries(userId: string, planId: string) {
   });
 }
 
-function startOfWeek(date: Date): Date {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + mondayOffset);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+async function readPreviousItemsForWeek(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  weekStart: Date,
+): Promise<GroceryItem[]> {
+  const previousPlan = await tx.weeklyMealPlan.findFirst({
+    where: { userId, weekStartDate: weekStart },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!previousPlan) return [];
+  const previousList = await tx.groceryList.findFirst({
+    where: { userId, weeklyMealPlanId: previousPlan.id },
+    orderBy: { createdAt: "desc" },
+  });
+  return Array.isArray(previousList?.items)
+    ? (previousList!.items as unknown as GroceryItem[])
+    : [];
+}
+
+async function deletePlansForWeek(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  weekStart: Date,
+): Promise<void> {
+  const plans = await tx.weeklyMealPlan.findMany({
+    where: { userId, weekStartDate: weekStart },
+    select: { id: true },
+  });
+  if (plans.length === 0) return;
+  const ids = plans.map((p) => p.id);
+  await tx.groceryList.deleteMany({
+    where: { weeklyMealPlanId: { in: ids } },
+  });
+  await tx.weeklyMealPlan.deleteMany({ where: { id: { in: ids } } });
+}
+
+async function deletePastPlans(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  const cutoff = startOfWeek(new Date());
+  const plans = await tx.weeklyMealPlan.findMany({
+    where: { userId, weekStartDate: { lt: cutoff } },
+    select: { id: true },
+  });
+  if (plans.length === 0) return;
+  const ids = plans.map((p) => p.id);
+  await tx.groceryList.deleteMany({
+    where: { weeklyMealPlanId: { in: ids } },
+  });
+  await tx.weeklyMealPlan.deleteMany({ where: { id: { in: ids } } });
 }
 
 export default router;

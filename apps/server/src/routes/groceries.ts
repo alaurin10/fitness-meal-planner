@@ -15,6 +15,11 @@ import {
 } from "../services/groceryCategorizer.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
+import {
+  parseWeekParam,
+  weekStartFor,
+  type WeekKey,
+} from "../services/weekStart.js";
 
 const router = Router();
 
@@ -38,10 +43,34 @@ const createSchema = z.object({
   note: z.string().max(200).optional(),
 });
 
-async function findCurrentList(userId: string) {
-  return prisma.groceryList.findFirst({
-    where: { userId },
+async function findListForWeek(userId: string, week: WeekKey) {
+  const weekStart = weekStartFor(week);
+  const plan = await prisma.weeklyMealPlan.findFirst({
+    where: { userId, weekStartDate: weekStart, isActive: true },
     orderBy: { createdAt: "desc" },
+  });
+  if (!plan) return null;
+  return prisma.groceryList.findFirst({
+    where: { userId, weeklyMealPlanId: plan.id },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+async function findOrCreateListForWeek(userId: string, week: WeekKey) {
+  const existing = await findListForWeek(userId, week);
+  if (existing) return existing;
+  const weekStart = weekStartFor(week);
+  const plan = await prisma.weeklyMealPlan.findFirst({
+    where: { userId, weekStartDate: weekStart, isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!plan) return null;
+  return prisma.groceryList.create({
+    data: {
+      userId,
+      weeklyMealPlanId: plan.id,
+      items: toJson([]),
+    },
   });
 }
 
@@ -62,32 +91,25 @@ function sortItems(items: GroceryItem[]): GroceryItem[] {
 
 router.get("/current", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week);
+  const list = await findListForWeek(userId, week);
   res.json({ list });
 });
 
 router.post("/items", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  let list = await findCurrentList(userId);
+  const list = await findOrCreateListForWeek(userId, week);
   if (!list) {
-    // Allow adding manual items even before any plan exists.
-    await prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: { id: userId },
+    res.status(400).json({
+      error: "Generate a meal plan for that week before adding items.",
     });
-    list = await prisma.groceryList.create({
-      data: {
-        userId,
-        weeklyMealPlanId: null,
-        items: toJson([]),
-      },
-    });
+    return;
   }
   const trimmedName = parsed.data.name.trim();
   const resolvedCategory =
@@ -116,12 +138,13 @@ router.post("/items", requireAuth, async (req, res) => {
 
 router.patch("/items/:itemId", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const list = await findCurrentList(userId);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -165,7 +188,8 @@ router.patch("/items/:itemId", requireAuth, async (req, res) => {
 
 router.delete("/items/:itemId", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -181,7 +205,8 @@ router.delete("/items/:itemId", requireAuth, async (req, res) => {
 
 router.post("/rebuild", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -190,10 +215,7 @@ router.post("/rebuild", requireAuth, async (req, res) => {
     ? await prisma.weeklyMealPlan.findFirst({
         where: { id: list.weeklyMealPlanId, userId },
       })
-    : await prisma.weeklyMealPlan.findFirst({
-        where: { userId, isActive: true },
-        orderBy: { createdAt: "desc" },
-      });
+    : null;
   const fresh: GroceryItem[] = plan
     ? buildGroceryItems(normalizeMealPlan(plan.planJson))
     : [];
@@ -207,7 +229,8 @@ router.post("/rebuild", requireAuth, async (req, res) => {
 
 router.post("/clear-checked", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -222,7 +245,8 @@ router.post("/clear-checked", requireAuth, async (req, res) => {
 
 router.post("/push", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;
@@ -240,7 +264,8 @@ router.post("/push", requireAuth, async (req, res) => {
 
 router.get("/pending", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.json({ items: [] });
     return;
@@ -251,7 +276,8 @@ router.get("/pending", requireAuth, async (req, res) => {
 
 router.post("/confirm-push", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
-  const list = await findCurrentList(userId);
+  const week = parseWeekParam(req.query.week ?? req.body?.week);
+  const list = await findListForWeek(userId, week);
   if (!list) {
     res.status(404).json({ error: "No grocery list" });
     return;

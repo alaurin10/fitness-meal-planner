@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { GeneratingProgress } from "../components/GeneratingProgress";
@@ -16,11 +16,13 @@ import {
   useGenerateMealPlan,
   useRegenerateSlot,
   useReplaceSlot,
+  type WeekKey,
 } from "../hooks/useMealPlan";
 import { useSettings } from "../hooks/useSettings";
 import { recipeToMeal } from "../lib/recipeAdapter";
 import { formatMinutes, formatQuantity, type UnitSystem } from "../lib/units";
 import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
+import { WeekToggle } from "../components/WeekToggle";
 
 const DAYS: MealDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -29,13 +31,17 @@ type PendingPicker =
   | { kind: "add"; day: MealDay["day"]; slot?: MealSlot };
 
 export function MealsPage() {
-  const { data: plan, isLoading } = useCurrentMealPlan();
-  const generate = useGenerateMealPlan();
-  const createEmpty = useCreateEmptyPlan();
-  const regenSlot = useRegenerateSlot();
-  const replaceSlot = useReplaceSlot();
-  const addSlot = useAddSlot();
-  const deleteSlot = useDeleteSlot();
+  const [searchParams] = useSearchParams();
+  const [week, setWeek] = useState<WeekKey>(
+    searchParams.get("week") === "next" ? "next" : "current",
+  );
+  const { data: plan, isLoading } = useCurrentMealPlan(week);
+  const generate = useGenerateMealPlan(week);
+  const createEmpty = useCreateEmptyPlan(week);
+  const regenSlot = useRegenerateSlot(week);
+  const replaceSlot = useReplaceSlot(week);
+  const addSlot = useAddSlot(week);
+  const deleteSlot = useDeleteSlot(week);
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
   const navigate = useNavigate();
@@ -64,12 +70,15 @@ export function MealsPage() {
           title="Meals"
           subtitle="Generate a plan, or build one yourself meal by meal."
         />
+        <div className="px-4 pt-2 pb-1 flex justify-center">
+          <WeekToggle value={week} onChange={setWeek} />
+        </div>
         <div className="px-4 pt-2 space-y-3">
           {generate.isPending ? (
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
             <Card tone="gradient">
-              <div className="eyebrow">This week</div>
+              <div className="eyebrow">{weekLabel(week)}</div>
               <div
                 className="font-display mt-1"
                 style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
@@ -81,7 +90,7 @@ export function MealsPage() {
                 onClick={() => generate.mutate()}
               >
                 <Icon name="sparkle" size={16} />
-                Generate plan
+                Generate {weekLabel(week).toLowerCase()}
               </Button>
               <Button
                 variant="ghost"
@@ -150,6 +159,10 @@ export function MealsPage() {
   return (
     <Layout>
       <PhoneHeader title="Meals" subtitle={plan.planJson.summary} />
+
+      <div className="px-4 pt-2 pb-1 flex justify-center">
+        <WeekToggle value={week} onChange={setWeek} />
+      </div>
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
@@ -265,11 +278,11 @@ export function MealsPage() {
                 className="flex tappable"
                 role="button"
                 tabIndex={0}
-                onClick={() => navigate(`/meals/${activeDay}/${i}`)}
+                onClick={() => navigate(`/meals/${activeDay}/${i}?week=${week}`)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    navigate(`/meals/${activeDay}/${i}`);
+                    navigate(`/meals/${activeDay}/${i}?week=${week}`);
                   }
                 }}
                 style={isRegenTarget ? { opacity: 0.55 } : undefined}
@@ -386,7 +399,9 @@ export function MealsPage() {
           disabled={generate.isPending}
         >
           <Icon name="sparkle" size={16} />
-          {generate.isPending ? "Regenerating…" : "Regenerate full plan"}
+          {generate.isPending
+            ? "Regenerating…"
+            : `Regenerate ${weekLabel(week).toLowerCase()}`}
         </Button>
         <Button
           variant="ghost"
@@ -593,6 +608,10 @@ function nextSuggestedSlot(meals: Meal[]): MealSlot | undefined {
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function weekLabel(week: WeekKey): string {
+  return week === "next" ? "Next week" : "This week";
 }
 
 function longDay(d: MealDay["day"]) {

@@ -1,10 +1,10 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { MealDetailView } from "../components/MealDetailView";
-import { useCurrentMealPlan } from "../hooks/useMealPlan";
+import { useCurrentMealPlan, type WeekKey } from "../hooks/useMealPlan";
 import {
   localDayKey,
   useMealCompletions,
@@ -28,8 +28,10 @@ function inferSlotLabel(meal: Meal, idx: number) {
 
 export function RecipeDetailPage() {
   const params = useParams<{ day: string; index: string }>();
+  const [searchParams] = useSearchParams();
+  const week: WeekKey = searchParams.get("week") === "next" ? "next" : "current";
   const navigate = useNavigate();
-  const { data: plan, isLoading } = useCurrentMealPlan();
+  const { data: plan, isLoading } = useCurrentMealPlan(week);
   const save = useSaveMealAsRecipe();
   const completions = useMealCompletions(plan?.id, localDayKey());
 
@@ -53,7 +55,7 @@ export function RecipeDetailPage() {
     return (
       <Layout>
         <div className="px-4 pt-4">
-          <Button variant="ghost" onClick={() => navigate("/meals")}>
+          <Button variant="ghost" onClick={() => navigate(backToMealsHref(week))}>
             <Icon name="chevron" size={16} style={{ transform: "rotate(180deg)" }} />
             Back to meals
           </Button>
@@ -77,7 +79,7 @@ export function RecipeDetailPage() {
           <div style={{ padding: "8px 16px 0" }}>
             <Button
               variant="plain"
-              onClick={() => navigate("/meals")}
+              onClick={() => navigate(backToMealsHref(week))}
               style={{ paddingLeft: 0 }}
             >
               <Icon
@@ -129,6 +131,10 @@ export function RecipeDetailPage() {
       />
     </Layout>
   );
+}
+
+function backToMealsHref(week: WeekKey): string {
+  return week === "next" ? "/meals?week=next" : "/meals";
 }
 
 function longDay(d: MealDay["day"]) {

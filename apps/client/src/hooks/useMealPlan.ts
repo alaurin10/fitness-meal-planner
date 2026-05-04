@@ -7,30 +7,34 @@ import type {
   WeeklyMealPlanRecord,
 } from "../lib/types";
 
+export type WeekKey = "current" | "next";
+
 interface PlanResult {
   plan: WeeklyMealPlanRecord;
   groceryList: GroceryList;
 }
 
-export function useCurrentMealPlan() {
+export function useCurrentMealPlan(week: WeekKey = "current") {
   const api = useApi();
   return useQuery({
-    queryKey: ["meals", "current"],
+    queryKey: ["meals", "current", week],
     queryFn: async () => {
       const { data } = await api.get<{ plan: WeeklyMealPlanRecord | null }>(
-        "/api/meals/current",
+        `/api/meals/current?week=${week}`,
       );
       return data.plan;
     },
   });
 }
 
-export function useGenerateMealPlan() {
+export function useGenerateMealPlan(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const { data } = await api.post<PlanResult>("/api/meals/generate");
+      const { data } = await api.post<PlanResult>("/api/meals/generate", {
+        week,
+      });
       return data;
     },
     onSuccess: () => {
@@ -40,12 +44,12 @@ export function useGenerateMealPlan() {
   });
 }
 
-export function useCreateEmptyPlan() {
+export function useCreateEmptyPlan(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const { data } = await api.post<PlanResult>("/api/meals/empty");
+      const { data } = await api.post<PlanResult>("/api/meals/empty", { week });
       return data;
     },
     onSuccess: () => {
@@ -55,14 +59,14 @@ export function useCreateEmptyPlan() {
   });
 }
 
-export function useRegenerateSlot() {
+export function useRegenerateSlot(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { day: MealDay["day"]; index: number }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/regenerate",
-        args,
+        { ...args, week },
       );
       return data;
     },
@@ -73,7 +77,7 @@ export function useRegenerateSlot() {
   });
 }
 
-export function useReplaceSlot() {
+export function useReplaceSlot(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
@@ -82,7 +86,10 @@ export function useReplaceSlot() {
       index: number;
       meal: Meal;
     }) => {
-      const { data } = await api.put<PlanResult>("/api/meals/slot", args);
+      const { data } = await api.put<PlanResult>("/api/meals/slot", {
+        ...args,
+        week,
+      });
       return data;
     },
     onSuccess: () => {
@@ -92,15 +99,15 @@ export function useReplaceSlot() {
   });
 }
 
-export function useAddSlot() {
+export function useAddSlot(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { day: MealDay["day"]; meal: Meal }) => {
-      const { data } = await api.post<PlanResult>(
-        "/api/meals/slot/add",
-        args,
-      );
+      const { data } = await api.post<PlanResult>("/api/meals/slot/add", {
+        ...args,
+        week,
+      });
       return data;
     },
     onSuccess: () => {
@@ -110,13 +117,13 @@ export function useAddSlot() {
   });
 }
 
-export function useDeleteSlot() {
+export function useDeleteSlot(week: WeekKey = "current") {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { day: MealDay["day"]; index: number }) => {
       const { data } = await api.delete<PlanResult>("/api/meals/slot", {
-        data: args,
+        data: { ...args, week },
       });
       return data;
     },

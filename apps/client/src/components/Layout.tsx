@@ -33,12 +33,14 @@ export function Layout({ children }: Props) {
           queryFn: async () => (await api.get("/api/workouts/current")).data.plan,
         }),
         queryClient.prefetchQuery({
-          queryKey: ["meals", "current"],
-          queryFn: async () => (await api.get("/api/meals/current")).data.plan,
+          queryKey: ["meals", "current", "current"],
+          queryFn: async () =>
+            (await api.get("/api/meals/current?week=current")).data.plan,
         }),
         queryClient.prefetchQuery({
-          queryKey: ["groceries"],
-          queryFn: async () => (await api.get("/api/groceries/current")).data.list,
+          queryKey: ["groceries", "current"],
+          queryFn: async () =>
+            (await api.get("/api/groceries/current?week=current")).data.list,
         }),
         queryClient.prefetchQuery({
           queryKey: ["progress"],
