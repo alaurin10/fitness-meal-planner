@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, type DayLabel } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { GeneratingProgress } from "../components/GeneratingProgress";
@@ -8,6 +8,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
+import { WeekSelector } from "../components/WeekSelector";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
   useAddSlot,
@@ -35,19 +36,11 @@ export function MealsPage() {
   const DAYS = rotateDays(weekStartDay);
   const now = useMemo(() => new Date(), []);
   const thisWeekStart = useMemo(() => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
+  const nextWeekStart = useMemo(
+    () => sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
+    [now, weekStartDay],
+  );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
-  const isCurrentWeek = viewingWeekStart === thisWeekStart;
-
-  const weekStartDate = useMemo(() => {
-    const [y, m, d] = viewingWeekStart.split("-").map(Number);
-    return new Date(y!, m! - 1, d!);
-  }, [viewingWeekStart]);
-
-  const weekLabel = isCurrentWeek
-    ? "This week"
-    : weekStartDate.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
-      " – " +
-      new Date(weekStartDate.getTime() + 6 * 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
   const { data: plan, isLoading } = useCurrentMealPlan(viewingWeekStart);
   const generate = useGenerateMealPlan();
@@ -87,31 +80,13 @@ export function MealsPage() {
           title="Meals"
           subtitle="Generate a plan, or build one yourself meal by meal."
         />
+        <WeekSelector
+          viewingWeekStart={viewingWeekStart}
+          thisWeekStart={thisWeekStart}
+          nextWeekStart={nextWeekStart}
+          onChange={setViewingWeekStart}
+        />
         <div className="px-4 pt-2 space-y-3">
-          {/* Week navigation in no-plan state */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <button
-              className="tappable"
-              onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, -1)))}
-              style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
-            >
-              <Icon name="chevron-left" size={16} />
-            </button>
-            <span
-              style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", cursor: isCurrentWeek ? "default" : "pointer" }}
-              onClick={() => !isCurrentWeek && setViewingWeekStart(thisWeekStart)}
-            >
-              {weekLabel}
-            </span>
-            <button
-              className="tappable"
-              onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, 1)))}
-              style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
-              disabled={viewingWeekStart >= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1))}
-            >
-              <Icon name="chevron-right" size={16} />
-            </button>
-          </div>
           {generate.isPending ? (
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
@@ -127,7 +102,7 @@ export function MealsPage() {
                 onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
               >
                 <Icon name="sparkle" size={16} />
-                Generate plan
+                Generate {viewingWeekStart === thisWeekStart ? "this week" : "next week"}
               </Button>
               <Button
                 variant="ghost"
@@ -202,33 +177,15 @@ export function MealsPage() {
     <Layout>
       <PhoneHeader title="Meals" subtitle={plan.planJson.summary} />
 
+      <WeekSelector
+        viewingWeekStart={viewingWeekStart}
+        thisWeekStart={thisWeekStart}
+        nextWeekStart={nextWeekStart}
+        onChange={setViewingWeekStart}
+      />
+
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
-        {/* Week navigation */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <button
-            className="tappable"
-            onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, -1)))}
-            style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
-            disabled={viewingWeekStart <= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), -1))}
-          >
-            <Icon name="chevron-left" size={16} />
-          </button>
-          <span
-            style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", cursor: isCurrentWeek ? "default" : "pointer" }}
-            onClick={() => !isCurrentWeek && setViewingWeekStart(thisWeekStart)}
-          >
-            {weekLabel}
-          </span>
-          <button
-            className="tappable"
-            onClick={() => setViewingWeekStart(sharedLocalDayKey(addWeeks(weekStartDate, 1)))}
-            style={{ border: "none", background: "none", padding: 4, cursor: "pointer", color: "var(--ink)" }}
-            disabled={viewingWeekStart >= sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1))}
-          >
-            <Icon name="chevron-right" size={16} />
-          </button>
-        </div>
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
@@ -536,7 +493,11 @@ export function MealsPage() {
           disabled={generate.isPending}
         >
           <Icon name="sparkle" size={16} />
-          {generate.isPending ? "Regenerating…" : "Regenerate full plan"}
+          {generate.isPending
+            ? "Regenerating…"
+            : viewingWeekStart === thisWeekStart
+              ? "Regenerate this week"
+              : "Regenerate next week"}
         </Button>
         <Button
           variant="ghost"

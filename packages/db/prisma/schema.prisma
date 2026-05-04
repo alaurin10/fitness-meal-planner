@@ -86,7 +86,6 @@ model WeeklyMealPlan {
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   groceryLists  GroceryList[]
-  mealCompletions MealCompletion[]
 
   @@index([userId, isActive])
   @@index([userId, weekStartDate])
@@ -214,12 +213,15 @@ model WorkoutCompletion {
 
 // Per-day meal completion tracking.
 // indicesJson shape: number[] — indices of completed meals in the day's array.
+//
+// `planId` is denormalized — there is intentionally no FK to WeeklyMealPlan so
+// completion history (and the streaks computed from it) survives when a past
+// plan is deleted to save storage.
 model MealCompletion {
   id          String    @id @default(cuid())
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   planId      String
-  plan        WeeklyMealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   dayKey      String    // YYYY-MM-DD local date
   indicesJson Json      // number[] of completed meal indices
   completedAt DateTime? // set when all meals for the day are done
