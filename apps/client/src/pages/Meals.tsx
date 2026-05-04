@@ -79,12 +79,14 @@ export function MealsPage() {
         <PhoneHeader
           title="Meals"
           subtitle="Generate a plan, or build one yourself meal by meal."
-        />
-        <WeekSelector
-          viewingWeekStart={viewingWeekStart}
-          thisWeekStart={thisWeekStart}
-          nextWeekStart={nextWeekStart}
-          onChange={setViewingWeekStart}
+          right={
+            <WeekSelector
+              viewingWeekStart={viewingWeekStart}
+              thisWeekStart={thisWeekStart}
+              nextWeekStart={nextWeekStart}
+              onChange={setViewingWeekStart}
+            />
+          }
         />
         <div className="px-4 pt-2 space-y-3">
           {generate.isPending ? (
@@ -175,13 +177,17 @@ export function MealsPage() {
 
   return (
     <Layout>
-      <PhoneHeader title="Meals" subtitle={plan.planJson.summary} />
-
-      <WeekSelector
-        viewingWeekStart={viewingWeekStart}
-        thisWeekStart={thisWeekStart}
-        nextWeekStart={nextWeekStart}
-        onChange={setViewingWeekStart}
+      <PhoneHeader
+        title="Meals"
+        subtitle={plan.planJson.summary}
+        right={
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={setViewingWeekStart}
+          />
+        }
       />
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>

@@ -195,13 +195,14 @@ function ListBody({
                 ? "Generate a meal plan, or just start adding items."
                 : "Generate next week's plan to start a list, or add items manually."
         }
-      />
-
-      <WeekSelector
-        viewingWeekStart={viewingWeekStart}
-        thisWeekStart={thisWeekStart}
-        nextWeekStart={nextWeekStart}
-        onChange={onWeekChange}
+        right={
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={onWeekChange}
+          />
+        }
       />
 
       {!hasList && (

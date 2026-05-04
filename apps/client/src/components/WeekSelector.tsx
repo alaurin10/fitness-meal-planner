@@ -21,7 +21,6 @@ export function WeekSelector({
   onChange,
 }: Props) {
   return (
-    <div className="px-4 pt-2 pb-1 flex justify-center">
       <div role="tablist" aria-label="Select week" style={TOGGLE_STYLE}>
         {(
           [
@@ -56,6 +55,5 @@ export function WeekSelector({
           );
         })}
       </div>
-    </div>
   );
 }
