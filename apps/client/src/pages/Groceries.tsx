@@ -6,9 +6,11 @@ import {
 } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader, Ring } from "../components/Primitives";
+import { WeekSelector } from "../components/WeekSelector";
 import {
   useAddGroceryItem,
   useClearChecked,
@@ -18,6 +20,7 @@ import {
   useToggleItem,
   useUpdateGroceryItem,
 } from "../hooks/useGroceries";
+import { useGenerateMealPlan } from "../hooks/useMealPlan";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import {
@@ -48,6 +51,7 @@ export function GroceriesPage() {
   const add = useAddGroceryItem(viewingWeekStart);
   const clear = useClearChecked(viewingWeekStart);
   const rebuild = useRebuildGroceries(viewingWeekStart);
+  const generate = useGenerateMealPlan();
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
 
@@ -65,13 +69,11 @@ export function GroceriesPage() {
 
   return (
     <Layout>
-      <WeekSelector
+      <ListBody
         viewingWeekStart={viewingWeekStart}
         thisWeekStart={thisWeekStart}
         nextWeekStart={nextWeekStart}
-        onChange={setViewingWeekStart}
-      />
-      <ListBody
+        onWeekChange={setViewingWeekStart}
         items={items}
         hasList={!!list}
         isCurrentWeek={isCurrentWeek}
@@ -83,69 +85,21 @@ export function GroceriesPage() {
         onClear={() => clear.mutate()}
         onRebuild={() => rebuild.mutate()}
         rebuilding={rebuild.isPending}
+        onGeneratePlan={() =>
+          generate.mutate({ targetWeekStart: viewingWeekStart })
+        }
+        generating={generate.isPending}
+        generateError={generate.error as Error | null}
       />
     </Layout>
   );
 }
 
-function WeekSelector({
-  viewingWeekStart,
-  thisWeekStart,
-  nextWeekStart,
-  onChange,
-}: {
+interface ListBodyProps {
   viewingWeekStart: string;
   thisWeekStart: string;
   nextWeekStart: string;
-  onChange: (week: string) => void;
-}) {
-  return (
-    <div className="px-4 pt-3 pb-1">
-      <div
-        style={{
-          display: "inline-flex",
-          background: "var(--bg)",
-          borderRadius: 999,
-          padding: 3,
-          gap: 2,
-          border: "1px solid var(--hair)",
-        }}
-      >
-        {(
-          [
-            { key: thisWeekStart, label: "This week" },
-            { key: nextWeekStart, label: "Next week" },
-          ] as const
-        ).map((opt) => {
-          const active = viewingWeekStart === opt.key;
-          return (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => onChange(opt.key)}
-              className="tappable"
-              style={{
-                padding: "6px 14px",
-                border: "none",
-                background: active ? "var(--ink)" : "transparent",
-                color: active ? "var(--paper)" : "var(--sumi)",
-                borderRadius: 999,
-                fontFamily: "var(--font-body)",
-                fontSize: 12.5,
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface ListBodyProps {
+  onWeekChange: (week: string) => void;
   items: GroceryItem[];
   hasList: boolean;
   isCurrentWeek: boolean;
@@ -164,9 +118,16 @@ interface ListBodyProps {
   onClear: () => void;
   onRebuild: () => void;
   rebuilding: boolean;
+  onGeneratePlan: () => void;
+  generating: boolean;
+  generateError: Error | null;
 }
 
 function ListBody({
+  viewingWeekStart,
+  thisWeekStart,
+  nextWeekStart,
+  onWeekChange,
   items,
   hasList,
   isCurrentWeek,
@@ -178,6 +139,9 @@ function ListBody({
   onClear,
   onRebuild,
   rebuilding,
+  onGeneratePlan,
+  generating,
+  generateError,
 }: ListBodyProps) {
   const byCategory = useMemo(() => groupByCategory(items), [items]);
   const total = items.length;
@@ -229,9 +193,45 @@ function ListBody({
               ? "Empty list — add items below or rebuild from your plan."
               : isCurrentWeek
                 ? "Generate a meal plan, or just start adding items."
-                : "No items yet for next week — rebuild from your plan or add manually."
+                : "Generate next week's plan to start a list, or add items manually."
         }
       />
+
+      <WeekSelector
+        viewingWeekStart={viewingWeekStart}
+        thisWeekStart={thisWeekStart}
+        nextWeekStart={nextWeekStart}
+        onChange={onWeekChange}
+      />
+
+      {!hasList && (
+        <div className="px-4 pt-2">
+          {generating ? (
+            <GeneratingProgress kind="meal" estimatedSeconds={60} />
+          ) : (
+            <Card tone="gradient">
+              <div
+                className="font-display"
+                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
+              >
+                {isCurrentWeek ? "No plan for this week" : "No plan for next week"}
+              </div>
+              <p style={{ fontSize: 12.5, color: "var(--sumi)", marginTop: 6 }}>
+                Generate the plan to auto-build the grocery list.
+              </p>
+              <Button className="w-full mt-4" onClick={onGeneratePlan}>
+                <Icon name="sparkle" size={16} />
+                {isCurrentWeek ? "Generate this week" : "Generate next week"}
+              </Button>
+              {generateError && (
+                <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
+                  {generateError.message}
+                </p>
+              )}
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Progress hero */}
       <div className="px-4 pt-1">

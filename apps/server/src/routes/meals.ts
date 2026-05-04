@@ -120,15 +120,14 @@ router.post("/generate", requireAuth, async (req, res) => {
         },
       });
 
-      // Cap storage at previous + current + next week. Anything before the
-      // previous week (and its grocery list) gets pruned. MealCompletion
-      // cascades on plan delete via the schema relation.
-      const cutoff = addWeeks(thisWeek, -1);
+      // Cap storage at the current + next week. Plans (and their grocery
+      // lists) for any prior week are pruned; MealCompletion rows survive
+      // because the FK was detached from WeeklyMealPlan.
       await tx.weeklyMealPlan.deleteMany({
-        where: { userId, weekStartDate: { lt: cutoff } },
+        where: { userId, weekStartDate: { lt: thisWeek } },
       });
       await tx.groceryList.deleteMany({
-        where: { userId, weekStartDate: { lt: cutoff } },
+        where: { userId, weekStartDate: { lt: thisWeek } },
       });
 
       return { plan };
@@ -187,13 +186,13 @@ router.post("/empty", requireAuth, async (req, res) => {
       },
     });
 
-    // Cap storage at previous + current + next week.
-    const cutoff = addWeeks(thisWeek, -1);
+    // Cap storage at the current + next week. Plans (and grocery lists)
+    // for any prior week are pruned; MealCompletion rows survive.
     await tx.weeklyMealPlan.deleteMany({
-      where: { userId, weekStartDate: { lt: cutoff } },
+      where: { userId, weekStartDate: { lt: thisWeek } },
     });
     await tx.groceryList.deleteMany({
-      where: { userId, weekStartDate: { lt: cutoff } },
+      where: { userId, weekStartDate: { lt: thisWeek } },
     });
 
     return { plan };

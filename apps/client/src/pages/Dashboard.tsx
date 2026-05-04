@@ -1,5 +1,10 @@
 import { Link } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  localDayKey as sharedLocalDayKey,
+  startOfWeek as sharedStartOfWeek,
+} from "@platform/shared";
+import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
@@ -77,6 +82,11 @@ function findNextMeal(meals: Meal[], completed: Set<number>): NextMeal | null {
 }
 
 export function DashboardPage() {
+  const weekStartDay = useWeekStartDay();
+  const thisWeekStartIso = useMemo(
+    () => sharedLocalDayKey(sharedStartOfWeek(new Date(), weekStartDay)),
+    [weekStartDay],
+  );
   const profileQuery = useProfile();
   const workoutQuery = useCurrentWorkoutPlan();
   const mealQuery = useCurrentMealPlan();
@@ -388,7 +398,7 @@ export function DashboardPage() {
           {nextMeal ? (
             <>
               <Link
-                to={`/meals/${todayDayKey}/${nextMeal.index}`}
+                to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`}
                 className="block tappable"
                 style={{ color: "inherit", textDecoration: "none" }}
               >
@@ -423,7 +433,7 @@ export function DashboardPage() {
                 </div>
               </Link>
               <div className="flex gap-2 mt-4">
-                <Link to={`/meals/${todayDayKey}/${nextMeal.index}`} className="flex-1">
+                <Link to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`} className="flex-1">
                   <Button variant="accent" className="w-full">
                     Open recipe
                     <Icon name="chevron" size={16} />
