@@ -70,6 +70,9 @@ export function useLogHydration() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: ["dailySummary"] });
+      qc.invalidateQueries({ queryKey: ["streaks"] });
+      qc.invalidateQueries({ queryKey: ["history"] });
     },
   });
 }
