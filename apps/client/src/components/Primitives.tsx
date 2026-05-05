@@ -55,14 +55,17 @@ export function PhoneHeader({
     <div
       style={{
         padding: "16px 22px 10px",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 16,
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        {greeting && <div className="eyebrow" style={{ marginBottom: 6 }}>{greeting}</div>}
+      {greeting && <div className="eyebrow" style={{ marginBottom: 6 }}>{greeting}</div>}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+        }}
+      >
         <div
           className="font-display"
           style={{
@@ -70,17 +73,18 @@ export function PhoneHeader({
             color: "var(--ink)",
             lineHeight: 1.05,
             letterSpacing: "-0.015em",
+            minWidth: 0,
           }}
         >
           {title}
         </div>
-        {subtitle && (
-          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
-            {subtitle}
-          </div>
-        )}
+        {right}
       </div>
-      {right}
+      {subtitle && (
+        <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
+          {subtitle}
+        </div>
+      )}
     </div>
   );
 }

@@ -184,28 +184,24 @@ function ListBody({
 
   return (
     <>
-      <div style={{ position: "relative" }}>
-        <PhoneHeader
-          title="Market"
-          subtitle={
-            total > 0
-              ? `${total - checked} items left for ${isCurrentWeek ? "this week" : "next week"}.`
-              : hasList
-                ? "Empty list — add items below or rebuild from your plan."
-                : isCurrentWeek
-                  ? "Generate a meal plan, or just start adding items."
-                  : "Generate next week's plan to start a list, or add items manually."
-          }
-        />
-        <div style={{ position: "absolute", right: 22, top: 20 }}>
+      <PhoneHeader
+        title="Market"
+        subtitle={
+          total > 0
+            ? `${total - checked} of ${total} items left.`
+            : hasList
+              ? "Your list is empty."
+              : "No list yet."
+        }
+        right={
           <WeekSelector
             viewingWeekStart={viewingWeekStart}
             thisWeekStart={thisWeekStart}
             nextWeekStart={nextWeekStart}
             onChange={onWeekChange}
           />
-        </div>
-      </div>
+        }
+      />
 
       {!hasList && (
         <div className="px-4 pt-2">

@@ -76,20 +76,18 @@ export function MealsPage() {
   if (!plan) {
     return (
       <Layout>
-        <div style={{ position: "relative" }}>
-          <PhoneHeader
-            title="Meals"
-            subtitle="Generate a plan, or build one yourself meal by meal."
-          />
-          <div style={{ position: "absolute", right: 22, top: 20 }}>
+        <PhoneHeader
+          title="Meals"
+          subtitle="No active plan yet."
+          right={
             <WeekSelector
               viewingWeekStart={viewingWeekStart}
               thisWeekStart={thisWeekStart}
               nextWeekStart={nextWeekStart}
               onChange={setViewingWeekStart}
             />
-          </div>
-        </div>
+          }
+        />
         <div className="px-4 pt-2 space-y-3">
           {generate.isPending ? (
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
@@ -179,20 +177,18 @@ export function MealsPage() {
 
   return (
     <Layout>
-      <div style={{ position: "relative" }}>
-        <PhoneHeader
-          title="Meals"
-          subtitle={plan.planJson.summary}
-        />
-        <div style={{ position: "absolute", right: 22, top: 20 }}>
+      <PhoneHeader
+        title="Meals"
+        subtitle={plan.planJson.summary}
+        right={
           <WeekSelector
             viewingWeekStart={viewingWeekStart}
             thisWeekStart={thisWeekStart}
             nextWeekStart={nextWeekStart}
             onChange={setViewingWeekStart}
           />
-        </div>
-      </div>
+        }
+      />
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
