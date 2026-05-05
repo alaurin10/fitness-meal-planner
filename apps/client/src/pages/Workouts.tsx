@@ -85,18 +85,20 @@ export function WorkoutsPage() {
   if (!plan) {
     return (
       <Layout>
-        <PhoneHeader
-          title="Workouts"
-          subtitle="No plan yet. Generate one shaped by your profile."
-          right={
+        <div style={{ position: "relative" }}>
+          <PhoneHeader
+            title="Workouts"
+            subtitle="No plan yet. Generate one shaped by your profile."
+          />
+          <div style={{ position: "absolute", right: 22, top: 20 }}>
             <WeekSelector
               viewingWeekStart={viewingWeekStart}
               thisWeekStart={thisWeekStart}
               nextWeekStart={nextWeekStart}
               onChange={setViewingWeekStart}
             />
-          }
-        />
+          </div>
+        </div>
         <div className="px-4 pt-2 space-y-3">
           {generate.isPending ? (
             <GeneratingProgress kind="workout" estimatedSeconds={45} />
@@ -285,18 +287,20 @@ export function WorkoutsPage() {
 
   return (
     <Layout>
-      <PhoneHeader
-        title="Workouts"
-        subtitle={plan.planJson.summary}
-        right={
+      <div style={{ position: "relative" }}>
+        <PhoneHeader
+          title="Workouts"
+          subtitle={plan.planJson.summary}
+        />
+        <div style={{ position: "absolute", right: 22, top: 20 }}>
           <WeekSelector
             viewingWeekStart={viewingWeekStart}
             thisWeekStart={thisWeekStart}
             nextWeekStart={nextWeekStart}
             onChange={setViewingWeekStart}
           />
-        }
-      />
+        </div>
+      </div>
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>

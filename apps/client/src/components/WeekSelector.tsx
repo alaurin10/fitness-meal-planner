@@ -12,6 +12,7 @@ const TOGGLE_STYLE = {
   padding: 3,
   gap: 2,
   border: "1px solid var(--hair)",
+  whiteSpace: "nowrap",
 } as const;
 
 export function WeekSelector({
