@@ -15,7 +15,7 @@ export function getGeminiClient(): GoogleGenAI {
   return client;
 }
 
-function isRetryable(error: unknown): boolean {
+function isUnavailable(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : JSON.stringify(error);
   return msg.includes("503") || msg.toLowerCase().includes("unavailable");
 }
@@ -30,19 +30,13 @@ export async function generateWithRetry(
 ): Promise<string> {
   const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
   for (const model of models) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        return await fn(model);
-      } catch (err) {
-        const isLast = model === models[models.length - 1] && attempt === 2;
-        if (isQuotaExhausted(err)) {
-          // Quota exhausted — no point retrying immediately, move to next model
-          break;
-        }
-        if (isLast) throw err;
-        if (!isRetryable(err)) throw err;
-        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    try {
+      return await fn(model);
+    } catch (err) {
+      if (isQuotaExhausted(err) || isUnavailable(err)) {
+        continue;
       }
+      throw err;
     }
   }
   throw new Error(
