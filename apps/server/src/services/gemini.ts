@@ -16,6 +16,7 @@ export class GenerationSkipError extends Error {
   }
 }
 
+let client: GoogleGenAI | null = null;
 
 export function getGeminiClient(): GoogleGenAI {
   if (!client) {
