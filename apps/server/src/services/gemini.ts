@@ -9,7 +9,13 @@ const GEMINI_FALLBACK_MODELS = [
   "gemma-4-31b-it",
 ];
 
-let client: GoogleGenAI | null = null;
+export class GenerationSkipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationSkipError";
+  }
+}
+
 
 export function getGeminiClient(): GoogleGenAI {
   if (!client) {
@@ -30,9 +36,9 @@ function isQuotaExhausted(error: unknown): boolean {
   return msg.includes("429") || msg.toLowerCase().includes("resource_exhausted") || msg.toLowerCase().includes("quota");
 }
 
-export async function generateWithRetry(
-  fn: (model: string) => Promise<string>,
-): Promise<string> {
+export async function generateWithRetry<T>(
+  fn: (model: string) => Promise<T>,
+): Promise<T> {
   const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
   for (const model of models) {
     try {
@@ -40,7 +46,11 @@ export async function generateWithRetry(
     } catch (err) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       if (isQuotaExhausted(err) || isUnavailable(err)) {
-        console.warn(`[gemini] ${model} skipped: ${msg}`);
+        console.warn(`[gemini] ${model} skipped (api error): ${msg}`);
+        continue;
+      }
+      if (err instanceof GenerationSkipError) {
+        console.warn(`[gemini] ${model} skipped (bad response): ${msg}`);
         continue;
       }
       console.error(`[gemini] ${model} failed (non-retryable): ${msg}`);
