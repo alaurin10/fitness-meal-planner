@@ -33,12 +33,16 @@ export async function generateWithRetry(
     try {
       return await fn(model);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
       if (isQuotaExhausted(err) || isUnavailable(err)) {
+        console.warn(`[gemini] ${model} skipped: ${msg}`);
         continue;
       }
+      console.error(`[gemini] ${model} failed (non-retryable): ${msg}`);
       throw err;
     }
   }
+  console.error("[gemini] all models exhausted");
   throw new Error(
     "Plan generation is temporarily unavailable. Please try again in a few minutes.",
   );
