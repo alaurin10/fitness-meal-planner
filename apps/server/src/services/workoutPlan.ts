@@ -1,6 +1,6 @@
 import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
 import type { DayLabel } from "@platform/shared";
-import { generateWithRetry, getGeminiClient, parseGeminiJson } from "./gemini.js";
+import { generateWithRetry, getGeminiClient, parseGeminiJson, GenerationSkipError } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
 
@@ -10,7 +10,7 @@ export async function generateWeeklyPlan(args: {
   previousPlan: WeeklyPlan | null;
   daysToGenerate?: DayLabel[];
 }): Promise<WeeklyPlanJson> {
-  const text = await generateWithRetry(async (model) => {
+  return generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({
       model,
       config: {
@@ -20,24 +20,34 @@ export async function generateWeeklyPlan(args: {
       },
       contents: buildUserPrompt(args),
     });
-    if (!response.text) throw new Error("Gemini returned no text content");
-    return response.text;
+    if (!response.text) throw new GenerationSkipError("Gemini returned no text content");
+
+    let parsed: unknown;
+    try {
+      parsed = parseGeminiJson(response.text);
+    } catch (err) {
+      throw new GenerationSkipError(
+        `Gemini returned invalid JSON: ${(err as Error).message}`,
+      );
+    }
+
+    const validated = weeklyPlanSchema.safeParse(parsed);
+    if (!validated.success) {
+      throw new GenerationSkipError(
+        `Generated plan failed validation: ${validated.error.message}`,
+      );
+    }
+
+    if (args.daysToGenerate?.length) {
+      const generatedDays = new Set(validated.data.days.map((d) => d.day));
+      const missing = args.daysToGenerate.filter((d) => !generatedDays.has(d));
+      if (missing.length > 0) {
+        throw new GenerationSkipError(
+          `Generated plan is missing days: ${missing.join(", ")}`,
+        );
+      }
+    }
+
+    return validated.data;
   });
-
-  let parsed: unknown;
-  try {
-    parsed = parseGeminiJson(text);
-  } catch (err) {
-    throw new Error(
-      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${text.slice(0, 500)}`,
-    );
-  }
-
-  const validated = weeklyPlanSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new Error(
-      `Generated plan failed validation: ${validated.error.message}`,
-    );
-  }
-  return validated.data;
 }
