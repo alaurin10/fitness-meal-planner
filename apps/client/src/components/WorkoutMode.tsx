@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { formatLoad, weightUnitLabel, type UnitSystem } from "../lib/units";
+import { formatLoad, weightUnitLabel, kgToPounds, poundsToKg, roundTo, type UnitSystem } from "../lib/units";
 import { fireCelebration } from "../lib/confetti";
 import type { Exercise } from "../hooks/useWorkoutPlan";
 
@@ -24,6 +24,8 @@ interface Props {
   onSessionClear?: () => void;
   /** Called when a set is completed — persists per-set progress. */
   onSetComplete?: (exerciseIdx: number, setNum: number) => void;
+  /** Called when the user modifies a load in the active screen. */
+  onUpdateLoad?: (exerciseIdx: number, loadLbs: number) => void;
 }
 
 type Phase = "active" | "resting" | "done";
@@ -39,6 +41,7 @@ export function WorkoutMode({
   onProgress,
   onSessionClear,
   onSetComplete,
+  onUpdateLoad,
 }: Props) {
   const [exerciseIdx, setExerciseIdx] = useState(initialExerciseIdx);
   const [setNum, setSetNum] = useState(initialSetNum);
@@ -168,8 +171,11 @@ export function WorkoutMode({
       ) : (
         <ActiveScreen
           exercise={exercise}
+          exerciseIdx={exerciseIdx}
           setNum={setNum}
           loadLabel={loadLabel}
+          unitSystem={unitSystem}
+          onUpdateLoad={onUpdateLoad}
           nextExercise={
             isLastSetOfExercise && nextExercise ? nextExercise : null
           }
@@ -217,15 +223,23 @@ export function WorkoutMode({
 
 function ActiveScreen({
   exercise,
+  exerciseIdx,
   setNum,
   loadLabel,
+  unitSystem,
+  onUpdateLoad,
   nextExercise,
 }: {
   exercise: Exercise;
+  exerciseIdx: number;
   setNum: number;
   loadLabel: string;
+  unitSystem: UnitSystem;
+  onUpdateLoad?: (exerciseIdx: number, loadLbs: number) => void;
   nextExercise: Exercise | null;
 }) {
+  const [editingLoad, setEditingLoad] = useState(false);
+
   return (
     <div
       style={{
@@ -311,7 +325,31 @@ function ActiveScreen({
         }}
       >
         <Stat label="Reps" value={exercise.reps} />
-        <Stat label="Load" value={loadLabel} />
+        {editingLoad && onUpdateLoad ? (
+          <LoadEditor
+            initialLoadLbs={exercise.loadLbs}
+            unitSystem={unitSystem}
+            onSave={(newLbs) => {
+              onUpdateLoad(exerciseIdx, newLbs);
+              setEditingLoad(false);
+            }}
+            onCancel={() => setEditingLoad(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => onUpdateLoad && setEditingLoad(true)}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: onUpdateLoad ? "pointer" : "default",
+              textAlign: "center",
+            }}
+          >
+            <Stat label="Load" value={loadLabel} />
+          </button>
+        )}
       </div>
       {exercise.description && (
         <div
@@ -541,6 +579,83 @@ function DoneScreen({ onExit }: { onExit: () => void }) {
       <Button variant="accent" onClick={onExit} style={{ minWidth: 160 }}>
         Done
       </Button>
+    </div>
+  );
+}
+
+function LoadEditor({
+  initialLoadLbs,
+  unitSystem,
+  onSave,
+  onCancel,
+}: {
+  initialLoadLbs: number | null;
+  unitSystem: UnitSystem;
+  onSave: (loadLbs: number) => void;
+  onCancel: () => void;
+}) {
+  const initialDisplay =
+    initialLoadLbs !== null
+      ? unitSystem === "metric"
+        ? roundTo(poundsToKg(initialLoadLbs), 1)
+        : roundTo(initialLoadLbs, 0)
+      : "";
+  const [value, setValue] = useState<string>(String(initialDisplay));
+  const unitLabel = weightUnitLabel(unitSystem);
+
+  function commit() {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) {
+      onCancel();
+      return;
+    }
+    const lbs = unitSystem === "metric" ? kgToPounds(n) : n;
+    onSave(roundTo(lbs, 2));
+  }
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div className="eyebrow">Load</div>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          marginTop: 4,
+        }}
+      >
+        <input
+          autoFocus
+          type="number"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel();
+            }
+          }}
+          onBlur={commit}
+          style={{
+            width: 80,
+            padding: "6px 8px",
+            fontSize: 20,
+            fontFamily: "var(--font-display)",
+            fontWeight: 600,
+            border: "1px solid var(--accent)",
+            borderRadius: 8,
+            background: "var(--paper)",
+            color: "var(--ink)",
+            textAlign: "center",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        />
+        <span style={{ fontSize: 14, color: "var(--muted)" }}>{unitLabel}</span>
+      </div>
     </div>
   );
 }
