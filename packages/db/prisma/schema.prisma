@@ -24,6 +24,7 @@ model User {
   activityLogs    ActivityLog[]
   workoutCompletions WorkoutCompletion[]
   mealCompletions    MealCompletion[]
+  exerciseBaselines  UserExerciseBaseline[]
 }
 
 model UserSettings {
@@ -120,6 +121,25 @@ model ProgressLog {
   liftPRs   Json?
 
   @@index([userId, loggedAt])
+}
+
+// Per-user, per-exercise working weight. Source of truth for the weight a
+// user wants prescribed in future plans — never overwritten by generation.
+// `normalizedKey` is a lowercased / qualifier-stripped form of the exercise
+// name used for matching across plans (so "Bench Press" and "Barbell Bench
+// Press" map to the same baseline). See normalizeExerciseName in @platform/shared.
+model UserExerciseBaseline {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseName  String
+  normalizedKey String
+  loadLbs       Float
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, normalizedKey])
+  @@index([userId])
 }
 
 // ingredientsJson shape: Array<{ name, quantity: { amount, unit, display? }, category?, note? }>

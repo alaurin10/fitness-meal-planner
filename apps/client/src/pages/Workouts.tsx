@@ -14,6 +14,7 @@ import { localDayKey } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import {
+  useBumpExerciseLoad,
   useCurrentWorkoutPlan,
   useGenerateWorkoutPlan,
   useUpdateExerciseLoad,
@@ -63,6 +64,7 @@ export function WorkoutsPage() {
   const completion = useWorkoutCompletions(plan?.id, activeDayKey);
   const workoutSession = useWorkoutSession(plan?.id, localDayKey());
   const updateLoad = useUpdateExerciseLoad();
+  const bumpLoad = useBumpExerciseLoad();
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
@@ -519,38 +521,74 @@ export function WorkoutsPage() {
                         }}
                       />
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setEditingLoadIdx(i)}
-                        title="Set a new baseline weight"
-                        style={{
-                          fontSize: 12,
-                          color: "var(--muted)",
-                          whiteSpace: "nowrap",
-                          background: "transparent",
-                          border: "1px dashed transparent",
-                          padding: "3px 6px",
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          fontFamily: "var(--font-body)",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor =
-                            "var(--hair)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.borderColor =
-                            "transparent";
-                        }}
-                      >
-                        {ex.loadLbs !== null
-                          ? `${formatLoad(ex.loadLbs, unitSystem)} ${unitLabel}`
-                          : "Bodywt"}
-                        <Icon name="note" size={11} />
-                      </button>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingLoadIdx(i)}
+                          title="Set a new baseline weight"
+                          style={{
+                            fontSize: 12,
+                            color: "var(--muted)",
+                            whiteSpace: "nowrap",
+                            background: "transparent",
+                            border: "1px dashed transparent",
+                            padding: "3px 6px",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            fontFamily: "var(--font-body)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLButtonElement).style.borderColor =
+                              "var(--hair)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLButtonElement).style.borderColor =
+                              "transparent";
+                          }}
+                        >
+                          {ex.loadLbs !== null
+                            ? `${formatLoad(ex.loadLbs, unitSystem)} ${unitLabel}`
+                            : "Bodywt"}
+                          <Icon name="note" size={11} />
+                        </button>
+                        {ex.loadLbs !== null && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              bumpLoad.mutate({
+                                day: activeDay,
+                                index: i,
+                                // 5 lb ≈ 2.27 kg; round to 2.5 kg in metric for plate-friendly bumps
+                                deltaLbs: unitSystem === "metric" ? kgToPounds(2.5) : 5,
+                              })
+                            }
+                            disabled={bumpLoad.isPending}
+                            title="Crushed it — bump weight"
+                            aria-label="Bump weight"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "var(--accent-2)",
+                              background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                              border: "none",
+                              padding: "3px 7px",
+                              borderRadius: 999,
+                              cursor: bumpLoad.isPending ? "wait" : "pointer",
+                              fontFamily: "var(--font-body)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 3,
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            <Icon name="plus" size={10} stroke={2.5} />
+                            {unitSystem === "metric" ? "2.5" : "5"}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div

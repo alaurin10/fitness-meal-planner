@@ -1,10 +1,15 @@
-import type { Profile, ProgressLog, WeeklyPlan } from "@platform/db";
+import type {
+  Profile,
+  ProgressLog,
+  UserExerciseBaseline,
+  WeeklyPlan,
+} from "@platform/db";
 import type { DayLabel } from "@platform/shared";
 
 export function buildSystemPrompt(): string {
   return [
     "You are an expert strength and conditioning coach.",
-    "You design weekly training programs that apply progressive overload intelligently based on the athlete's goal, experience, and recent history.",
+    "You design weekly training programs that respect the athlete's established working weights. Weight progression is user-driven, not coach-driven.",
     "",
     "Rules:",
     "- Respond with VALID JSON ONLY. No prose before or after.",
@@ -13,10 +18,14 @@ export function buildSystemPrompt(): string {
     "- `muscleGroup` is the primary muscle group the exercise targets (e.g. 'Chest', 'Back', 'Quads', 'Core'). Use one concise label.",
     "- `description` is 1-2 sentences explaining how to perform the exercise (stance, grip, motion cues).",
     "- `reps` is a string like '8-10' or '5'.",
-    "- `loadLbs` is a recommended working load. Use null for bodyweight. For bar lifts, anchor to the athlete's most recent PR if provided.",
+    "- `loadLbs` rules:",
+    "  - If the exercise (matched by name, case-insensitive, ignoring qualifiers like 'barbell'/'dumbbell') appears in `userBaselines`, you MUST set `loadLbs` to that exact value. Do not apply any progression on top.",
+    "  - Otherwise, set `loadLbs` to a reasonable starting weight for the athlete's experience level. Use null for bodyweight movements.",
+    "  - Do NOT invent week-over-week weight increases. The user controls progression.",
+    "- Prefer exercise names that match the athlete's existing baselines so progression carries forward across weeks. If you must introduce a new variation, give it a clearly distinct name.",
     "- Include 1-2 core / ab exercises at the END of every training day.",
-    "- `summary` is one paragraph explaining the week's focus.",
-    "- `progressionNotes` is one paragraph explaining what changed from the previous week and why.",
+    "- `summary` is one paragraph describing the week's focus (movement patterns, volume, intent) — NOT weight changes.",
+    "- `progressionNotes` is one paragraph noting variety or focus shifts from the previous week. Do not claim to have changed weights; weight changes only happen when the athlete logs them.",
     "- Only include as many day entries as specified by the caller (see daysToGenerate).",
     "- STRICTLY respect the athlete's available equipment. Only prescribe exercises that can be performed with the listed equipment. If equipment is empty, the athlete has bodyweight only — design a fully bodyweight program.",
   ].join("\n");
@@ -51,9 +60,10 @@ export function buildUserPrompt(args: {
   profile: Profile;
   recentProgress: ProgressLog[];
   previousPlan: WeeklyPlan | null;
+  baselines: UserExerciseBaseline[];
   daysToGenerate?: DayLabel[];
 }): string {
-  const { profile, recentProgress, previousPlan } = args;
+  const { profile, recentProgress, previousPlan, baselines } = args;
 
   const workoutStyle = (profile as Profile & { workoutStyle?: string }).workoutStyle ?? "ppl";
 
@@ -68,10 +78,14 @@ export function buildUserPrompt(args: {
     equipment: profile.equipment ?? [],
   };
 
+  const baselineBlock: Record<string, number> = {};
+  for (const b of baselines) {
+    baselineBlock[b.exerciseName] = b.loadLbs;
+  }
+
   const progressBlock = recentProgress.map((p) => ({
     loggedAt: p.loggedAt.toISOString().slice(0, 10),
     weightLbs: p.weightLbs,
-    liftPRs: p.liftPRs,
     note: p.note,
   }));
 
@@ -80,9 +94,18 @@ export function buildUserPrompt(args: {
   lines.push(JSON.stringify(profileBlock, null, 2));
   lines.push("");
   lines.push(
-    recentProgress.length === 0
-      ? "Progress logs from the past 4 weeks: (none — this is the first generated plan)"
-      : "Progress logs from the past 4 weeks:",
+    Object.keys(baselineBlock).length === 0
+      ? "userBaselines: (none — athlete hasn't set any working weights yet)"
+      : "userBaselines (exact weights the athlete has chosen — DO NOT modify these):",
+  );
+  if (Object.keys(baselineBlock).length > 0) {
+    lines.push(JSON.stringify(baselineBlock, null, 2));
+  }
+  lines.push("");
+  lines.push(
+    progressBlock.length === 0
+      ? "Recent body-weight / notes (past 4 weeks): (none)"
+      : "Recent body-weight / notes (past 4 weeks, context only):",
   );
   if (progressBlock.length > 0) {
     lines.push(JSON.stringify(progressBlock, null, 2));
@@ -101,7 +124,7 @@ export function buildUserPrompt(args: {
   }
   lines.push("");
   if (previousPlan) {
-    lines.push("Previous plan (evolve this, do not restart):");
+    lines.push("Previous plan (keep movement selection coherent — do not regress quality):");
     lines.push(JSON.stringify(previousPlan.planJson, null, 2));
   } else {
     lines.push("Previous plan: (none)");

@@ -77,9 +77,28 @@ export function useUpdateExerciseLoad() {
       return data.plan;
     },
     onSuccess: () => {
-      // The plan changed and we just logged a new PR — refresh both.
       qc.invalidateQueries({ queryKey: ["workouts"] });
-      qc.invalidateQueries({ queryKey: ["progress"] });
+    },
+  });
+}
+
+export function useBumpExerciseLoad() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      day: TrainingDay["day"];
+      index: number;
+      deltaLbs?: number;
+    }) => {
+      const { data } = await api.post<{ plan: WeeklyPlanRecord }>(
+        "/api/workouts/exercise/bump",
+        args,
+      );
+      return data.plan;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workouts"] });
     },
   });
 }

@@ -28,6 +28,7 @@ export type {
   WorkoutCompletion,
   MealCompletion,
   HydrationLog,
+  UserExerciseBaseline,
 } from "../generated/index.js";
 
 export const GROCERY_CATEGORIES = [
