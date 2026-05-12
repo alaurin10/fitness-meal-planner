@@ -134,3 +134,35 @@ export function computePlanWindow(
     isFutureWeek: false,
   };
 }
+
+const EXERCISE_QUALIFIERS = [
+  "barbell",
+  "dumbbell",
+  "db",
+  "bb",
+  "cable",
+  "machine",
+  "smith",
+  "kettlebell",
+  "kb",
+  "bodyweight",
+  "bw",
+];
+
+const EXERCISE_QUALIFIER_RE = new RegExp(
+  `\\b(?:${EXERCISE_QUALIFIERS.join("|")})\\b`,
+  "g",
+);
+
+/**
+ * Normalize an exercise name for cross-plan matching so "Bench Press" and
+ * "Barbell Bench Press" resolve to the same baseline key.
+ * Must stay in sync with the SQL in the add_user_exercise_baseline migration.
+ */
+export function normalizeExerciseName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(EXERCISE_QUALIFIER_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
