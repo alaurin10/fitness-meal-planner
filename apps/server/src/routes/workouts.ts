@@ -7,6 +7,7 @@ import {
   computePlanWindow,
   parseLocalDate,
   localDayKey,
+  normalizeExerciseName,
   ALL_DAYS,
   type WeekStartDay,
   type DayLabel,
@@ -29,7 +30,12 @@ const updateLoadSchema = z.object({
   day: z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
   index: z.number().int().nonnegative(),
   loadLbs: z.number().positive(),
-  note: z.string().max(280).optional(),
+});
+
+const bumpLoadSchema = z.object({
+  day: z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
+  index: z.number().int().nonnegative(),
+  deltaLbs: z.number().refine((n) => n !== 0, "deltaLbs must be non-zero").default(5),
 });
 
 const completionSchema = z.object({
@@ -101,12 +107,13 @@ router.post("/generate", requireAuth, async (req, res) => {
   }
 
   const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
-  const [recentProgress, previousPlan] = await Promise.all([
+  const [recentProgress, previousPlan, baselines] = await Promise.all([
     prisma.progressLog.findMany({
       where: { userId, loggedAt: { gte: fourWeeksAgo } },
       orderBy: { loggedAt: "desc" },
     }),
     findActiveWorkoutPlan(userId),
+    prisma.userExerciseBaseline.findMany({ where: { userId } }),
   ]);
 
   try {
@@ -114,6 +121,7 @@ router.post("/generate", requireAuth, async (req, res) => {
       profile,
       recentProgress,
       previousPlan,
+      baselines,
       daysToGenerate: workoutDays,
     });
 
@@ -152,9 +160,9 @@ router.post("/generate", requireAuth, async (req, res) => {
 });
 
 /**
- * Manually update the prescribed load for an exercise in the active plan,
- * and record it as a new PR in the progress log so future generated plans
- * anchor to this weight instead of the AI's original estimate.
+ * Manually set the prescribed load for an exercise in the active plan.
+ * Also upserts the user's working baseline for that exercise so future
+ * generated plans use this exact weight instead of the LLM's estimate.
  */
 router.patch("/exercise", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
@@ -163,7 +171,7 @@ router.patch("/exercise", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { day, index, loadLbs, note } = parsed.data;
+  const { day, index, loadLbs } = parsed.data;
 
   const plan = await findActiveWorkoutPlan(userId);
   if (!plan) {
@@ -171,8 +179,6 @@ router.patch("/exercise", requireAuth, async (req, res) => {
     return;
   }
 
-  // Validate the stored planJson before mutating it. If it doesn't parse,
-  // bail out rather than corrupt the record further.
   const validated = weeklyPlanSchema.safeParse(plan.planJson);
   if (!validated.success) {
     res.status(500).json({ error: "Stored plan is malformed" });
@@ -188,24 +194,98 @@ router.patch("/exercise", requireAuth, async (req, res) => {
   }
 
   const exerciseName = exercise.name;
+  const normalizedKey = normalizeExerciseName(exerciseName);
+  if (!normalizedKey) {
+    res.status(400).json({ error: "Exercise name cannot be normalized" });
+    return;
+  }
   exercise.loadLbs = loadLbs;
 
-  // Persist the plan + a fresh progress log in one transaction so the two
-  // can never drift apart.
   const result = await prisma.$transaction(async (tx) => {
     const updatedPlan = await tx.weeklyPlan.update({
       where: { id: plan.id },
       data: { planJson: planJson as unknown as object },
     });
-    const log = await tx.progressLog.create({
-      data: {
-        userId,
-        weightLbs: null,
-        note: note ?? `New baseline for ${exerciseName}`,
-        liftPRs: { [exerciseName]: loadLbs },
-      },
+    const baseline = await tx.userExerciseBaseline.upsert({
+      where: { userId_normalizedKey: { userId, normalizedKey } },
+      create: { userId, exerciseName, normalizedKey, loadLbs },
+      update: { exerciseName, loadLbs },
     });
-    return { plan: updatedPlan, log };
+    return { plan: updatedPlan, baseline };
+  });
+
+  res.json(result);
+});
+
+/**
+ * Bump the load for an exercise by a delta (default +5 lb). Used by the
+ * "crushed it" UI affordance — same persistence as PATCH /exercise, but
+ * relative to the current displayed weight (or the existing baseline if
+ * the displayed weight is bodyweight/null).
+ */
+router.post("/exercise/bump", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = bumpLoadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { day, index, deltaLbs } = parsed.data;
+
+  const plan = await findActiveWorkoutPlan(userId);
+  if (!plan) {
+    res.status(404).json({ error: "No active workout plan" });
+    return;
+  }
+
+  const validated = weeklyPlanSchema.safeParse(plan.planJson);
+  if (!validated.success) {
+    res.status(500).json({ error: "Stored plan is malformed" });
+    return;
+  }
+  const planJson: WeeklyPlanJson = validated.data;
+
+  const dayEntry = planJson.days.find((d) => d.day === day);
+  const exercise = dayEntry?.exercises[index];
+  if (!dayEntry || !exercise) {
+    res.status(404).json({ error: "Exercise not found at that slot" });
+    return;
+  }
+
+  const exerciseName = exercise.name;
+  const normalizedKey = normalizeExerciseName(exerciseName);
+  if (!normalizedKey) {
+    res.status(400).json({ error: "Exercise name cannot be normalized" });
+    return;
+  }
+
+  const existing = await prisma.userExerciseBaseline.findUnique({
+    where: { userId_normalizedKey: { userId, normalizedKey } },
+  });
+  const current = existing?.loadLbs ?? exercise.loadLbs;
+  if (current == null) {
+    res.status(400).json({ error: "Cannot bump a bodyweight exercise — set a weight first" });
+    return;
+  }
+
+  const newLoad = Math.max(0, current + deltaLbs);
+  if (newLoad <= 0) {
+    res.status(400).json({ error: "Resulting weight must be positive" });
+    return;
+  }
+  exercise.loadLbs = newLoad;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedPlan = await tx.weeklyPlan.update({
+      where: { id: plan.id },
+      data: { planJson: planJson as unknown as object },
+    });
+    const baseline = await tx.userExerciseBaseline.upsert({
+      where: { userId_normalizedKey: { userId, normalizedKey } },
+      create: { userId, exerciseName, normalizedKey, loadLbs: newLoad },
+      update: { exerciseName, loadLbs: newLoad },
+    });
+    return { plan: updatedPlan, baseline };
   });
 
   res.json(result);
