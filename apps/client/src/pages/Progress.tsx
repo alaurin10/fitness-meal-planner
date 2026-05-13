@@ -6,7 +6,8 @@ import { Heatmap } from "../components/Heatmap";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { WeeklyBars } from "../components/WeeklyBars";
-import { Chip, PhoneHeader, Sparkline } from "../components/Primitives";
+import { Chip, PhoneHeader, Sparkline, TimeSparkline } from "../components/Primitives";
+import type { TimeDatum } from "../components/Primitives";
 import { useLogProgress, useProgress } from "../hooks/useProgress";
 import { useStreaks } from "../hooks/useStreaks";
 import { useHistory } from "../hooks/useHistory";
@@ -32,7 +33,7 @@ export function ProgressPage() {
   const today = new Date();
   const todayKey = dayKeyStr(today);
   const twelveWeeksAgo = new Date(today);
-  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 83);
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 182);
   const historyFrom = dayKeyStr(twelveWeeksAgo);
   const historyQuery = useHistory(historyFrom, todayKey);
 
@@ -78,7 +79,7 @@ export function ProgressPage() {
     const todayIdx = dayIdxFromDate(today, weekStartDay);
     let workoutsDone = 0, workoutsTotal = 0, totalSets = 0;
     let totalCal = 0, totalProtein = 0, calDays = 0;
-    let hydrationHits = 0, hydrationDays = 0;
+    let hydrationFractionSum = 0, hydrationDays = 0;
 
     for (let i = 0; i <= todayIdx; i++) {
       const d = new Date(weekStart);
@@ -97,8 +98,10 @@ export function ProgressPage() {
         totalProtein += rec.meals.protein;
         calDays++;
       }
-      hydrationDays++;
-      if (rec.hydration.done) hydrationHits++;
+      if (rec.hydration.goal > 0) {
+        hydrationDays++;
+        hydrationFractionSum += Math.min(rec.hydration.cups / rec.hydration.goal, 1);
+      }
     }
 
     return {
@@ -107,7 +110,7 @@ export function ProgressPage() {
       totalSets,
       avgCalories: calDays > 0 ? Math.round(totalCal / calDays) : 0,
       avgProtein: calDays > 0 ? Math.round(totalProtein / calDays) : 0,
-      hydrationRate: hydrationDays > 0 ? Math.round((hydrationHits / hydrationDays) * 100) : 0,
+      hydrationRate: hydrationDays > 0 ? Math.round((hydrationFractionSum / hydrationDays) * 100) : 0,
     };
   }, [historyQuery.data]);
 
@@ -133,11 +136,11 @@ export function ProgressPage() {
 
     const seriesStart = new Date(today);
     seriesStart.setDate(seriesStart.getDate() - (VOLUME_SERIES_DAYS - 1));
-    const series: number[] = [];
+    const series: TimeDatum[] = [];
     for (let i = 0; i < VOLUME_SERIES_DAYS; i++) {
       const d = new Date(seriesStart);
       d.setDate(d.getDate() + i);
-      series.push(days[dayKeyStr(d)]?.workout.volumeLbs ?? 0);
+      series.push({ date: new Date(d), value: days[dayKeyStr(d)]?.workout.volumeLbs ?? 0 });
     }
 
     const deltaPct = lastWeekTotal > 0
@@ -160,15 +163,15 @@ export function ProgressPage() {
     });
   }, [historyQuery.data]);
 
-  const { series, latest, delta } = useMemo(() => {
+  const { series: weightSeries, latest, delta } = useMemo(() => {
     const sorted = [...(logs ?? [])].sort(
       (a, b) => new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime(),
     );
-    const ws = sorted
+    const ws: TimeDatum[] = sorted
       .filter((l) => l.weightLbs != null)
-      .map((l) => formatWeight(l.weightLbs as number, unitSystem));
-    const last = ws.length ? ws[ws.length - 1] : null;
-    const first = ws.length ? ws[0] : null;
+      .map((l) => ({ date: new Date(l.loggedAt), value: formatWeight(l.weightLbs as number, unitSystem) }));
+    const last = ws.length ? ws[ws.length - 1]!.value : null;
+    const first = ws.length ? ws[0]!.value : null;
     const d = last != null && first != null ? last - first : null;
     return { series: ws, latest: last, delta: d };
   }, [logs, unitSystem]);
@@ -180,7 +183,7 @@ export function ProgressPage() {
         subtitle={
           latest != null
             ? delta != null && delta !== 0
-              ? `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta).toFixed(1)} ${unitLabel} over ${series.length} entries`
+              ? `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta).toFixed(1)} ${unitLabel} over ${weightSeries.length} entries`
               : "Keep logging to see your trend."
             : "Log your first weight to start a trend line."
         }
@@ -252,12 +255,13 @@ export function ProgressPage() {
               </div>
               <Icon name="dumbbell" size={18} style={{ color: "var(--moss)" }} />
             </div>
-            {loadStats.series.some((v) => v > 0) ? (
-              <Sparkline
-                data={loadStats.series}
+            {loadStats.series.some((d) => d.value > 0) ? (
+              <TimeSparkline
+                data={loadStats.series.filter((d) => d.value > 0)}
                 width={340}
-                height={64}
+                height={90}
                 color="var(--moss)"
+                formatValue={(v) => formatLoad(v, unitSystem).toLocaleString()}
               />
             ) : (
               <div
@@ -281,7 +285,7 @@ export function ProgressPage() {
       {/* ── 12-week History Heatmap ──────────────────────────────────── */}
       {heatmapData.length > 0 && (
         <div className="px-4 pt-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>12-week history</div>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Activity history</div>
           <Card>
             <Heatmap data={heatmapData} weeks={12} color="var(--moss)" weekStartDay={weekStartDay} />
             <div style={{ display: "flex", gap: 4, marginTop: 10, alignItems: "center", fontSize: 10, color: "var(--muted)" }}>
@@ -334,12 +338,13 @@ export function ProgressPage() {
               )}
             </div>
           </div>
-          {series.length > 1 ? (
-            <Sparkline
-              data={series.slice(-14)}
+          {weightSeries.length > 1 ? (
+            <TimeSparkline
+              data={weightSeries.slice(-30)}
               width={340}
-              height={64}
+              height={90}
               color="var(--accent)"
+              formatValue={(v) => v.toFixed(1)}
             />
           ) : (
             <div

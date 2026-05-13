@@ -252,3 +252,166 @@ export function Sparkline({
     </svg>
   );
 }
+
+export interface TimeDatum {
+  date: Date;
+  value: number;
+}
+
+export function TimeSparkline({
+  data,
+  width = 340,
+  height = 90,
+  color = "var(--accent)",
+  formatValue,
+}: {
+  data: TimeDatum[];
+  width?: number;
+  height?: number;
+  color?: string;
+  formatValue?: (v: number) => string;
+}) {
+  if (data.length < 2) return null;
+
+  const fmt = formatValue ?? ((v: number) => String(Math.round(v)));
+
+  const LEFT = 36;
+  const BOTTOM = 18;
+  const TOP = 8;
+  const RIGHT = 4;
+  const plotW = width - LEFT - RIGHT;
+  const plotH = height - TOP - BOTTOM;
+
+  const minT = data[0]!.date.getTime();
+  const maxT = data[data.length - 1]!.date.getTime();
+  const timeRange = maxT - minT || 1;
+
+  const values = data.map((d) => d.value);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const vPad = (maxV - minV) * 0.1 || 1;
+  const vMin = minV - vPad;
+  const vMax = maxV + vPad;
+  const vRange = vMax - vMin;
+
+  const pts = data.map((d) => {
+    const x = LEFT + ((d.date.getTime() - minT) / timeRange) * plotW;
+    const y = TOP + plotH - ((d.value - vMin) / vRange) * plotH;
+    return [x, y] as const;
+  });
+
+  const path = pts
+    .map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1))
+    .join(" ");
+  const areaPath =
+    path + ` L${pts[pts.length - 1]![0].toFixed(1)},${TOP + plotH} L${LEFT},${TOP + plotH} Z`;
+
+  const gradId = `tsg_${color.replace(/[^a-zA-Z0-9]/g, "")}`;
+
+  // X-axis labels — first, middle, last
+  const xLabels: { x: number; label: string }[] = [];
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (data.length >= 2) {
+    xLabels.push({ x: pts[0]![0], label: fmtDate(data[0]!.date) });
+    if (data.length >= 4) {
+      const mi = Math.floor(data.length / 2);
+      xLabels.push({ x: pts[mi]![0], label: fmtDate(data[mi]!.date) });
+    }
+    xLabels.push({
+      x: pts[pts.length - 1]![0],
+      label: fmtDate(data[data.length - 1]!.date),
+    });
+  }
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ display: "block", maxWidth: "100%", overflow: "visible" }}
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Y-axis labels */}
+      <text
+        x={LEFT - 4}
+        y={TOP + 4}
+        textAnchor="end"
+        fill="var(--muted)"
+        fontSize="9"
+      >
+        {fmt(maxV)}
+      </text>
+      <text
+        x={LEFT - 4}
+        y={TOP + plotH}
+        textAnchor="end"
+        fill="var(--muted)"
+        fontSize="9"
+      >
+        {fmt(minV)}
+      </text>
+
+      {/* Grid lines */}
+      <line
+        x1={LEFT}
+        y1={TOP}
+        x2={LEFT + plotW}
+        y2={TOP}
+        stroke="var(--hair)"
+        strokeDasharray="3,3"
+      />
+      <line
+        x1={LEFT}
+        y1={TOP + plotH}
+        x2={LEFT + plotW}
+        y2={TOP + plotH}
+        stroke="var(--hair)"
+        strokeDasharray="3,3"
+      />
+
+      {/* Area + line */}
+      <path d={areaPath} fill={`url(#${gradId})`} />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Dots */}
+      {pts.map(([x, y], i) => (
+        <circle
+          key={i}
+          cx={x}
+          cy={y}
+          r={i === pts.length - 1 ? 4 : 1.5}
+          fill={color}
+        />
+      ))}
+
+      {/* X-axis labels */}
+      {xLabels.map((lbl, i) => (
+        <text
+          key={i}
+          x={lbl.x}
+          y={height - 2}
+          textAnchor={
+            i === 0 ? "start" : i === xLabels.length - 1 ? "end" : "middle"
+          }
+          fill="var(--muted)"
+          fontSize="9"
+        >
+          {lbl.label}
+        </text>
+      ))}
+    </svg>
+  );
+}

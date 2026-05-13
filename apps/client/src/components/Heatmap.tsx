@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect, useCallback } from "react";
 import { rotateDays, dayIdxFromDate, type WeekStartDay } from "@platform/shared";
 
 interface HeatmapCell {
@@ -16,7 +17,32 @@ interface Props {
  * GitHub-style contribution heatmap. Renders a grid of weeks × 7 days.
  * Color intensity maps to the level (0–3).
  */
-export function Heatmap({ data, weeks = 12, color = "var(--moss)", weekStartDay = "Mon" }: Props) {
+export function Heatmap({ data, weeks: minWeeks = 12, color = "var(--moss)", weekStartDay = "Mon" }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [computedWeeks, setComputedWeeks] = useState(minWeeks);
+
+  const CELL = 14;
+  const GAP = 3;
+  const LABEL_COL = CELL + 4; // day-label column width
+
+  const measure = useCallback(() => {
+    if (!containerRef.current) return;
+    const w = containerRef.current.clientWidth;
+    const available = w - LABEL_COL;
+    const fitWeeks = Math.floor((available + GAP) / (CELL + GAP));
+    setComputedWeeks(Math.max(minWeeks, fitWeeks));
+  }, [minWeeks]);
+
+  useEffect(() => {
+    measure();
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  const weeks = computedWeeks;
   const dataMap = new Map(data.map((d) => [d.date, d.level]));
 
   const rotated = rotateDays(weekStartDay);
@@ -55,7 +81,7 @@ export function Heatmap({ data, weeks = 12, color = "var(--moss)", weekStartDay 
   }
 
   return (
-    <div style={{ display: "flex", gap: 4 }}>
+    <div ref={containerRef} style={{ display: "flex", gap: 4 }}>
       {/* Day labels */}
       <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingTop: 0 }}>
         {DAY_LABELS.map((label, i) => (
