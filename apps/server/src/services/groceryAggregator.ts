@@ -23,10 +23,9 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
       // on the day the meal was originally cooked.
       if (meal.isLeftover) continue;
 
-      // Scale per-serving ingredient quantities by the meal's serving count
-      // so multi-serving meals (e.g. cook 2 to save 1 for leftovers) add the
-      // correct total to the grocery list.
-      const servings = meal.servings ?? 1;
+      // Ingredient quantities are stored as totals needed to cook the
+      // meal at its `servings` size (cookbook convention), so the
+      // aggregator adds them in as-is without further scaling.
 
       for (const ing of meal.ingredients) {
         const cleanName = normalizeIngredientName(ing.name);
@@ -34,32 +33,26 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
           normalizeCategory(ing.category) ?? classifyCategory(cleanName);
         const key = `${category}::${cleanName.trim().toLowerCase()}`;
 
-        // Build the scaled quantity for this ingredient
-        const scaledQuantity: QuantityJson = {
-          ...ing.quantity,
-          amount: round2(ing.quantity.amount * servings),
-        };
-
         const existing = byKey.get(key);
 
         if (existing) {
           // "to taste" is non-quantitative — skip it when we already have a
           // real quantity, or just keep one instance if that's all we have.
-          const isToTaste = scaledQuantity.unit === "to taste" || scaledQuantity.amount === 0 && scaledQuantity.unit === "to taste";
+          const isToTaste = ing.quantity.unit === "to taste" || ing.quantity.amount === 0 && ing.quantity.unit === "to taste";
           const existingIsToTaste = existing._quantity?.unit === "to taste";
 
           if (isToTaste && (existing._quantity || existing._displayParts)) {
             // Already have a real quantity or parts — ignore the "to taste"
           } else if (existingIsToTaste && !isToTaste) {
             // Replace the existing "to taste" with the real quantity
-            existing._quantity = { ...scaledQuantity };
+            existing._quantity = { ...ing.quantity };
             existing._displayParts = undefined;
-            existing.qty = quantityDisplay(scaledQuantity);
-            existing.amount = scaledQuantity.amount;
-            existing.unit = scaledQuantity.unit;
+            existing.qty = quantityDisplay(ing.quantity);
+            existing.amount = ing.quantity.amount;
+            existing.unit = ing.quantity.unit;
           } else if (existing._displayParts) {
             // Filter out any "to taste" parts before appending
-            const newPart = quantityDisplay(scaledQuantity);
+            const newPart = quantityDisplay(ing.quantity);
             if (newPart !== "to taste") {
               existing._displayParts = existing._displayParts.filter((p) => p !== "to taste");
             }
@@ -68,7 +61,7 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
             existing.amount = undefined;
             existing.unit = undefined;
           } else if (existing._quantity) {
-            const merged = addQuantities(existing._quantity, scaledQuantity);
+            const merged = addQuantities(existing._quantity, ing.quantity);
             if (merged) {
               existing._quantity = merged;
               existing.qty = quantityDisplay(merged);
@@ -77,7 +70,7 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
             } else {
               const parts = [
                 quantityDisplay(existing._quantity),
-                quantityDisplay(scaledQuantity),
+                quantityDisplay(ing.quantity),
               ];
               existing._displayParts = parts;
               existing._quantity = undefined;
@@ -90,14 +83,14 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
           byKey.set(key, {
             id: randomUUID(),
             name: titleCase(cleanName),
-            qty: quantityDisplay(scaledQuantity),
+            qty: quantityDisplay(ing.quantity),
             category,
             checked: false,
             pushed: false,
             source: "auto",
-            amount: scaledQuantity.amount,
-            unit: scaledQuantity.unit,
-            _quantity: { ...scaledQuantity },
+            amount: ing.quantity.amount,
+            unit: ing.quantity.unit,
+            _quantity: { ...ing.quantity },
           });
         }
       }
@@ -117,10 +110,6 @@ function stripInternal(item: AggregatedItem): GroceryItem {
   void _quantity;
   void _displayParts;
   return rest;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function titleCase(name: string): string {

@@ -45,13 +45,13 @@ export function buildSystemPrompt(): string {
     "- Use ONLY these units in `quantity.unit`: 'g','kg','oz','lb','ml','L','tsp','tbsp','cup','fl oz','piece','slice','clove','can','pinch','to taste',''.",
     "  Prefer metric weights for proteins/produce ('g','kg') and standard cooking volumes ('tsp','tbsp','cup') for liquids and small amounts. Use 'piece' for whole-item items (eggs, lemons).",
     "  For 'to taste' items use { amount: 0, unit: 'to taste' }.",
+    "- QUANTITIES: ingredient `quantity.amount` is the TOTAL amount needed to cook the recipe at the `servings` value (cookbook convention). For example, a `servings: 2` meal that needs 7 oz salmon total lists `{ amount: 7, unit: 'oz' }` — NOT 3.5 oz per serving. Macros (calories/proteinG/carbsG/fatG) remain PER SERVING.",
     "- Keep ingredient names consistent across meals (lowercase, singular) so quantities can be aggregated for the grocery list.",
     "- Ingredient names must describe the RAW/uncooked form of the item. Do NOT prefix with cooking states such as 'cooked', 'grilled', 'roasted', 'steamed', 'boiled', 'sautéed', 'baked', etc. For example, use 'chicken breast' not 'cooked chicken breast', 'rice' not 'cooked rice'. Preparation/cooking details belong in the recipe steps, not in the ingredient name.",
     "- Steps must be concrete and ordered: each step is one action a cook can follow without re-reading earlier steps. 4–10 steps per meal is typical.",
     "- Provide 3 meals per day (breakfast, lunch, dinner) unless the user's target clearly needs a snack to hit calories. If you add a snack, set slot:'snack'.",
-    "- All macros (calories/proteinG/carbsG/fatG) are PER SERVING.",
     "- Respect dietary notes strictly.",
-    "- LEFTOVERS: When the meal plan reuses a meal from a previous day as leftovers, mark the leftover entry with `\"isLeftover\": true`. The leftover meal should still have a full ingredients list (same as the original) and steps, but will be excluded from the grocery list. On the ORIGINAL cooking day, set `servings` to the total number of servings needed (e.g. 2 if one serving is eaten that day and one is saved). The ingredient quantities must be PER SERVING (the grocery list will multiply by `servings` automatically). Include a `notes` field like 'Make 2 servings — save 1 for [Day] [slot].' so the user knows not to eat everything.",
+    "- LEFTOVERS: When the meal plan reuses a meal from a previous day as leftovers, mark the leftover entry with `\"isLeftover\": true`. The leftover meal should still have a full ingredients list (same as the original) and steps, but will be excluded from the grocery list. On the ORIGINAL cooking day, set `servings` to the total batch size needed (e.g. 2 if one serving is eaten that day and one is saved) AND list ingredient quantities as the totals required to cook that batch (a 2-serving batch lists 2x the per-serving amount). The grocery list adds these totals as-is. Include a `notes` field like 'Make 2 servings — save 1 for [Day] [slot].' so the user knows not to eat everything.",
   ].join("\n");
 }
 
@@ -145,6 +145,7 @@ export function buildSingleMealSystemPrompt(): string {
     "    tags?: string[];",
     "  }",
     "- Use ONLY these units: 'g','kg','oz','lb','ml','L','tsp','tbsp','cup','fl oz','piece','slice','clove','can','pinch','to taste',''.",
+    "- QUANTITIES: ingredient `quantity.amount` is the TOTAL needed to cook the recipe at the `servings` value (cookbook convention). A `servings: 2` recipe lists the total amounts to cook both servings, not per-serving amounts. Macros remain PER SERVING.",
     "- Lowercase singular ingredient names so they aggregate cleanly with other meals.",
     "- Ingredient names must describe the RAW/uncooked form (e.g. 'chicken breast' not 'cooked chicken breast').",
     "- 4–10 concrete imperative steps.",
