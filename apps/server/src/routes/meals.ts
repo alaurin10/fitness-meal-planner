@@ -404,6 +404,74 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
   }
 });
 
+const dayRegenSchema = z.object({
+  day: z.enum(DAYS),
+  weekStart: weekStartField,
+});
+
+// Regenerate all meals for a single day using Gemini.
+router.post("/regenerate-day", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = dayRegenSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const profile = await prisma.profile.findUnique({ where: { userId } });
+  if (!profile) {
+    res.status(400).json({ error: "Create a profile first" });
+    return;
+  }
+
+  const targetPlan = parsed.data.weekStart
+    ? await findMealPlanForWeek(userId, parseLocalDate(parsed.data.weekStart))
+    : await findActiveMealPlan(userId);
+  if (!targetPlan) {
+    res.status(404).json({ error: "No active meal plan" });
+    return;
+  }
+
+  try {
+    const schedule = await getTrainingSchedule(userId);
+    const freshPlanJson = await generateMealPlan({
+      profile,
+      schedule,
+      daysToGenerate: [parsed.data.day],
+    });
+
+    const freshDay = freshPlanJson.days.find((d) => d.day === parsed.data.day);
+    if (!freshDay) {
+      res.status(503).json({ error: "Generated plan did not include the requested day" });
+      return;
+    }
+
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (planJson) => {
+        const existingDay = planJson.days.find((d) => d.day === parsed.data.day);
+        if (existingDay) {
+          existingDay.meals = freshDay.meals;
+        } else {
+          planJson.days.push(freshDay);
+        }
+        return planJson;
+      },
+    );
+
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    res.json({
+      plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
+      groceryList,
+    });
+  } catch (err) {
+    const message = getGeminiErrorMessage(err);
+    console.error("[meals] regenerate-day failed:", message);
+    res.status(503).json({ error: "Failed to regenerate day", detail: message });
+  }
+});
+
 function pickSlot(
   existing: MealJson | undefined,
   index: number,

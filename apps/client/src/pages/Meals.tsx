@@ -16,6 +16,7 @@ import {
   useCurrentMealPlan,
   useDeleteSlot,
   useGenerateMealPlan,
+  useRegenerateDay,
   useRegenerateSlot,
   useReplaceSlot,
 } from "../hooks/useMealPlan";
@@ -45,6 +46,7 @@ export function MealsPage() {
   const { data: plan, isLoading } = useCurrentMealPlan(viewingWeekStart);
   const generate = useGenerateMealPlan();
   const createEmpty = useCreateEmptyPlan();
+  const regenDay = useRegenerateDay();
   const regenSlot = useRegenerateSlot();
   const replaceSlot = useReplaceSlot();
   const addSlot = useAddSlot();
@@ -132,11 +134,18 @@ export function MealsPage() {
   const dayKcal = meals.reduce((s, m) => s + m.calories, 0);
   const dayProtein = meals.reduce((s, m) => s + m.proteinG, 0);
   const nextSlotForDay = nextSuggestedSlot(meals);
+  const isDayRegenerating =
+    regenDay.isPending && regenDay.variables?.day === activeDay;
   const anyMutation =
+    regenDay.isPending ||
     regenSlot.isPending ||
     replaceSlot.isPending ||
     addSlot.isPending ||
     deleteSlot.isPending;
+
+  function handleRegenerateDay() {
+    regenDay.mutate({ day: activeDay, weekStart: viewingWeekStart });
+  }
 
   function handleRegenerate(index: number) {
     setOpenMenu(null);
@@ -263,7 +272,7 @@ export function MealsPage() {
                 className="font-display mt-1"
                 style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
               >
-                {meals.length ? `${meals.length} meals` : "Nothing planned"}
+                {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>
               <div
                 style={{
@@ -283,13 +292,41 @@ export function MealsPage() {
                 </span>
               </div>
             </div>
-            <Icon name="leaf" size={36} style={{ color: "var(--moss)", flexShrink: 0 }} />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+              <Icon name="leaf" size={36} style={{ color: "var(--moss)" }} />
+              <button
+                type="button"
+                onClick={handleRegenerateDay}
+                disabled={anyMutation}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "transparent",
+                  border: "1px solid var(--hair)",
+                  borderRadius: 99,
+                  padding: "4px 10px",
+                  fontSize: 11.5,
+                  color: "var(--sumi)",
+                  cursor: anyMutation ? "not-allowed" : "pointer",
+                  opacity: anyMutation ? 0.5 : 1,
+                  fontFamily: "var(--font-body)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Icon name="sparkle" size={11} />
+                Regenerate day
+              </button>
+            </div>
           </div>
         </Card>
       </div>
 
       <div className="px-4 pt-3 space-y-2.5">
-        {meals.map((m, i) => {
+        {isDayRegenerating && (
+          <GeneratingProgress kind="meal" estimatedSeconds={45} />
+        )}
+        {!isDayRegenerating && meals.map((m, i) => {
           const total =
             m.totalMinutes ??
             ((m.prepMinutes ?? 0) + (m.cookMinutes ?? 0) || undefined);
@@ -522,13 +559,14 @@ export function MealsPage() {
           <Icon name="plus" size={16} />
           {createEmpty.isPending ? "Starting…" : "Start blank week"}
         </Button>
-        {(generate.isError || regenSlot.isError || replaceSlot.isError || deleteSlot.isError) && (
+        {(generate.isError || regenDay.isError || regenSlot.isError || replaceSlot.isError || deleteSlot.isError) && (
           <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 6 }}>
             {(generate.error ||
+              regenDay.error ||
               regenSlot.error ||
               replaceSlot.error ||
               deleteSlot.error) instanceof Error
-              ? (generate.error || regenSlot.error || replaceSlot.error || deleteSlot.error)!
+              ? (generate.error || regenDay.error || regenSlot.error || replaceSlot.error || deleteSlot.error)!
                   .message
               : "Something went wrong. Try again."}
           </p>

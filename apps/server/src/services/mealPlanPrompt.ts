@@ -184,7 +184,7 @@ export function buildSingleMealUserPrompt(args: {
   }
   if (args.avoidNames && args.avoidNames.length > 0) {
     lines.push(
-      `Avoid recipes that resemble: ${args.avoidNames.join(", ")}.`,
+      `IMPORTANT: Do NOT generate a recipe named ${args.avoidNames.map((n) => `"${n}"`).join(" or ")} or anything substantially similar. You MUST produce a completely different recipe with a different name, different primary ingredients, and a different cooking method.`,
     );
   }
   lines.push("");

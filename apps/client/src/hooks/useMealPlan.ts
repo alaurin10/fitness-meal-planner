@@ -82,6 +82,24 @@ export function useRegenerateSlot() {
   });
 }
 
+export function useRegenerateDay() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { day: MealDay["day"]; weekStart?: string }) => {
+      const { data } = await api.post<PlanResult>(
+        "/api/meals/regenerate-day",
+        args,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meals"] });
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
 export function useReplaceSlot() {
   const api = useApi();
   const qc = useQueryClient();

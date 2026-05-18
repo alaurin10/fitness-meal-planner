@@ -74,7 +74,7 @@ export async function generateSingleMeal(args: {
     const response = await getGeminiClient().models.generateContent({
       model,
       config: {
-        maxOutputTokens: 1200,
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
         systemInstruction: buildSingleMealSystemPrompt(),
       },
