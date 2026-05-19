@@ -526,14 +526,25 @@ export function MealsPage() {
       </div>
 
       <div className="px-4 pt-4 space-y-2">
-        {generate.isPending && (
+        {(generate.isPending || isDayRegenerating) && (
           <GeneratingProgress kind="meal" estimatedSeconds={60} />
         )}
         <Button
           variant="ghost"
           className="w-full"
+          onClick={handleRegenerateDay}
+          disabled={anyMutation}
+        >
+          <Icon name="sparkle" size={16} />
+          {isDayRegenerating
+            ? "Regenerating…"
+            : `Regenerate ${longDay(activeDay)}`}
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full"
           onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
-          disabled={generate.isPending}
+          disabled={anyMutation}
         >
           <Icon name="sparkle" size={16} />
           {generate.isPending
