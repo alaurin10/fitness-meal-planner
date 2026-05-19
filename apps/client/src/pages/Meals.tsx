@@ -292,32 +292,7 @@ export function MealsPage() {
                 </span>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-              <Icon name="leaf" size={36} style={{ color: "var(--moss)" }} />
-              <button
-                type="button"
-                onClick={handleRegenerateDay}
-                disabled={anyMutation}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  background: "transparent",
-                  border: "1px solid var(--hair)",
-                  borderRadius: 99,
-                  padding: "4px 10px",
-                  fontSize: 11.5,
-                  color: "var(--sumi)",
-                  cursor: anyMutation ? "not-allowed" : "pointer",
-                  opacity: anyMutation ? 0.5 : 1,
-                  fontFamily: "var(--font-body)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Icon name="sparkle" size={11} />
-                Regenerate day
-              </button>
-            </div>
+            <Icon name="leaf" size={36} style={{ color: "var(--moss)", flexShrink: 0 }} />
           </div>
         </Card>
       </div>
