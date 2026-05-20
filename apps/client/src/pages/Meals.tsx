@@ -8,6 +8,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
+import { RegenerateHintModal } from "../components/RegenerateHintModal";
 import { WeekSelector } from "../components/WeekSelector";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
@@ -31,6 +32,10 @@ import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
 type PendingPicker =
   | { kind: "replace"; day: MealDay["day"]; index: number; slot?: MealSlot }
   | { kind: "add"; day: MealDay["day"]; slot?: MealSlot };
+
+type PendingHint =
+  | { kind: "slot"; day: MealDay["day"]; index: number; mealName: string }
+  | { kind: "day"; day: MealDay["day"] };
 
 export function MealsPage() {
   const weekStartDay = useWeekStartDay();
@@ -61,6 +66,7 @@ export function MealsPage() {
   );
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [picker, setPicker] = useState<PendingPicker | null>(null);
+  const [hintPrompt, setHintPrompt] = useState<PendingHint | null>(null);
   const completions = useMealCompletions(plan?.id, localDayKey());
   const viewingToday = activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
@@ -143,13 +149,55 @@ export function MealsPage() {
     addSlot.isPending ||
     deleteSlot.isPending;
 
-  function handleRegenerateDay() {
-    regenDay.mutate({ day: activeDay, weekStart: viewingWeekStart });
+  function handleRegenerateDay(suggestion?: string) {
+    regenDay.mutate({
+      day: activeDay,
+      weekStart: viewingWeekStart,
+      suggestion,
+    });
   }
 
-  function handleRegenerate(index: number) {
+  function handleRegenerate(index: number, suggestion?: string) {
     setOpenMenu(null);
-    regenSlot.mutate({ day: activeDay, index, weekStart: viewingWeekStart });
+    regenSlot.mutate({
+      day: activeDay,
+      index,
+      weekStart: viewingWeekStart,
+      suggestion,
+    });
+  }
+
+  function handleOpenSlotHint(index: number) {
+    setOpenMenu(null);
+    const meal = meals[index];
+    setHintPrompt({
+      kind: "slot",
+      day: activeDay,
+      index,
+      mealName: meal?.name ?? "meal",
+    });
+  }
+
+  function handleOpenDayHint() {
+    setHintPrompt({ kind: "day", day: activeDay });
+  }
+
+  function handleHintSubmit(suggestion: string) {
+    if (!hintPrompt) return;
+    if (hintPrompt.kind === "slot") {
+      regenSlot.mutate({
+        day: hintPrompt.day,
+        index: hintPrompt.index,
+        weekStart: viewingWeekStart,
+        suggestion: suggestion || undefined,
+      });
+    } else {
+      regenDay.mutate({
+        day: hintPrompt.day,
+        weekStart: viewingWeekStart,
+        suggestion: suggestion || undefined,
+      });
+    }
   }
 
   function handleDelete(index: number) {
@@ -432,6 +480,7 @@ export function MealsPage() {
                 open={openMenu === i}
                 onToggle={() => setOpenMenu(openMenu === i ? null : i)}
                 onRegenerate={() => handleRegenerate(i)}
+                onRegenerateWithHint={() => handleOpenSlotHint(i)}
                 onSwap={() => handleSwap(i, m.slot ?? undefined)}
                 onDelete={() => handleDelete(i)}
                 disabled={anyMutation}
@@ -507,13 +556,22 @@ export function MealsPage() {
         <Button
           variant="ghost"
           className="w-full"
-          onClick={handleRegenerateDay}
+          onClick={() => handleRegenerateDay()}
           disabled={anyMutation}
         >
           <Icon name="sparkle" size={16} />
           {isDayRegenerating
             ? "Regenerating…"
             : `Regenerate ${longDay(activeDay)}`}
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full"
+          onClick={handleOpenDayHint}
+          disabled={anyMutation}
+        >
+          <Icon name="sparkle" size={16} />
+          {`Regenerate ${longDay(activeDay)} with hint…`}
         </Button>
         <Button
           variant="ghost"
@@ -567,6 +625,18 @@ export function MealsPage() {
         onPick={handlePick}
         onClose={() => setPicker(null)}
       />
+      <RegenerateHintModal
+        open={hintPrompt !== null}
+        title={
+          hintPrompt?.kind === "slot"
+            ? `Regenerate ${hintPrompt.mealName} with a hint`
+            : hintPrompt?.kind === "day"
+              ? `Regenerate ${longDay(hintPrompt.day)} with a hint`
+              : ""
+        }
+        onSubmit={handleHintSubmit}
+        onClose={() => setHintPrompt(null)}
+      />
     </Layout>
   );
 }
@@ -575,6 +645,7 @@ interface SlotMenuProps {
   open: boolean;
   onToggle: () => void;
   onRegenerate: () => void;
+  onRegenerateWithHint: () => void;
   onSwap: () => void;
   onDelete: () => void;
   disabled?: boolean;
@@ -584,6 +655,7 @@ function SlotMenu({
   open,
   onToggle,
   onRegenerate,
+  onRegenerateWithHint,
   onSwap,
   onDelete,
   disabled,
@@ -658,6 +730,14 @@ function SlotMenu({
             onClick={(e) => {
               e.stopPropagation();
               onRegenerate();
+            }}
+          />
+          <MenuItem
+            icon="sparkle"
+            label="Regenerate with hint…"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegenerateWithHint();
             }}
           />
           <MenuItem

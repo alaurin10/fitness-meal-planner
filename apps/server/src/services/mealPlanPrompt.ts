@@ -69,6 +69,7 @@ export function buildUserPrompt(args: {
   profile: Profile;
   schedule: TrainingSchedule;
   daysToGenerate?: DayLabel[];
+  userSuggestion?: string;
 }): string {
   const { profile, schedule } = args;
 
@@ -109,6 +110,12 @@ export function buildUserPrompt(args: {
     COMPLEXITY_GUIDANCE[complexity] ?? COMPLEXITY_GUIDANCE.varied!,
   );
   lines.push("");
+  if (args.userSuggestion?.trim()) {
+    lines.push(
+      `USER PREFERENCE for this generation: ${args.userSuggestion.trim()}. Honor this preference across the meals you produce while still hitting the macro targets above.`,
+    );
+    lines.push("");
+  }
   lines.push(
     `Suggested dailyCalorieTarget: ${suggestedTarget}. You may adjust ±150 kcal if it helps macro targets.`,
   );
@@ -161,6 +168,7 @@ export function buildSingleMealUserPrompt(args: {
   targetCalories?: number;
   targetProteinG?: number;
   avoidNames?: string[];
+  userSuggestion?: string;
 }): string {
   const lines: string[] = [];
   lines.push("Client profile:");
@@ -185,6 +193,11 @@ export function buildSingleMealUserPrompt(args: {
   if (args.avoidNames && args.avoidNames.length > 0) {
     lines.push(
       `IMPORTANT: Do NOT generate a recipe named ${args.avoidNames.map((n) => `"${n}"`).join(" or ")} or anything substantially similar. You MUST produce a completely different recipe with a different name, different primary ingredients, and a different cooking method.`,
+    );
+  }
+  if (args.userSuggestion?.trim()) {
+    lines.push(
+      `USER PREFERENCE: ${args.userSuggestion.trim()}. The generated recipe MUST reflect this preference while still respecting the slot, dietary notes, and macro targets.`,
     );
   }
   lines.push("");
