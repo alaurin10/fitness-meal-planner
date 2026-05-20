@@ -22,7 +22,7 @@ export const CANONICAL_UNITS = [
 ] as const;
 
 export const quantitySchema = z.object({
-  amount: z.number().nonnegative(),
+  amount: z.number().nonnegative().catch(0),
   unit: z.string().default(""),
   display: z.string().optional(),
 });
