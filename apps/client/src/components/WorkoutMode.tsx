@@ -324,7 +324,14 @@ function ActiveScreen({
           justifyContent: "center",
         }}
       >
-        <Stat label="Reps" value={exercise.reps} />
+        {(() => {
+          const repSecs = parseRepSeconds(exercise.reps);
+          return repSecs !== null ? (
+            <RepTimer key={`${exerciseIdx}-${setNum}`} seconds={repSecs} />
+          ) : (
+            <Stat label="Reps" value={exercise.reps} />
+          );
+        })()}
         {editingLoad && onUpdateLoad ? (
           <LoadEditor
             initialLoadLbs={exercise.loadLbs}
@@ -656,6 +663,78 @@ function LoadEditor({
         />
         <span style={{ fontSize: 14, color: "var(--muted)" }}>{unitLabel}</span>
       </div>
+    </div>
+  );
+}
+
+function parseRepSeconds(reps: string): number | null {
+  const t = reps.trim().toLowerCase();
+  const mS = t.match(/^(\d+)\s*s(?:ec(?:onds?)?)?$/);
+  if (mS) return parseInt(mS[1]!, 10);
+  const mTime = t.match(/^(\d+):(\d{2})$/);
+  if (mTime) return parseInt(mTime[1]!, 10) * 60 + parseInt(mTime[2]!, 10);
+  return null;
+}
+
+function RepTimer({ seconds }: { seconds: number }) {
+  const [started, setStarted] = useState(false);
+  const [deadline, setDeadline] = useState(0);
+  const [remaining, setRemaining] = useState(seconds);
+
+  useEffect(() => {
+    if (!started) return;
+    const target = Date.now() + seconds * 1000;
+    setDeadline(target);
+    setRemaining(seconds);
+  }, [started, seconds]);
+
+  useEffect(() => {
+    if (!started) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setRemaining(left);
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [started, deadline]);
+
+  const mm = Math.floor(remaining / 60).toString();
+  const ss = (remaining % 60).toString().padStart(2, "0");
+  const done = started && remaining === 0;
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div className="eyebrow">Rep Timer</div>
+      <div
+        className="font-display"
+        style={{
+          fontSize: 64,
+          color: done ? "var(--accent)" : "var(--ink)",
+          letterSpacing: "0.02em",
+          fontVariantNumeric: "tabular-nums",
+          lineHeight: 1,
+          marginTop: 4,
+        }}
+      >
+        {mm}:{ss}
+      </div>
+      {!started && (
+        <Button
+          variant="ghost"
+          onClick={() => setStarted(true)}
+          style={{ marginTop: 10 }}
+        >
+          Start
+        </Button>
+      )}
     </div>
   );
 }
