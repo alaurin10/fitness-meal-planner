@@ -20,6 +20,7 @@ export async function generateMealPlan(args: {
   profile: Profile;
   schedule: TrainingSchedule;
   daysToGenerate?: DayLabel[];
+  userSuggestion?: string;
 }): Promise<MealPlanJson> {
   return generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({
@@ -69,6 +70,7 @@ export async function generateSingleMeal(args: {
   targetCalories?: number;
   targetProteinG?: number;
   avoidNames?: string[];
+  userSuggestion?: string;
 }): Promise<MealJson> {
   const text = await generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({

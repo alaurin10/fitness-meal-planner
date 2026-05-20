@@ -68,6 +68,7 @@ export function useRegenerateSlot() {
       day: MealDay["day"];
       index: number;
       weekStart?: string;
+      suggestion?: string;
     }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/regenerate",
@@ -86,7 +87,11 @@ export function useRegenerateDay() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { day: MealDay["day"]; weekStart?: string }) => {
+    mutationFn: async (args: {
+      day: MealDay["day"];
+      weekStart?: string;
+      suggestion?: string;
+    }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/regenerate-day",
         args,

@@ -227,6 +227,7 @@ const slotRegenSchema = z.object({
   day: z.enum(DAYS),
   index: z.number().int().nonnegative(),
   weekStart: weekStartField,
+  suggestion: z.string().max(500).optional(),
 });
 
 // Replace a meal at (day, index) with the provided meal payload. Used for
@@ -374,6 +375,7 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
       targetCalories: remainingCal,
       targetProteinG: remainingProtein,
       avoidNames: existing ? [existing.name] : [],
+      userSuggestion: parsed.data.suggestion,
     });
 
     const { plan } = await mutatePlanForWeek(
@@ -407,6 +409,7 @@ router.post("/slot/regenerate", requireAuth, async (req, res) => {
 const dayRegenSchema = z.object({
   day: z.enum(DAYS),
   weekStart: weekStartField,
+  suggestion: z.string().max(500).optional(),
 });
 
 // Regenerate all meals for a single day using Gemini.
@@ -438,6 +441,7 @@ router.post("/regenerate-day", requireAuth, async (req, res) => {
       profile,
       schedule,
       daysToGenerate: [parsed.data.day],
+      userSuggestion: parsed.data.suggestion,
     });
 
     const freshDay = freshPlanJson.days.find((d) => d.day === parsed.data.day);
