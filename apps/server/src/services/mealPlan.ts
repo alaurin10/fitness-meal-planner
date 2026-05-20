@@ -72,34 +72,33 @@ export async function generateSingleMeal(args: {
   avoidNames?: string[];
   userSuggestion?: string;
 }): Promise<MealJson> {
-  const text = await generateWithRetry(async (model) => {
+  return generateWithRetry(async (model) => {
     const response = await getGeminiClient().models.generateContent({
       model,
       config: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
         systemInstruction: buildSingleMealSystemPrompt(),
       },
       contents: buildSingleMealUserPrompt(args),
     });
-    if (!response.text) throw new Error("Gemini returned no text content");
-    return response.text;
+    if (!response.text) throw new GenerationSkipError("Gemini returned no text content");
+
+    let parsed: unknown;
+    try {
+      parsed = parseGeminiJson(response.text);
+    } catch (err) {
+      throw new GenerationSkipError(
+        `Gemini returned invalid JSON: ${(err as Error).message}`,
+      );
+    }
+
+    const validated = mealSchema.safeParse(parsed);
+    if (!validated.success) {
+      throw new GenerationSkipError(
+        `Generated meal failed validation: ${validated.error.message}`,
+      );
+    }
+    return validated.data;
   });
-
-  let parsed: unknown;
-  try {
-    parsed = parseGeminiJson(text);
-  } catch (err) {
-    throw new Error(
-      `Gemini returned invalid JSON: ${(err as Error).message}\n---\n${text.slice(0, 500)}`,
-    );
-  }
-
-  const validated = mealSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new Error(
-      `Generated meal failed validation: ${validated.error.message}`,
-    );
-  }
-  return validated.data;
 }
