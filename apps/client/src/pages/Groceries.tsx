@@ -33,6 +33,13 @@ import {
 } from "../lib/types";
 import { formatQuantity, type UnitSystem } from "../lib/units";
 
+// Tighter padding/gap so the three actions fit one row on a narrow phone.
+const ACTION_BTN: React.CSSProperties = {
+  padding: "11px 8px",
+  gap: 6,
+  whiteSpace: "nowrap",
+};
+
 export function GroceriesPage() {
   const weekStartDay = useWeekStartDay();
   const now = useMemo(() => new Date(), []);
@@ -158,7 +165,7 @@ function ListBody({
         title="Market"
         subtitle={
           total > 0
-            ? `${total - checked} of ${total} items left.`
+            ? undefined
             : hasList
               ? "Your list is empty."
               : "No list yet."
@@ -206,31 +213,35 @@ function ListBody({
         <>
           {total > 0 && <ListProgress checked={checked} total={total} />}
 
-          {/* Compact actions: add (primary) + secondary list ops. */}
-          <div
-            className="px-4 pt-3 md:max-w-[640px] md:mx-auto"
-            style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-          >
-            <Button onClick={() => setAddOpen(true)} style={{ flex: "1 1 140px" }}>
-              <Icon name="plus" size={14} /> Add item
+          {/* Compact actions: add (primary) + secondary list ops, one row. */}
+          <div className="px-4 pt-3 md:max-w-[640px] md:mx-auto grid grid-cols-3 gap-2">
+            <Button
+              className="w-full"
+              onClick={() => setAddOpen(true)}
+              title="Add an item"
+              style={ACTION_BTN}
+            >
+              <Icon name="plus" size={14} /> Add
             </Button>
             <Button
+              className="w-full"
               variant="ghost"
               onClick={onClear}
               disabled={!hasChecked}
-              style={{ flex: "0 0 auto" }}
+              title="Clear checked items"
+              style={ACTION_BTN}
             >
-              <Icon name="check" size={14} /> Clear checked
+              <Icon name="check" size={14} /> Clear
             </Button>
             <Button
+              className="w-full"
               variant="ghost"
               onClick={onRebuild}
               disabled={rebuilding}
-              title="Rebuild auto items from your current meal plan"
-              style={{ flex: "0 0 auto" }}
+              title="Rebuild from your meal plan"
+              style={ACTION_BTN}
             >
-              <Icon name="sparkle" size={14} />
-              {rebuilding ? "Rebuilding…" : "Rebuild"}
+              <Icon name="sparkle" size={14} /> Rebuild
             </Button>
           </div>
 

@@ -112,7 +112,8 @@
 .field-input {
   width: 100%;
   font-family: var(--font-body);
-  font-size: 15px;
+  /* 16px minimum avoids iOS Safari's auto-zoom on focus. */
+  font-size: 16px;
   color: var(--ink);
   background: color-mix(in srgb, var(--paper) 78%, white 22%);
   border: 1px solid var(--hair);
