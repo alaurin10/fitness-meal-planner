@@ -199,6 +199,12 @@ router.patch("/exercise", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Exercise name cannot be normalized" });
     return;
   }
+
+  // Capture the prior working weight so we only log a change when it differs.
+  const existingBaseline = await prisma.userExerciseBaseline.findUnique({
+    where: { userId_normalizedKey: { userId, normalizedKey } },
+  });
+  const previousLoad = existingBaseline?.loadLbs ?? exercise.loadLbs ?? null;
   exercise.loadLbs = loadLbs;
 
   const result = await prisma.$transaction(async (tx) => {
@@ -211,6 +217,13 @@ router.patch("/exercise", requireAuth, async (req, res) => {
       create: { userId, exerciseName, normalizedKey, loadLbs },
       update: { exerciseName, loadLbs },
     });
+    // Record the weight change in the progress log so it surfaces in the
+    // Progress tab's recent entries. Skip no-op saves (same weight).
+    if (previousLoad == null || previousLoad !== loadLbs) {
+      await tx.progressLog.create({
+        data: { userId, weightLbs: null, liftPRs: { [exerciseName]: loadLbs } },
+      });
+    }
     return { plan: updatedPlan, baseline };
   });
 
@@ -284,6 +297,10 @@ router.post("/exercise/bump", requireAuth, async (req, res) => {
       where: { userId_normalizedKey: { userId, normalizedKey } },
       create: { userId, exerciseName, normalizedKey, loadLbs: newLoad },
       update: { exerciseName, loadLbs: newLoad },
+    });
+    // A bump always changes the weight, so always log it for recent entries.
+    await tx.progressLog.create({
+      data: { userId, weightLbs: null, liftPRs: { [exerciseName]: newLoad } },
     });
     return { plan: updatedPlan, baseline };
   });

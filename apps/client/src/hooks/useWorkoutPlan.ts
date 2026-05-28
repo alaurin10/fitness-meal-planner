@@ -78,6 +78,8 @@ export function useUpdateExerciseLoad() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workouts"] });
+      // Load updates also append a progress log entry (recent entries).
+      qc.invalidateQueries({ queryKey: ["progress"] });
     },
   });
 }
@@ -99,6 +101,7 @@ export function useBumpExerciseLoad() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workouts"] });
+      qc.invalidateQueries({ queryKey: ["progress"] });
     },
   });
 }
