@@ -454,63 +454,78 @@ export function ProgressPage() {
         <div className="px-4 pt-4 pb-4">
           <div className="eyebrow" style={{ marginBottom: 10 }}>Recent entries</div>
           <Card flush>
-            {logs.slice(0, 5).map((l, i, arr) => (
-              <div
-                key={l.id}
-                style={{
-                  padding: "10px 16px",
-                  borderBottom:
-                    i < arr.length - 1 ? "1px solid var(--hair)" : "none",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: "var(--ink)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {new Date(l.loggedAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </div>
-                  {l.note && (
+            {logs.slice(0, 5).map((l, i, arr) => {
+              // A log is either a body-weight entry (weightLbs) or an exercise
+              // load update (liftPRs: { [exerciseName]: lbs }). Render both.
+              const lifts = l.liftPRs ? Object.entries(l.liftPRs) : [];
+              const isLift = l.weightLbs == null && lifts.length > 0;
+              const subLabel = isLift
+                ? lifts.map(([name]) => name).join(", ")
+                : l.note;
+              const rightWeight =
+                l.weightLbs != null
+                  ? l.weightLbs
+                  : lifts.length === 1
+                    ? lifts[0]![1]
+                    : null;
+              return (
+                <div
+                  key={l.id}
+                  style={{
+                    padding: "10px 16px",
+                    borderBottom:
+                      i < arr.length - 1 ? "1px solid var(--hair)" : "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 11,
-                        color: "var(--muted)",
-                        marginTop: 2,
+                        fontSize: 12.5,
+                        color: "var(--ink)",
+                        fontWeight: 500,
                       }}
                     >
-                      {l.note}
+                      {new Date(l.loggedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </div>
+                    {subLabel && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {subLabel}
+                      </div>
+                    )}
+                  </div>
+                  {rightWeight != null && (
+                    <div
+                      className="font-display"
+                      style={{ fontSize: 15, color: "var(--sumi)" }}
+                    >
+                      {formatWeight(rightWeight, unitSystem)}
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "var(--muted)",
+                          marginLeft: 2,
+                        }}
+                      >
+                        {unitLabel}
+                      </span>
                     </div>
                   )}
                 </div>
-                {l.weightLbs != null && (
-                  <div
-                    className="font-display"
-                    style={{ fontSize: 15, color: "var(--sumi)" }}
-                  >
-                    {formatWeight(l.weightLbs, unitSystem)}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "var(--muted)",
-                        marginLeft: 2,
-                      }}
-                    >
-                      {unitLabel}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </Card>
         </div>
       )}
