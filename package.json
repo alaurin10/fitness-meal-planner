@@ -10,7 +10,8 @@
     "db:generate": "pnpm --filter @platform/db generate",
     "db:migrate:dev": "pnpm --filter @platform/db migrate:dev",
     "db:migrate:deploy": "pnpm --filter @platform/db migrate:deploy",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

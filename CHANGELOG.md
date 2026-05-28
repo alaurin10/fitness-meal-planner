@@ -18,6 +18,7 @@
 - Performance: route-level code splitting via `React.lazy` + `Suspense` — each page ships in its own chunk
 - Accessibility: `aria-live` region on `GeneratingProgress`; `.sr-only` utility class
 - `Button` now forwards refs
+- Tests: Vitest suite (58 tests) covering the new Gemini retry/backoff/fallback loop, JSON parsing/repair, env-driven model config, macro verification + feedback, the rate-limit middleware, plus existing core utilities (calorie/protein targets, quantity parsing/merging, grocery list merge). Run with `pnpm test`. Production `tsc` build excludes `*.test.ts` via `tsconfig.build.json`.
 
 - Workout session persistence — progress (exercise + set) is saved to localStorage so exiting mid-workout and returning resumes where you left off
 - `useWorkoutSession` hook — localStorage-backed session state scoped to (planId, dayKey), with automatic stale-entry pruning
