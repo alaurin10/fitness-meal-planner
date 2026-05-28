@@ -13,6 +13,7 @@ import {
   type DayLabel,
 } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateWeeklyPlan } from "../services/workoutPlan.js";
 import {
@@ -25,6 +26,13 @@ import {
 } from "../services/workoutPlanSchema.js";
 
 const router = Router();
+
+// Throttle expensive Gemini-backed endpoints per user. Tunable via env.
+const generationLimiter = rateLimit({
+  windowMs: Number(process.env.GENERATION_RATE_WINDOW_MS) || 5 * 60 * 1000,
+  max: Number(process.env.GENERATION_RATE_MAX) || 15,
+  name: "workout generation",
+});
 
 const updateLoadSchema = z.object({
   day: z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
@@ -67,7 +75,7 @@ router.get("/history", requireAuth, async (req, res) => {
   res.json({ plans });
 });
 
-router.post("/generate", requireAuth, async (req, res) => {
+router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
   const userId = currentUserId(req);
   const profile = await prisma.profile.findUnique({ where: { userId } });
   if (!profile) {

@@ -5,8 +5,9 @@ import type {
   WeeklyPlan,
 } from "@platform/db";
 import { normalizeExerciseName, type DayLabel } from "@platform/shared";
-import { generateWithRetry, getGeminiClient, parseGeminiJson, GenerationSkipError } from "./gemini.js";
+import { callGemini, generateWithRetry, GenerationSkipError } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
+import { weeklyPlanResponseSchema } from "./geminiSchemas.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
 
 export async function generateWeeklyPlan(args: {
@@ -16,26 +17,15 @@ export async function generateWeeklyPlan(args: {
   baselines: UserExerciseBaseline[];
   daysToGenerate?: DayLabel[];
 }): Promise<WeeklyPlanJson> {
-  return generateWithRetry(async (model) => {
-    const response = await getGeminiClient().models.generateContent({
+  return generateWithRetry(async (model, attempt) => {
+    const parsed = await callGemini({
       model,
-      config: {
-        maxOutputTokens: 8192,
-        responseMimeType: "application/json",
-        systemInstruction: buildSystemPrompt(),
-      },
+      attempt,
+      maxOutputTokens: 8192,
+      responseSchema: weeklyPlanResponseSchema,
+      systemInstruction: buildSystemPrompt(),
       contents: buildUserPrompt(args),
     });
-    if (!response.text) throw new GenerationSkipError("Gemini returned no text content");
-
-    let parsed: unknown;
-    try {
-      parsed = parseGeminiJson(response.text);
-    } catch (err) {
-      throw new GenerationSkipError(
-        `Gemini returned invalid JSON: ${(err as Error).message}`,
-      );
-    }
 
     const validated = weeklyPlanSchema.safeParse(parsed);
     if (!validated.success) {

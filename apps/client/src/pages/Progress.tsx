@@ -6,6 +6,7 @@ import { Heatmap } from "../components/Heatmap";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { WeeklyBars } from "../components/WeeklyBars";
+import { SkeletonList } from "../components/Skeleton";
 import { Chip, PhoneHeader, Sparkline, TimeSparkline } from "../components/Primitives";
 import type { TimeDatum } from "../components/Primitives";
 import { useLogProgress, useProgress } from "../hooks/useProgress";
@@ -447,7 +448,7 @@ export function ProgressPage() {
       {/* ── Recent entries ───────────────────────────────────────────── */}
       {isLoading && (
         <div className="px-4 pt-4">
-          <Card>Loading history…</Card>
+          <SkeletonList count={3} lines={2} />
         </div>
       )}
       {logs && logs.length > 0 && (

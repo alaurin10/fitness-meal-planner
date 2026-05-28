@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
+import { SkeletonList } from "../components/Skeleton";
 import { useRecipes, type RecipeListFilters } from "../hooks/useRecipes";
 import { RECIPE_CATEGORIES, type RecipeCategory } from "../lib/types";
 import { formatMinutes } from "../lib/units";
@@ -119,7 +120,11 @@ export function RecipesPage() {
       </div>
 
       <div className="px-4 pt-3 space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
-        {isLoading && <Card>Loading…</Card>}
+        {isLoading && (
+          <div className="md:col-span-2">
+            <SkeletonList count={4} />
+          </div>
+        )}
         {!isLoading && (recipes?.length ?? 0) === 0 && (
           <Card tone="clay" className="md:col-span-2">
             <div className="eyebrow">Empty shelf</div>

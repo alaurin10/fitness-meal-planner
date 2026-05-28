@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { SkeletonList } from "../components/Skeleton";
 import {
   useCreateRecipe,
   useRecipe,
@@ -130,7 +131,7 @@ export function RecipeEditorPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={3} />
         </div>
       </Layout>
     );

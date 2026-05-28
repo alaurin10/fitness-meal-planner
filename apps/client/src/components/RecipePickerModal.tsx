@@ -5,6 +5,7 @@ import type { MealSlot, RecipeRecord } from "../lib/types";
 import { formatMinutes } from "../lib/units";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { Skeleton } from "./Skeleton";
 
 interface Props {
   open: boolean;
@@ -106,7 +107,11 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
           }}
         >
           {isLoading && (
-            <div style={{ padding: 20, color: "var(--muted)" }}>Loading…</div>
+            <div style={{ padding: "12px 6px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} height={48} radius={12} />
+              ))}
+            </div>
           )}
           {!isLoading && filtered.length === 0 && (
             <div

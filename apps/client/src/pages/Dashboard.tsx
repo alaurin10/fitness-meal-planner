@@ -11,6 +11,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { ProgressRing } from "../components/ProgressRing";
 import { Chip, PhoneHeader, Ring } from "../components/Primitives";
+import { SkeletonList } from "../components/Skeleton";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
@@ -128,7 +129,7 @@ export function DashboardPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={4} />
         </div>
       </Layout>
     );

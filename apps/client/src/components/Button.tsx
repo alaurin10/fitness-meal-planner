@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "accent" | "ghost" | "plain";
 
@@ -6,11 +6,10 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
 }
 
-export function Button({
-  variant = "primary",
-  className = "",
-  ...rest
-}: Props) {
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
+  { variant = "primary", className = "", ...rest },
+  ref,
+) {
   const variantClass =
     variant === "accent"
       ? "btn-accent"
@@ -19,5 +18,5 @@ export function Button({
         : variant === "plain"
           ? "btn-plain"
           : "btn-primary";
-  return <button {...rest} className={`btn ${variantClass} ${className}`} />;
-}
+  return <button ref={ref} {...rest} className={`btn ${variantClass} ${className}`} />;
+});

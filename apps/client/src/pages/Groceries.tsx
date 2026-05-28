@@ -6,10 +6,12 @@ import {
 } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { useConfirm } from "../components/ConfirmDialog";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader, Ring } from "../components/Primitives";
+import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
 import {
   useAddGroceryItem,
@@ -59,7 +61,7 @@ export function GroceriesPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={4} />
         </div>
       </Layout>
     );
@@ -472,9 +474,11 @@ function CategorySection({
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const remaining = items.filter((i) => !i.checked).length;
   return (
     <div>
+      {confirmDialog}
       <div className="px-6 pt-4 pb-2">
         <button
           type="button"
@@ -517,8 +521,13 @@ function CategorySection({
                       setEditingId(null);
                     }}
                     onCancel={() => setEditingId(null)}
-                    onDelete={() => {
-                      if (window.confirm(`Remove "${item.name}"?`)) {
+                    onDelete={async () => {
+                      const ok = await confirm({
+                        title: `Remove "${item.name}"?`,
+                        confirmLabel: "Remove",
+                        destructive: true,
+                      });
+                      if (ok) {
                         onDelete(item.id);
                         setEditingId(null);
                       }

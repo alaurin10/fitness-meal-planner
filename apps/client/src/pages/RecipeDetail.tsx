@@ -4,6 +4,7 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { MealDetailView } from "../components/MealDetailView";
+import { SkeletonList } from "../components/Skeleton";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
 import {
   localDayKey,
@@ -43,7 +44,7 @@ export function RecipeDetailPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={3} />
         </div>
       </Layout>
     );
