@@ -13,7 +13,6 @@ import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
-import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
   useAddGroceryItem,
   useClearChecked,
@@ -154,6 +153,20 @@ function ListBody({
   generateError,
 }: ListBodyProps) {
   const byCategory = useMemo(() => groupByCategory(items), [items]);
+  // Categories that still have unchecked items come first (in canonical
+  // order); fully-completed categories sort to the bottom so they don't sit
+  // between the lists the shopper is still working through.
+  const orderedCategories = useMemo(() => {
+    const withItems = GROCERY_CATEGORIES.filter(
+      (c) => (byCategory[c]?.length ?? 0) > 0,
+    );
+    const isComplete = (c: GroceryCategory) =>
+      byCategory[c]!.every((i) => i.checked);
+    return [
+      ...withItems.filter((c) => !isComplete(c)),
+      ...withItems.filter((c) => isComplete(c)),
+    ];
+  }, [byCategory]);
   const total = items.length;
   const checked = items.filter((i) => i.checked).length;
   const hasChecked = checked > 0;
@@ -257,14 +270,15 @@ function ListBody({
             // Single column on every breakpoint — varying category lengths
             // leave awkward gaps in a grid.
             <div className="pt-1 md:max-w-[640px] md:mx-auto">
-              {GROCERY_CATEGORIES.map((category) => {
+              {orderedCategories.map((category) => {
                 const entries = byCategory[category] ?? [];
-                if (entries.length === 0) return null;
+                const complete = entries.every((i) => i.checked);
                 return (
                   <CategorySection
                     key={category}
                     category={category}
                     items={entries}
+                    complete={complete}
                     unitSystem={unitSystem}
                     onToggle={onToggle}
                     onUpdate={onUpdate}
@@ -341,7 +355,6 @@ function AddItemSheet({
     category?: GroceryCategory;
   }) => void;
 }) {
-  const isDesktop = useIsDesktop();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("");
   // "auto" ⇒ let the server categorize from the name.
@@ -391,23 +404,23 @@ function AddItemSheet({
         background: "rgba(0,0,0,0.35)",
         zIndex: 70,
         display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
+        // Centered popup (not a bottom sheet) so the on-screen keyboard
+        // doesn't push it up and down.
+        alignItems: "center",
         justifyContent: "center",
+        padding: 16,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: 480,
+          maxWidth: 420,
           background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : undefined,
-          borderTopLeftRadius: isDesktop ? undefined : 24,
-          borderTopRightRadius: isDesktop ? undefined : 24,
+          borderRadius: 24,
           display: "flex",
           flexDirection: "column",
-          padding: "16px 18px",
-          paddingBottom: isDesktop ? 16 : "calc(env(safe-area-inset-bottom, 16px) + 16px)",
+          padding: 18,
         }}
       >
         <div
@@ -492,6 +505,7 @@ function AddItemSheet({
 interface CategorySectionProps {
   category: GroceryCategory;
   items: GroceryItem[];
+  complete: boolean;
   unitSystem: UnitSystem;
   onToggle: (id: string, checked: boolean) => void;
   onUpdate: (
@@ -504,6 +518,7 @@ interface CategorySectionProps {
 function CategorySection({
   category,
   items,
+  complete,
   unitSystem,
   onToggle,
   onUpdate,
@@ -514,7 +529,7 @@ function CategorySection({
   const { confirm, dialog: confirmDialog } = useConfirm();
   const remaining = items.filter((i) => !i.checked).length;
   return (
-    <div>
+    <div style={{ opacity: complete ? 0.5 : 1, transition: "opacity 220ms ease" }}>
       {confirmDialog}
       <div className="px-6 pt-4 pb-2">
         <button
@@ -523,11 +538,25 @@ function CategorySection({
           onClick={() => setCollapsed((c) => !c)}
           style={{ background: "none", border: "none", padding: 0 }}
         >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div className="eyebrow">{category}</div>
-            <span style={{ fontSize: 11, color: "var(--muted)" }}>
-              {items.length === 0 ? "0" : `${remaining} / ${items.length}`}
-            </span>
+            {complete ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 11,
+                  color: "var(--moss)",
+                }}
+              >
+                <Icon name="check" size={12} stroke={2.5} /> Done
+              </span>
+            ) : (
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                {`${remaining} / ${items.length}`}
+              </span>
+            )}
           </div>
           <span
             style={{
