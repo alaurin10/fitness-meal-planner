@@ -13,7 +13,6 @@ import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
-import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
   useAddGroceryItem,
   useClearChecked,
@@ -341,7 +340,6 @@ function AddItemSheet({
     category?: GroceryCategory;
   }) => void;
 }) {
-  const isDesktop = useIsDesktop();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("");
   // "auto" ⇒ let the server categorize from the name.
@@ -391,23 +389,23 @@ function AddItemSheet({
         background: "rgba(0,0,0,0.35)",
         zIndex: 70,
         display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
+        // Centered popup (not a bottom sheet) so the on-screen keyboard
+        // doesn't push it up and down.
+        alignItems: "center",
         justifyContent: "center",
+        padding: 16,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: 480,
+          maxWidth: 420,
           background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : undefined,
-          borderTopLeftRadius: isDesktop ? undefined : 24,
-          borderTopRightRadius: isDesktop ? undefined : 24,
+          borderRadius: 24,
           display: "flex",
           flexDirection: "column",
-          padding: "16px 18px",
-          paddingBottom: isDesktop ? 16 : "calc(env(safe-area-inset-bottom, 16px) + 16px)",
+          padding: 18,
         }}
       >
         <div
