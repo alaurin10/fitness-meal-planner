@@ -9,6 +9,7 @@ import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { PlanInfo } from "../components/PlanInfo";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
@@ -278,12 +279,15 @@ export function MealsPage() {
       <PhoneHeader
         title="Meals"
         right={
-          <WeekSelector
-            viewingWeekStart={viewingWeekStart}
-            thisWeekStart={thisWeekStart}
-            nextWeekStart={nextWeekStart}
-            onChange={setViewingWeekStart}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
+            <WeekSelector
+              viewingWeekStart={viewingWeekStart}
+              thisWeekStart={thisWeekStart}
+              nextWeekStart={nextWeekStart}
+              onChange={setViewingWeekStart}
+            />
+          </div>
         }
       />
 

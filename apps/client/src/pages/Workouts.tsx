@@ -6,6 +6,7 @@ import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { PlanInfo } from "../components/PlanInfo";
 import { PhoneHeader } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
@@ -295,14 +296,22 @@ export function WorkoutsPage() {
     <Layout>
       <PhoneHeader
         title="Workouts"
-        subtitle={plan.planJson.summary}
         right={
-          <WeekSelector
-            viewingWeekStart={viewingWeekStart}
-            thisWeekStart={thisWeekStart}
-            nextWeekStart={nextWeekStart}
-            onChange={setViewingWeekStart}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <PlanInfo
+              title="About this plan"
+              sections={[
+                { text: plan.planJson.summary },
+                { label: "Progression", text: plan.planJson.progressionNotes },
+              ]}
+            />
+            <WeekSelector
+              viewingWeekStart={viewingWeekStart}
+              thisWeekStart={thisWeekStart}
+              nextWeekStart={nextWeekStart}
+              onChange={setViewingWeekStart}
+            />
+          </div>
         }
       />
 
