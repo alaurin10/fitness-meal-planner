@@ -277,7 +277,6 @@ export function MealsPage() {
     <Layout>
       <PhoneHeader
         title="Meals"
-        subtitle={plan.planJson.summary}
         right={
           <WeekSelector
             viewingWeekStart={viewingWeekStart}
