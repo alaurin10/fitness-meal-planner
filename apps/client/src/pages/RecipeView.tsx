@@ -1,9 +1,11 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { useConfirm } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { MealDetailView } from "../components/MealDetailView";
+import { SkeletonList } from "../components/Skeleton";
 import {
   useDeleteRecipe,
   useRecipe,
@@ -24,12 +26,13 @@ export function RecipeViewPage() {
   const { data: recipe, isLoading } = useRecipe(id);
   const update = useUpdateRecipe();
   const del = useDeleteRecipe();
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   if (isLoading) {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={3} />
         </div>
       </Layout>
     );
@@ -121,12 +124,14 @@ export function RecipeViewPage() {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Delete “${recipe.name}” from your recipe book?`,
-                  )
-                ) {
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Delete "${recipe.name}"?`,
+                  message: "This removes the recipe from your recipe book.",
+                  confirmLabel: "Delete",
+                  destructive: true,
+                });
+                if (ok) {
                   del.mutate(recipe.id, {
                     onSuccess: () => navigate("/recipes"),
                   });
@@ -141,6 +146,7 @@ export function RecipeViewPage() {
           </div>
         }
       />
+      {confirmDialog}
     </Layout>
   );
 }

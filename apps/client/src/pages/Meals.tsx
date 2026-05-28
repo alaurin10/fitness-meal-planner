@@ -3,14 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { useConfirm } from "../components/ConfirmDialog";
+import { DayMacroSummary } from "../components/DayMacroSummary";
+import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
+import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
 import { useIsDesktop } from "../hooks/useIsDesktop";
+import { useProfile } from "../hooks/useProfile";
 import {
   useAddSlot,
   useCreateEmptyPlan,
@@ -57,6 +62,8 @@ export function MealsPage() {
   const addSlot = useAddSlot();
   const deleteSlot = useDeleteSlot();
   const { data: settings } = useSettings();
+  const { data: profile } = useProfile();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
@@ -75,7 +82,7 @@ export function MealsPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={4} />
         </div>
       </Layout>
     );
@@ -124,9 +131,12 @@ export function MealsPage() {
                 {createEmpty.isPending ? "Starting…" : "Start blank week"}
               </Button>
               {generate.isError && (
-                <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
-                  {(generate.error as Error).message}
-                </p>
+                <ErrorState
+                  compact
+                  error={generate.error}
+                  retrying={generate.isPending}
+                  onRetry={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+                />
               )}
             </Card>
           )}
@@ -200,9 +210,15 @@ export function MealsPage() {
     }
   }
 
-  function handleDelete(index: number) {
+  async function handleDelete(index: number) {
     setOpenMenu(null);
-    if (!window.confirm("Remove this meal from the day?")) return;
+    const ok = await confirm({
+      title: "Remove this meal?",
+      message: "It will be taken off this day and the grocery list updated.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteSlot.mutate({ day: activeDay, index, weekStart: viewingWeekStart });
   }
 
@@ -230,6 +246,31 @@ export function MealsPage() {
       addSlot.mutate({ day: picker.day, meal, weekStart: viewingWeekStart });
     }
     setPicker(null);
+  }
+
+  const anyError =
+    generate.isError ||
+    regenDay.isError ||
+    regenSlot.isError ||
+    replaceSlot.isError ||
+    addSlot.isError ||
+    deleteSlot.isError;
+  const firstError =
+    generate.error ||
+    regenDay.error ||
+    regenSlot.error ||
+    replaceSlot.error ||
+    addSlot.error ||
+    deleteSlot.error;
+
+  // Re-run whichever mutation last failed, using its stored variables.
+  function retryErrored() {
+    if (generate.isError && generate.variables) generate.mutate(generate.variables);
+    else if (regenDay.isError && regenDay.variables) regenDay.mutate(regenDay.variables);
+    else if (regenSlot.isError && regenSlot.variables) regenSlot.mutate(regenSlot.variables);
+    else if (replaceSlot.isError && replaceSlot.variables) replaceSlot.mutate(replaceSlot.variables);
+    else if (addSlot.isError && addSlot.variables) addSlot.mutate(addSlot.variables);
+    else if (deleteSlot.isError && deleteSlot.variables) deleteSlot.mutate(deleteSlot.variables);
   }
 
   return (
@@ -342,6 +383,16 @@ export function MealsPage() {
             </div>
             <Icon name="leaf" size={36} style={{ color: "var(--moss)", flexShrink: 0 }} />
           </div>
+          <DayMacroSummary
+            meals={meals}
+            calorieTarget={
+              plan.planJson.dailyCalorieTarget ||
+              profile?.profile?.caloricTarget ||
+              profile?.suggested?.caloricTarget ||
+              undefined
+            }
+            proteinTarget={profile?.profile?.proteinTargetG ?? profile?.suggested?.proteinTargetG}
+          />
         </Card>
       </div>
 
@@ -589,31 +640,22 @@ export function MealsPage() {
         <Button
           variant="ghost"
           className="w-full"
-          onClick={() => {
-            if (
-              window.confirm(
-                "Replace the current plan with a blank week? Auto grocery items will be cleared.",
-              )
-            ) {
-              createEmpty.mutate({ targetWeekStart: viewingWeekStart });
-            }
+          onClick={async () => {
+            const ok = await confirm({
+              title: "Start a blank week?",
+              message: "This replaces the current plan with an empty week. Auto grocery items will be cleared.",
+              confirmLabel: "Start blank",
+              destructive: true,
+            });
+            if (ok) createEmpty.mutate({ targetWeekStart: viewingWeekStart });
           }}
           disabled={createEmpty.isPending}
         >
           <Icon name="plus" size={16} />
           {createEmpty.isPending ? "Starting…" : "Start blank week"}
         </Button>
-        {(generate.isError || regenDay.isError || regenSlot.isError || replaceSlot.isError || deleteSlot.isError) && (
-          <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 6 }}>
-            {(generate.error ||
-              regenDay.error ||
-              regenSlot.error ||
-              replaceSlot.error ||
-              deleteSlot.error) instanceof Error
-              ? (generate.error || regenDay.error || regenSlot.error || replaceSlot.error || deleteSlot.error)!
-                  .message
-              : "Something went wrong. Try again."}
-          </p>
+        {anyError && (
+          <ErrorState compact error={firstError} onRetry={retryErrored} retrying={anyMutation} />
         )}
       </div>
       </div>
@@ -637,6 +679,7 @@ export function MealsPage() {
         onSubmit={handleHintSubmit}
         onClose={() => setHintPrompt(null)}
       />
+      {confirmDialog}
     </Layout>
   );
 }

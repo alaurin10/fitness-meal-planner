@@ -101,7 +101,7 @@ export function GeneratingProgress({ kind, estimatedSeconds = 45 }: Props) {
             <Icon name="sparkle" size={22} />
           </div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }} role="status" aria-live="polite">
           <div className="eyebrow">Generating</div>
           <div
             className="font-display"

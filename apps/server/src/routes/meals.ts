@@ -10,6 +10,7 @@ import {
   type WeekStartDay,
 } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateMealPlan, generateSingleMeal } from "../services/mealPlan.js";
 import { getTrainingSchedule } from "../services/schedule.js";
@@ -36,6 +37,13 @@ const mealCompletionSchema = z.object({
 
 const router = Router();
 
+// Throttle expensive Gemini-backed endpoints per user. Tunable via env.
+const generationLimiter = rateLimit({
+  windowMs: Number(process.env.GENERATION_RATE_WINDOW_MS) || 5 * 60 * 1000,
+  max: Number(process.env.GENERATION_RATE_MAX) || 15,
+  name: "meal generation",
+});
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 router.get("/current", requireAuth, async (req, res) => {
@@ -56,7 +64,7 @@ router.get("/current", requireAuth, async (req, res) => {
   });
 });
 
-router.post("/generate", requireAuth, async (req, res) => {
+router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
   const userId = currentUserId(req);
   const profile = await prisma.profile.findUnique({ where: { userId } });
   if (!profile) {
@@ -323,7 +331,7 @@ router.delete("/slot", requireAuth, async (req, res) => {
 });
 
 // Regenerate a single meal at (day, index) using Gemini.
-router.post("/slot/regenerate", requireAuth, async (req, res) => {
+router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res) => {
   const userId = currentUserId(req);
   const parsed = slotRegenSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -413,7 +421,7 @@ const dayRegenSchema = z.object({
 });
 
 // Regenerate all meals for a single day using Gemini.
-router.post("/regenerate-day", requireAuth, async (req, res) => {
+router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) => {
   const userId = currentUserId(req);
   const parsed = dayRegenSchema.safeParse(req.body);
   if (!parsed.success) {

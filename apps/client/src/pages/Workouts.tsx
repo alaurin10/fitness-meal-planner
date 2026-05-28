@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
 import { WorkoutMode } from "../components/WorkoutMode";
 import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useActivities";
@@ -76,7 +78,7 @@ export function WorkoutsPage() {
     return (
       <Layout>
         <div className="px-4 py-4">
-          <Card>Loading…</Card>
+          <SkeletonList count={4} />
         </div>
       </Layout>
     );
@@ -116,9 +118,12 @@ export function WorkoutsPage() {
                 Generate plan
               </Button>
               {generate.isError && (
-                <p style={{ color: "var(--rose)", fontSize: 12.5, marginTop: 12 }}>
-                  {(generate.error as Error).message}
-                </p>
+                <ErrorState
+                  compact
+                  error={generate.error}
+                  retrying={generate.isPending}
+                  onRetry={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+                />
               )}
             </Card>
           )}
@@ -677,9 +682,12 @@ export function WorkoutsPage() {
           {generate.isPending ? "Regenerating…" : "Regenerate plan"}
         </Button>
         {generate.isError && (
-          <p style={{ color: "var(--rose)", fontSize: 12.5 }}>
-            {(generate.error as Error).message}
-          </p>
+          <ErrorState
+            compact
+            error={generate.error}
+            retrying={generate.isPending}
+            onRetry={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+          />
         )}
       </div>
 

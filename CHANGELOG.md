@@ -4,6 +4,21 @@
 
 ### Added
 
+- AI reliability: native Gemini structured output (`responseSchema`) for meal, single-meal, and workout generation — the model emits schema-conforming JSON directly, reducing malformed/truncated responses (Zod validation retained as defense-in-depth)
+- AI reliability: per-call timeout (`GEMINI_TIMEOUT_MS`, default 90s) via `AbortController`, plus same-model retry with exponential backoff + jitter before falling back to weaker models (`GEMINI_RETRIES`, default 2)
+- AI reliability: response truncation detection (`finishReason: MAX_TOKENS`) treated as a retryable bad response
+- AI config: env-driven model selection — `GEMINI_MODEL` (primary) and `GEMINI_FALLBACK_MODELS` (comma-separated) so models can be swapped without a code change
+- AI observability: one structured JSON log line per generation attempt (model, attempt, latency, finishReason, token usage, outcome)
+- AI consistency: post-generation macro verification — day totals are checked against calorie/protein targets and one bounded corrective regeneration pass fixes off-target days (tunable via `GEMINI_MACRO_CHECK`, `GEMINI_MACRO_CALORIE_TOLERANCE_PCT`, `GEMINI_MACRO_PROTEIN_TOLERANCE_PCT`, `GEMINI_MACRO_MAX_DAYS`)
+- Per-user rate limiting on AI generation endpoints (`GENERATION_RATE_MAX`, `GENERATION_RATE_WINDOW_MS`) returning HTTP 429 with `Retry-After`
+- UX: `Skeleton` / `SkeletonCard` / `SkeletonList` components replace bare "Loading…" text across Dashboard, Meals, Workouts, Groceries, Recipes, Progress, recipe pages, and the recipe picker
+- UX: `ErrorState` component with a "Try again" action; wired into Meals and Workouts generation errors (retries the failed mutation)
+- UX: accessible `ConfirmDialog` + `useConfirm` hook replacing native `window.confirm` in Meals, Groceries, and RecipeView
+- UX: `DayMacroSummary` on the Meals page — per-day calorie/protein/carb/fat totals vs target with color-coded under/on/over indicators
+- Performance: route-level code splitting via `React.lazy` + `Suspense` — each page ships in its own chunk
+- Accessibility: `aria-live` region on `GeneratingProgress`; `.sr-only` utility class
+- `Button` now forwards refs
+
 - Workout session persistence — progress (exercise + set) is saved to localStorage so exiting mid-workout and returning resumes where you left off
 - `useWorkoutSession` hook — localStorage-backed session state scoped to (planId, dayKey), with automatic stale-entry pruning
 - `ProgressRing` component — SVG circular progress indicator with animated fill and optional centre label

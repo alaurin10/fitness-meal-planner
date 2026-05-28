@@ -129,6 +129,26 @@ In production, Railway runs `pnpm --filter @platform/db migrate:deploy:<app>` as
 
 ---
 
+## AI generation environment variables (server)
+
+All optional except `GEMINI_API_KEY`; sensible defaults are baked in.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | — | **Required.** Google Gemini API key. |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Primary generation model. |
+| `GEMINI_FALLBACK_MODELS` | built-in list | Comma-separated fallback models, tried in order. |
+| `GEMINI_TIMEOUT_MS` | `90000` | Per-call wall-clock timeout. |
+| `GEMINI_RETRIES` | `2` | Attempts per model (incl. first) before falling back. |
+| `GEMINI_MACRO_CHECK` | `true` | Set `false` to disable post-generation macro verification. |
+| `GEMINI_MACRO_CALORIE_TOLERANCE_PCT` | `12` | Allowed ± calorie deviation per day before a corrective pass. |
+| `GEMINI_MACRO_PROTEIN_TOLERANCE_PCT` | `15` | Allowed protein shortfall per day before a corrective pass. |
+| `GEMINI_MACRO_MAX_DAYS` | `3` | Max days fixed in a single corrective pass (bounds cost). |
+| `GENERATION_RATE_MAX` | `15` | Max generation requests per user per window. |
+| `GENERATION_RATE_WINDOW_MS` | `300000` | Rate-limit window length (5 min). |
+
+---
+
 ## iOS Shortcut (optional)
 
 The Meals app has a fully functional in-app grocery list, so this is only needed if you want groceries to also land in iOS Reminders.
