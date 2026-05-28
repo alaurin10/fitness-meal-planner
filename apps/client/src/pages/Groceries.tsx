@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addWeeks,
   localDayKey as sharedLocalDayKey,
@@ -10,9 +10,10 @@ import { useConfirm } from "../components/ConfirmDialog";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
-import { PhoneHeader, Ring } from "../components/Primitives";
+import { PhoneHeader } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
+import { useIsDesktop } from "../hooks/useIsDesktop";
 import {
   useAddGroceryItem,
   useClearChecked,
@@ -149,40 +150,7 @@ function ListBody({
   const total = items.length;
   const checked = items.filter((i) => i.checked).length;
   const hasChecked = checked > 0;
-  const pct = total > 0 ? checked / total : 0;
-  const [openAdd, setOpenAdd] = useState<GroceryCategory | null>(null);
-  const [quickAddName, setQuickAddName] = useState("");
-  const [quickAddQty, setQuickAddQty] = useState("");
-  // null/undefined ⇒ let the server auto-categorize from the name.
-  const [quickAddCategory, setQuickAddCategory] = useState<
-    GroceryCategory | "auto"
-  >("auto");
-  const [quickAddFocused, setQuickAddFocused] = useState(false);
-  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleFocus = useCallback(() => {
-    if (blurTimeout.current) clearTimeout(blurTimeout.current);
-    setQuickAddFocused(true);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    blurTimeout.current = setTimeout(() => setQuickAddFocused(false), 150);
-  }, []);
-
-  function handleQuickAdd() {
-    const name = quickAddName.trim();
-    if (!name) return;
-    onAdd({
-      name,
-      qty: quickAddQty.trim() || undefined,
-      category:
-        quickAddCategory === "auto" ? undefined : quickAddCategory,
-    });
-    setQuickAddName("");
-    setQuickAddQty("");
-    // Keep the category sticky — likely the user is adding multiple
-    // items of the same kind in a row.
-  }
+  const [addOpen, setAddOpen] = useState(false);
 
   return (
     <>
@@ -234,209 +202,279 @@ function ListBody({
         </div>
       )}
 
-      {/* Progress hero */}
-      <div className="px-4 pt-1">
-        <Card tone="gradient" className="flex items-center gap-4">
-          <Ring
-            value={pct}
-            size={96}
-            color="var(--moss)"
-            label={`${checked}/${total}`}
-            sublabel="Gotten"
-          />
-          <div className="flex-1 flex flex-col gap-2">
-            <div
-              className="font-display"
-              style={{
-                fontSize: 18,
-                color: "var(--ink)",
-                letterSpacing: "-0.01em",
-                lineHeight: 1.2,
-              }}
-            >
-              {total === 0
-                ? "Nothing on the list yet."
-                : pct >= 1
-                  ? "Pantry stocked."
-                  : pct > 0
-                    ? "A good start."
-                    : "Ready to gather."}
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--sumi)" }}>
-              {checked} of {total} marked off.
-            </div>
-          </div>
-        </Card>
-      </div>
+      {hasList && (
+        <>
+          {total > 0 && <ListProgress checked={checked} total={total} />}
 
-      {/* Actions */}
-      <div className="px-4 pt-3 grid grid-cols-2 gap-2">
-        <Button
-          variant="ghost"
-          onClick={onClear}
-          disabled={!hasChecked}
-          className="w-full"
-        >
-          <Icon name="check" size={14} /> Clear checked
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onRebuild}
-          disabled={rebuilding}
-          className="w-full"
-          title="Rebuild auto items from your current meal plan"
-        >
-          <Icon name="sparkle" size={14} />
-          {rebuilding ? "Rebuilding…" : "Rebuild from plan"}
-        </Button>
-      </div>
-
-      {/* Quick add — pick a category, or let the server auto-sort. */}
-      <div className="px-4 pt-3">
-        <Card flush>
+          {/* Compact actions: add (primary) + secondary list ops. */}
           <div
-            style={{
-              padding: "10px 12px",
-              display: "grid",
-              gridTemplateColumns: "1fr 80px auto",
-              gap: 6,
-              alignItems: "center",
-            }}
+            className="px-4 pt-3 md:max-w-[640px] md:mx-auto"
+            style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
           >
-            <input
-              className="field-input"
-              placeholder="Quick add — e.g. avocado"
-              value={quickAddName}
-              onChange={(e) => setQuickAddName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleQuickAdd();
-              }}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
-            <input
-              className="field-input"
-              placeholder="Qty"
-              value={quickAddQty}
-              onChange={(e) => setQuickAddQty(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleQuickAdd();
-              }}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
+            <Button onClick={() => setAddOpen(true)} style={{ flex: "1 1 140px" }}>
+              <Icon name="plus" size={14} /> Add item
+            </Button>
             <Button
-              onClick={handleQuickAdd}
-              disabled={!quickAddName.trim()}
-              style={{ padding: "8px 12px" }}
-              title="Add to grocery list"
+              variant="ghost"
+              onClick={onClear}
+              disabled={!hasChecked}
+              style={{ flex: "0 0 auto" }}
             >
-              <Icon name="plus" size={13} />
+              <Icon name="check" size={14} /> Clear checked
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={onRebuild}
+              disabled={rebuilding}
+              title="Rebuild auto items from your current meal plan"
+              style={{ flex: "0 0 auto" }}
+            >
+              <Icon name="sparkle" size={14} />
+              {rebuilding ? "Rebuilding…" : "Rebuild"}
             </Button>
           </div>
-          {quickAddFocused && (
-            <div
-              style={{
-                padding: "0 12px 10px",
-                display: "flex",
-                gap: 4,
-                flexWrap: "wrap",
-              }}
-            >
-              <CategoryChip
-                active={quickAddCategory === "auto"}
-                onClick={() => setQuickAddCategory("auto")}
-              >
-                Auto
-              </CategoryChip>
-              {GROCERY_CATEGORIES.map((c) => (
-                <CategoryChip
-                  key={c}
-                  active={quickAddCategory === c}
-                  onClick={() => setQuickAddCategory(c)}
-                >
-                  {c}
-                </CategoryChip>
-              ))}
+
+          {total === 0 ? (
+            <div className="px-4 pt-4 md:max-w-[640px] md:mx-auto">
+              <Card>
+                <div style={{ fontSize: 13.5, color: "var(--sumi)", lineHeight: 1.5 }}>
+                  Your list is empty. Add an item above, or rebuild it from your meal plan.
+                </div>
+              </Card>
+            </div>
+          ) : (
+            // Single column on every breakpoint — varying category lengths
+            // leave awkward gaps in a grid.
+            <div className="pt-1 md:max-w-[640px] md:mx-auto">
+              {GROCERY_CATEGORIES.map((category) => {
+                const entries = byCategory[category] ?? [];
+                if (entries.length === 0) return null;
+                return (
+                  <CategorySection
+                    key={category}
+                    category={category}
+                    items={entries}
+                    unitSystem={unitSystem}
+                    onToggle={onToggle}
+                    onUpdate={onUpdate}
+                    onDelete={onDelete}
+                  />
+                );
+              })}
             </div>
           )}
-        </Card>
-      </div>
 
-      {/* Categories — single column on every breakpoint, since varying
-          category lengths leave awkward gaps in a grid. */}
-      <div className="pt-1 md:max-w-[640px] md:mx-auto">
-        {GROCERY_CATEGORIES.map((category) => {
-          const entries = byCategory[category] ?? [];
-          // Always show category if it has items OR if it's the one being added to.
-          if (entries.length === 0 && openAdd !== category) return null;
-          return (
-            <CategorySection
-              key={category}
-              category={category}
-              items={entries}
-              unitSystem={unitSystem}
-              onToggle={onToggle}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onAdd={(input) => {
-                onAdd(input);
-                setOpenAdd(null);
-              }}
-              isAdding={openAdd === category}
-              onOpenAdd={() => setOpenAdd(category)}
-              onCloseAdd={() => setOpenAdd(null)}
-            />
-          );
-        })}
-      </div>
-
-      {/* Disclosure to explicitly target an empty category. */}
-      <div className="px-4 pt-3 pb-2">
-        <details>
-          <summary
-            style={{
-              listStyle: "none",
-              cursor: "pointer",
-              fontSize: 12.5,
-              color: "var(--sumi)",
-              padding: "8px 4px",
-            }}
-          >
-            + Add to a specific category…
-          </summary>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 6,
-            }}
-          >
-            {GROCERY_CATEGORIES.filter(
-              (c) => (byCategory[c]?.length ?? 0) === 0,
-            ).map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setOpenAdd(c)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 99,
-                  border: "1px solid var(--hair)",
-                  background: "var(--paper)",
-                  fontSize: 12,
-                  color: "var(--ink)",
-                  cursor: "pointer",
-                }}
-              >
-                + {c}
-              </button>
-            ))}
-          </div>
-        </details>
-      </div>
+          <AddItemSheet
+            open={addOpen}
+            onClose={() => setAddOpen(false)}
+            onAdd={onAdd}
+          />
+        </>
+      )}
     </>
+  );
+}
+
+function ListProgress({ checked, total }: { checked: number; total: number }) {
+  const pct = total > 0 ? checked / total : 0;
+  return (
+    <div className="px-4 pt-2 md:max-w-[640px] md:mx-auto">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          marginBottom: 6,
+        }}
+      >
+        <span style={{ fontSize: 12.5, color: "var(--sumi)" }}>
+          {checked} of {total} gathered
+        </span>
+        <span style={{ fontSize: 11.5, color: "var(--muted)", fontFamily: "var(--font-mono)" }}>
+          {Math.round(pct * 100)}%
+        </span>
+      </div>
+      <div
+        aria-hidden
+        style={{
+          height: 6,
+          borderRadius: 99,
+          background: "color-mix(in srgb, var(--muted) 18%, transparent)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${pct * 100}%`,
+            height: "100%",
+            background: "var(--moss)",
+            borderRadius: 99,
+            transition: "width 320ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AddItemSheet({
+  open,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (input: {
+    name: string;
+    qty?: string;
+    category?: GroceryCategory;
+  }) => void;
+}) {
+  const isDesktop = useIsDesktop();
+  const [name, setName] = useState("");
+  const [qty, setQty] = useState("");
+  // "auto" ⇒ let the server categorize from the name.
+  const [category, setCategory] = useState<GroceryCategory | "auto">("auto");
+
+  // Start each session with empty name/qty; keep the category sticky.
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setQty("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  function submit() {
+    const n = name.trim();
+    if (!n) return;
+    onAdd({
+      name: n,
+      qty: qty.trim() || undefined,
+      category: category === "auto" ? undefined : category,
+    });
+    // Keep the sheet open for fast multi-add; reset just the item fields.
+    setName("");
+    setQty("");
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add item"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        zIndex: 70,
+        display: "flex",
+        alignItems: isDesktop ? "center" : "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          background: "var(--bg)",
+          borderRadius: isDesktop ? 24 : undefined,
+          borderTopLeftRadius: isDesktop ? undefined : 24,
+          borderTopRightRadius: isDesktop ? undefined : 24,
+          display: "flex",
+          flexDirection: "column",
+          padding: "16px 18px",
+          paddingBottom: isDesktop ? 16 : "calc(env(safe-area-inset-bottom, 16px) + 16px)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
+            Add item
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--sumi)",
+              cursor: "pointer",
+              padding: 6,
+            }}
+          >
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 96px",
+            gap: 6,
+          }}
+        >
+          <input
+            autoFocus
+            className="field-input"
+            placeholder="e.g. avocado"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+          />
+          <input
+            className="field-input"
+            placeholder="Qty"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 10 }}>
+          <CategoryChip active={category === "auto"} onClick={() => setCategory("auto")}>
+            Auto
+          </CategoryChip>
+          {GROCERY_CATEGORIES.map((c) => (
+            <CategoryChip key={c} active={category === c} onClick={() => setCategory(c)}>
+              {c}
+            </CategoryChip>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <Button variant="ghost" className="flex-1" onClick={onClose}>
+            Done
+          </Button>
+          <Button className="flex-1" onClick={submit} disabled={!name.trim()}>
+            <Icon name="plus" size={14} /> Add
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -450,14 +488,6 @@ interface CategorySectionProps {
     patch: { name?: string; qty?: string; category?: GroceryCategory },
   ) => void;
   onDelete: (itemId: string) => void;
-  onAdd: (input: {
-    name: string;
-    qty?: string;
-    category: GroceryCategory;
-  }) => void;
-  isAdding: boolean;
-  onOpenAdd: () => void;
-  onCloseAdd: () => void;
 }
 
 function CategorySection({
@@ -467,10 +497,6 @@ function CategorySection({
   onToggle,
   onUpdate,
   onDelete,
-  onAdd,
-  isAdding,
-  onOpenAdd,
-  onCloseAdd,
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -489,9 +515,7 @@ function CategorySection({
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
             <div className="eyebrow">{category}</div>
             <span style={{ fontSize: 11, color: "var(--muted)" }}>
-              {items.length === 0
-                ? "0"
-                : `${remaining} / ${items.length}`}
+              {items.length === 0 ? "0" : `${remaining} / ${items.length}`}
             </span>
           </div>
           <span
@@ -510,7 +534,7 @@ function CategorySection({
         <div className="px-4">
           <Card flush>
             {items.map((item, i) => {
-              const isLast = i === items.length - 1 && !isAdding;
+              const isLast = i === items.length - 1;
               if (editingId === item.id) {
                 return (
                   <ItemEditor
@@ -547,45 +571,6 @@ function CategorySection({
                 />
               );
             })}
-            {isAdding && (
-              <ItemEditor
-                isNew
-                category={category}
-                onSave={(patch) => {
-                  onAdd({
-                    name: patch.name ?? "",
-                    qty: patch.qty,
-                    category: patch.category ?? category,
-                  });
-                }}
-                onCancel={onCloseAdd}
-                isLast
-              />
-            )}
-            {!isAdding && (
-              <button
-                type="button"
-                onClick={onOpenAdd}
-                className="tappable"
-                style={{
-                  width: "100%",
-                  background: "transparent",
-                  border: "none",
-                  borderTop: "1px solid var(--hair)",
-                  padding: "10px 18px",
-                  textAlign: "left",
-                  color: "var(--sumi)",
-                  fontSize: 12.5,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Icon name="plus" size={13} />
-                Add to {category}
-              </button>
-            )}
           </Card>
         </div>
       )}
