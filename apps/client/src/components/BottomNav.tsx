@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Icon, type IconName } from "./Icon";
 import { useScrollDirection } from "../hooks/useScrollDirection";
@@ -11,8 +12,31 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
   { to: "/progress", label: "Progress", icon: "progress" },
 ];
 
+const NAV_TRANSITION =
+  "width 240ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+const ITEM_TRANSITION =
+  "gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease";
+const LABEL_TRANSITION =
+  "max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease";
+
 export function BottomNav() {
   const collapsed = useScrollDirection();
+  // The bar remounts on every route change. Animations are held off until the
+  // initial collapsed state has settled (including the scroll-to-top jump on a
+  // tab switch), so it snaps straight to its final size instead of animating a
+  // "bounce" from the default state. Subsequent scroll changes animate normally.
+  const [animate, setAnimate] = useState(false);
+
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setAnimate(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, []);
 
   return (
     <nav
@@ -34,8 +58,7 @@ export function BottomNav() {
         paddingTop: collapsed ? 5 : 8,
         paddingBottom: collapsed ? 5 : 8,
         paddingInline: collapsed ? 4 : 6,
-        transition:
-          "width 240ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        transition: animate ? NAV_TRANSITION : "none",
       }}
     >
       <ul className="grid grid-cols-6 gap-0.5">
@@ -60,8 +83,7 @@ export function BottomNav() {
                 fontSize: 10,
                 fontWeight: 500,
                 letterSpacing: "0.04em",
-                transition:
-                  "gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease",
+                transition: animate ? ITEM_TRANSITION : "none",
               })}
             >
               {({ isActive }) => (
@@ -74,8 +96,7 @@ export function BottomNav() {
                       opacity: collapsed ? 0 : 1,
                       overflow: "hidden",
                       lineHeight: "16px",
-                      transition:
-                        "max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
+                      transition: animate ? LABEL_TRANSITION : "none",
                     }}
                   >
                     {item.label}
