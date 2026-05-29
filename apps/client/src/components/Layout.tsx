@@ -59,7 +59,7 @@ export function Layout({ children }: Props) {
     <>
       <SideNav />
       <div
-        className="mx-auto max-w-[480px] min-h-screen relative pb-[110px] md:max-w-none md:ml-[220px] md:pb-6"
+        className="mx-auto max-w-[480px] min-h-screen relative pb-[84px] md:max-w-none md:ml-[220px] md:pb-6"
         style={{ background: "var(--bg)" }}
       >
         <header
