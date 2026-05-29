@@ -12,8 +12,6 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
 ];
 
 export function BottomNav() {
-  // Collapse to compact (icons-only) while scrolling down; full (icon + label)
-  // when scrolling up or at the top.
   const collapsed = useScrollDirection();
 
   return (
@@ -21,12 +19,12 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed z-20 md:hidden"
       style={{
-        left: 12,
-        right: 12,
-        bottom: "calc(env(safe-area-inset-bottom, 12px) + 10px)",
-        maxWidth: 452,
-        marginInline: "auto",
-        // Floating translucent pill.
+        bottom: "calc(env(safe-area-inset-bottom, 8px) + 4px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: collapsed
+          ? "min(300px, calc(100vw - 110px))"
+          : "min(400px, calc(100vw - 40px))",
         background: "color-mix(in srgb, var(--paper) 70%, transparent)",
         backdropFilter: "blur(16px) saturate(1.6)",
         WebkitBackdropFilter: "blur(16px) saturate(1.6)",
@@ -35,8 +33,9 @@ export function BottomNav() {
         boxShadow: "0 10px 28px rgba(0, 0, 0, 0.14)",
         paddingTop: collapsed ? 5 : 8,
         paddingBottom: collapsed ? 5 : 8,
-        paddingInline: 6,
-        transition: "padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        paddingInline: collapsed ? 4 : 6,
+        transition:
+          "width 240ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
       }}
     >
       <ul className="grid grid-cols-6 gap-0.5">
@@ -68,7 +67,6 @@ export function BottomNav() {
               {({ isActive }) => (
                 <>
                   <Icon name={item.icon} size={22} stroke={isActive ? 2 : 1.6} />
-                  {/* Label collapses (height + opacity) while scrolling down. */}
                   <span
                     aria-hidden
                     style={{
