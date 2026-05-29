@@ -12,25 +12,30 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
 ];
 
 export function BottomNav() {
-  // Collapse to a compact, icons-only bar while scrolling down; expand back to
-  // the full icon + label bar when scrolling up or at the top.
+  // Collapse to compact (icons-only) while scrolling down; full (icon + label)
+  // when scrolling up or at the top.
   const collapsed = useScrollDirection();
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 mx-auto max-w-[480px] z-20 md:hidden"
+      aria-label="Primary"
+      className="fixed z-20 md:hidden"
       style={{
-        background: "color-mix(in srgb, var(--paper) 80%, transparent)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        borderTop: "1px solid var(--hair)",
-        // Compact vs full vertical padding — drives the height change.
-        paddingTop: collapsed ? 6 : 8,
-        paddingLeft: 10,
-        paddingRight: 10,
-        paddingBottom: collapsed
-          ? "calc(env(safe-area-inset-bottom, 16px) + 6px)"
-          : "calc(env(safe-area-inset-bottom, 16px) + 10px)",
+        left: 12,
+        right: 12,
+        bottom: "calc(env(safe-area-inset-bottom, 12px) + 10px)",
+        maxWidth: 452,
+        marginInline: "auto",
+        // Floating translucent pill.
+        background: "color-mix(in srgb, var(--paper) 70%, transparent)",
+        backdropFilter: "blur(16px) saturate(1.6)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.6)",
+        border: "1px solid color-mix(in srgb, var(--muted) 22%, transparent)",
+        borderRadius: 26,
+        boxShadow: "0 10px 28px rgba(0, 0, 0, 0.14)",
+        paddingTop: collapsed ? 5 : 8,
+        paddingBottom: collapsed ? 5 : 8,
+        paddingInline: 6,
         transition: "padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
       }}
     >
@@ -43,39 +48,27 @@ export function BottomNav() {
               aria-label={item.label}
               className="tappable block"
               style={({ isActive }) => ({
-                background: "transparent",
-                color: isActive ? "var(--accent)" : "var(--muted)",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 gap: collapsed ? 0 : 4,
-                padding: collapsed ? "6px 4px" : "8px 4px",
+                padding: collapsed ? "6px 0" : "7px 0",
+                borderRadius: 14,
+                background: isActive
+                  ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                  : "transparent",
+                color: isActive ? "var(--accent)" : "var(--muted)",
                 fontSize: 10,
                 fontWeight: 500,
-                letterSpacing: "0.05em",
-                position: "relative",
-                transition: "gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                letterSpacing: "0.04em",
+                transition:
+                  "gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease",
               })}
             >
               {({ isActive }) => (
                 <>
-                  {isActive && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: collapsed ? -6 : 0,
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        width: 20,
-                        height: 2.5,
-                        borderRadius: 99,
-                        background: "var(--accent)",
-                        transition: "top 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
-                      }}
-                    />
-                  )}
                   <Icon name={item.icon} size={22} stroke={isActive ? 2 : 1.6} />
-                  {/* Label collapses (height + opacity) on scroll-down. */}
+                  {/* Label collapses (height + opacity) while scrolling down. */}
                   <span
                     aria-hidden
                     style={{
