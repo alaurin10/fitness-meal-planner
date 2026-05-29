@@ -2,6 +2,7 @@ import { Show } from "@clerk/react";
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { SkeletonList } from "./components/Skeleton";
 
 // Lazy-load route pages so each ships in its own chunk and the initial bundle
@@ -39,6 +40,7 @@ export default function App() {
         element={
           <>
             <Show when="signed-in">
+              <ScrollToTop />
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
