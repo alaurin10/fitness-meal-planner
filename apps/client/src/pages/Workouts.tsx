@@ -894,9 +894,10 @@ function LoadEditor({
         onBlur={commit}
         disabled={saving}
         style={{
-          width: 64,
+          width: 72,
           padding: "4px 6px",
-          fontSize: 13,
+          // 16px min avoids iOS Safari's auto-zoom on focus.
+          fontSize: 16,
           border: "1px solid var(--accent)",
           borderRadius: 6,
           fontFamily: "var(--font-body)",

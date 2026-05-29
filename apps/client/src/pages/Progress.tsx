@@ -394,7 +394,7 @@ export function ProgressPage() {
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
                   className="field-input"
-                  style={{ paddingRight: 36, height: 36, fontSize: 13 }}
+                  style={{ paddingRight: 36, height: 44, fontSize: 16 }}
                 />
                 <span
                   style={{
@@ -415,13 +415,13 @@ export function ProgressPage() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="field-input"
-                style={{ flex: 1, height: 36, fontSize: 13 }}
+                style={{ flex: 1, height: 44, fontSize: 16 }}
               />
               <Button
                 type="submit"
                 variant="accent"
                 disabled={!weight || log.isPending}
-                style={{ height: 36, minWidth: 0, paddingInline: 14 }}
+                style={{ height: 44, minWidth: 0, paddingInline: 14 }}
               >
                 {log.isPending ? "…" : "Log"}
               </Button>
