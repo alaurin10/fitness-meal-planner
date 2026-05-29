@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useIsDesktop } from "../hooks/useIsDesktop";
 import { Icon } from "./Icon";
 
 interface Section {
@@ -14,7 +13,6 @@ interface Section {
  * user read them. Renders nothing when there's no non-empty content.
  */
 export function PlanInfo({ title, sections }: { title: string; sections: Section[] }) {
-  const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -65,23 +63,25 @@ export function PlanInfo({ title, sections }: { title: string; sections: Section
             background: "rgba(0,0,0,0.35)",
             zIndex: 70,
             display: "flex",
-            alignItems: isDesktop ? "center" : "flex-end",
+            // Centered popup so it opens where the button is, not at the
+            // bottom of the screen.
+            alignItems: "center",
             justifyContent: "center",
+            padding: 16,
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: "100%",
-              maxWidth: 480,
+              maxWidth: 420,
+              maxHeight: "80vh",
+              overflowY: "auto",
               background: "var(--bg)",
-              borderRadius: isDesktop ? 24 : undefined,
-              borderTopLeftRadius: isDesktop ? undefined : 24,
-              borderTopRightRadius: isDesktop ? undefined : 24,
+              borderRadius: 24,
               display: "flex",
               flexDirection: "column",
-              padding: "16px 18px",
-              paddingBottom: isDesktop ? 18 : "calc(env(safe-area-inset-bottom, 18px) + 18px)",
+              padding: 18,
             }}
           >
             <div
