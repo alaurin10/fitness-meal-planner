@@ -321,7 +321,7 @@ export function WorkoutsPage() {
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d, i) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
-            const hasExercises = (day?.exercises.length ?? 0) > 0;
+            const exerciseCount = day?.exercises.length ?? 0;
             const isActive = activeDay === d;
             const isToday = d === DAYS[todayIdx];
             const dayDate = new Date(viewingWeekStartDate);
@@ -365,14 +365,14 @@ export function WorkoutsPage() {
                 </span>
                 <span
                   style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: 99,
-                    background: hasExercises
-                      ? isActive ? "var(--paper)" : "var(--accent)"
-                      : "transparent",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    opacity: 0.55,
+                    lineHeight: 1,
                   }}
-                />
+                >
+                  {exerciseCount > 0 ? exerciseCount : "·"}
+                </span>
                 {isToday && !isActive && (
                   <span
                     style={{

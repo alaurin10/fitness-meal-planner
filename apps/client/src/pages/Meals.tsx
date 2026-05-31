@@ -297,7 +297,7 @@ export function MealsPage() {
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
           {DAYS.map((d, i) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
-            const hasMeals = (day?.meals.length ?? 0) > 0;
+            const mealCount = day?.meals.length ?? 0;
             const isActive = activeDay === d;
             const isToday = d === DAYS[todayIdx];
             const dayDate = new Date(viewingWeekStartDate);
@@ -341,14 +341,14 @@ export function MealsPage() {
                 </span>
                 <span
                   style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: 99,
-                    background: hasMeals
-                      ? isActive ? "var(--paper)" : "var(--accent)"
-                      : "transparent",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    opacity: 0.55,
+                    lineHeight: 1,
                   }}
-                />
+                >
+                  {mealCount > 0 ? mealCount : "·"}
+                </span>
                 {isToday && !isActive && (
                   <span
                     style={{
