@@ -18,7 +18,6 @@ export const CANONICAL_UNITS = [
   "can",
   "pinch",
   "to taste",
-  "",
 ] as const;
 
 export const quantitySchema = z.object({
