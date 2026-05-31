@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -53,6 +53,7 @@ export function MealsPage() {
     [now, weekStartDay],
   );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
+  const viewingWeekStartDate = useMemo(() => parseLocalDate(viewingWeekStart), [viewingWeekStart]);
 
   const { data: plan, isLoading } = useCurrentMealPlan(viewingWeekStart);
   const generate = useGenerateMealPlan();
@@ -294,11 +295,14 @@ export function MealsPage() {
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
-          {DAYS.map((d) => {
+          {DAYS.map((d, i) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
-            const count = day?.meals.length ?? 0;
+            const mealCount = day?.meals.length ?? 0;
             const isActive = activeDay === d;
             const isToday = d === DAYS[todayIdx];
+            const dayDate = new Date(viewingWeekStartDate);
+            dayDate.setDate(viewingWeekStartDate.getDate() + i);
+            const dateNum = dayDate.getDate();
             return (
               <button
                 key={d}
@@ -333,7 +337,17 @@ export function MealsPage() {
                   {d}
                 </span>
                 <span className="font-display" style={{ fontSize: 16 }}>
-                  {count === 0 ? "·" : count}
+                  {dateNum}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 500,
+                    opacity: 0.55,
+                    lineHeight: 1,
+                  }}
+                >
+                  {mealCount > 0 ? mealCount : "·"}
                 </span>
                 {isToday && !isActive && (
                   <span

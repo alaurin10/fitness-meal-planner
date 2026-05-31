@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, type DayLabel } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
@@ -50,6 +50,7 @@ export function WorkoutsPage() {
     [now, weekStartDay],
   );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
+  const viewingWeekStartDate = useMemo(() => parseLocalDate(viewingWeekStart), [viewingWeekStart]);
 
   const { data: plan, isLoading } = useCurrentWorkoutPlan(viewingWeekStart);
   const settingsQuery = useSettings();
@@ -318,11 +319,14 @@ export function WorkoutsPage() {
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
       <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
         <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
-          {DAYS.map((d) => {
+          {DAYS.map((d, i) => {
             const day = plan.planJson.days.find((pd) => pd.day === d);
-            const count = day?.exercises.length ?? 0;
+            const exerciseCount = day?.exercises.length ?? 0;
             const isActive = activeDay === d;
             const isToday = d === DAYS[todayIdx];
+            const dayDate = new Date(viewingWeekStartDate);
+            dayDate.setDate(viewingWeekStartDate.getDate() + i);
+            const dateNum = dayDate.getDate();
             return (
               <button
                 key={d}
@@ -357,7 +361,17 @@ export function WorkoutsPage() {
                   {d}
                 </span>
                 <span className="font-display" style={{ fontSize: 16 }}>
-                  {count === 0 ? "·" : count}
+                  {dateNum}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 500,
+                    opacity: 0.55,
+                    lineHeight: 1,
+                  }}
+                >
+                  {exerciseCount > 0 ? exerciseCount : "·"}
                 </span>
                 {isToday && !isActive && (
                   <span
