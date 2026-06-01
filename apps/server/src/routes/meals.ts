@@ -19,7 +19,7 @@ import { mergeGroceryItems } from "../services/groceryMerge.js";
 import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
 import {
-  findActiveMealPlan,
+  findCurrentWeekMealPlan,
   findMealPlanForWeek,
 } from "../services/activePlan.js";
 import {
@@ -27,6 +27,15 @@ import {
   type MealJson,
   type MealPlanJson,
 } from "../services/mealPlanSchema.js";
+
+/**
+ * Resolve the user's configured week-start day. Falls back to "Mon" if no
+ * settings row exists yet.
+ */
+async function getUserWeekStartDay(userId: string): Promise<WeekStartDay> {
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  return (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+}
 
 const mealCompletionSchema = z.object({
   planId: z.string().min(1),
@@ -53,7 +62,8 @@ router.get("/current", requireAuth, async (req, res) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(weekStartParam)) {
     plan = await findMealPlanForWeek(userId, parseLocalDate(weekStartParam));
   } else {
-    plan = await findActiveMealPlan(userId);
+    const weekStartDay = await getUserWeekStartDay(userId);
+    plan = await findCurrentWeekMealPlan(userId, weekStartDay);
   }
   if (!plan) {
     res.json({ plan: null });
@@ -130,13 +140,17 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
 
       // Cap storage at the current + next week. Plans (and their grocery
       // lists) for any prior week are pruned; MealCompletion rows survive
-      // because the FK was detached from WeeklyMealPlan.
-      await tx.weeklyMealPlan.deleteMany({
-        where: { userId, weekStartDate: { lt: thisWeek } },
-      });
-      await tx.groceryList.deleteMany({
-        where: { userId, weekStartDate: { lt: thisWeek } },
-      });
+      // because the FK was detached from WeeklyMealPlan. Only prune when
+      // generating the current week — generating next week must never
+      // touch this-week data.
+      if (isCurrentWeek) {
+        await tx.weeklyMealPlan.deleteMany({
+          where: { userId, weekStartDate: { lt: thisWeek } },
+        });
+        await tx.groceryList.deleteMany({
+          where: { userId, weekStartDate: { lt: thisWeek } },
+        });
+      }
 
       return { plan };
     });
@@ -169,6 +183,7 @@ router.post("/empty", requireAuth, async (req, res) => {
     ? req.body.targetWeekStart as string
     : null;
   const target = targetStr ? parseLocalDate(targetStr) : thisWeek;
+  const isCurrentWeek = target.getTime() === thisWeek.getTime();
 
   const planJson: MealPlanJson = {
     summary: "Manual plan — add meals from your recipe book or build new ones.",
@@ -195,13 +210,16 @@ router.post("/empty", requireAuth, async (req, res) => {
     });
 
     // Cap storage at the current + next week. Plans (and grocery lists)
-    // for any prior week are pruned; MealCompletion rows survive.
-    await tx.weeklyMealPlan.deleteMany({
-      where: { userId, weekStartDate: { lt: thisWeek } },
-    });
-    await tx.groceryList.deleteMany({
-      where: { userId, weekStartDate: { lt: thisWeek } },
-    });
+    // for any prior week are pruned; MealCompletion rows survive. Only
+    // prune when creating the current week's blank plan.
+    if (isCurrentWeek) {
+      await tx.weeklyMealPlan.deleteMany({
+        where: { userId, weekStartDate: { lt: thisWeek } },
+      });
+      await tx.groceryList.deleteMany({
+        where: { userId, weekStartDate: { lt: thisWeek } },
+      });
+    }
 
     return { plan };
   });
@@ -345,7 +363,7 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
   }
   const targetPlan = parsed.data.weekStart
     ? await findMealPlanForWeek(userId, parseLocalDate(parsed.data.weekStart))
-    : await findActiveMealPlan(userId);
+    : await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
   if (!targetPlan) {
     res.status(404).json({ error: "No active meal plan" });
     return;
@@ -437,7 +455,7 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
 
   const targetPlan = parsed.data.weekStart
     ? await findMealPlanForWeek(userId, parseLocalDate(parsed.data.weekStart))
-    : await findActiveMealPlan(userId);
+    : await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
   if (!targetPlan) {
     res.status(404).json({ error: "No active meal plan" });
     return;
@@ -507,7 +525,7 @@ async function mutatePlanForWeek(
 ) {
   const target = weekStart
     ? await findMealPlanForWeek(userId, parseLocalDate(weekStart))
-    : await findActiveMealPlan(userId);
+    : await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
   if (!target) {
     throw new Error("No meal plan for the requested week");
   }
@@ -575,7 +593,7 @@ router.get("/completions", requireAuth, async (req, res) => {
       where: { id: planIdParam, userId },
     });
   } else {
-    plan = await findActiveMealPlan(userId);
+    plan = await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
   }
   if (!plan) {
     res.json({ completion: null });

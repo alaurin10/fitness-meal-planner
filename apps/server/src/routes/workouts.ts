@@ -18,12 +18,22 @@ import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateWeeklyPlan } from "../services/workoutPlan.js";
 import {
   findActiveWorkoutPlan,
+  findCurrentWeekWorkoutPlan,
   findWorkoutPlanForWeek,
 } from "../services/activePlan.js";
 import {
   weeklyPlanSchema,
   type WeeklyPlanJson,
 } from "../services/workoutPlanSchema.js";
+
+/**
+ * Resolve the user's configured week-start day. Falls back to "Mon" if no
+ * settings row exists yet.
+ */
+async function getUserWeekStartDay(userId: string): Promise<WeekStartDay> {
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  return (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+}
 
 const router = Router();
 
@@ -60,7 +70,7 @@ router.get("/current", requireAuth, async (req, res) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(weekStartParam)) {
     plan = await findWorkoutPlanForWeek(userId, parseLocalDate(weekStartParam));
   } else {
-    plan = await findActiveWorkoutPlan(userId);
+    plan = await findCurrentWeekWorkoutPlan(userId, await getUserWeekStartDay(userId));
   }
   res.json({ plan });
 });
@@ -181,7 +191,7 @@ router.patch("/exercise", requireAuth, async (req, res) => {
   }
   const { day, index, loadLbs } = parsed.data;
 
-  const plan = await findActiveWorkoutPlan(userId);
+  const plan = await findCurrentWeekWorkoutPlan(userId, await getUserWeekStartDay(userId));
   if (!plan) {
     res.status(404).json({ error: "No active workout plan" });
     return;
@@ -253,7 +263,7 @@ router.post("/exercise/bump", requireAuth, async (req, res) => {
   }
   const { day, index, deltaLbs } = parsed.data;
 
-  const plan = await findActiveWorkoutPlan(userId);
+  const plan = await findCurrentWeekWorkoutPlan(userId, await getUserWeekStartDay(userId));
   if (!plan) {
     res.status(404).json({ error: "No active workout plan" });
     return;
@@ -334,7 +344,7 @@ router.get("/completions", requireAuth, async (req, res) => {
       where: { id: planIdParam, userId },
     });
   } else {
-    plan = await findActiveWorkoutPlan(userId);
+    plan = await findCurrentWeekWorkoutPlan(userId, await getUserWeekStartDay(userId));
   }
   if (!plan) {
     res.json({ completion: null });

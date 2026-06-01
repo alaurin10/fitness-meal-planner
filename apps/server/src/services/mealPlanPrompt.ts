@@ -60,7 +60,8 @@ const COMPLEXITY_GUIDANCE: Record<string, string> = {
   varied:
     "STYLE: Lean toward varied, creative meals — different recipes most days, with some shared ingredients to keep the grocery list manageable. The user enjoys cooking new things.",
   simple:
-    "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight.",
+    "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight. " +
+    "LEFTOVER LUNCHES (required): The user cannot cook at work, so EVERY lunch in this plan MUST be leftovers from the immediately preceding day's dinner. Mark each such lunch with `\"isLeftover\": true`, use the same `name` and `ingredients` as that dinner, and add a `notes` field like 'Leftovers from [PrevDay] dinner.'. On the dinner being reused, set `servings: 2` and scale ingredient quantities to the 2-serving total, with a `notes` field like 'Make 2 servings — save 1 for [NextDay] lunch.'. The ONLY allowed exception is the first day of the plan: that day's lunch may be a fresh quick recipe (since there is no prior dinner in this plan to leverage). Breakfasts and dinners are otherwise fresh, simple recipes; do not repeat dinners back-to-back beyond what the leftover-lunch pattern requires.",
   prep:
     "STYLE: Prioritize meal prep and batch cooking — REUSE the same lunch and dinner recipes across at least 3-4 days of the week. Aim for ~3 distinct dinners and 2-3 distinct lunches max for the whole week, scaled up to multiple servings each. Breakfasts and snacks may also repeat. The user wants to cook a few large batches and eat the leftovers.",
 };
