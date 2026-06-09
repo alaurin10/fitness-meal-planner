@@ -41,8 +41,14 @@ app.use("/api/activities", activitiesRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("[app-server] unhandled:", err);
   const message = err instanceof Error ? err.message : "internal_error";
-  const status = message === "Unauthenticated" ? 401 : 500;
-  res.status(status).json({ error: message });
+  if (message === "Unauthenticated") {
+    res.status(401).json({ error: message });
+    return;
+  }
+  // Never leak internal error details to clients in production.
+  res.status(500).json({
+    error: process.env.NODE_ENV === "production" ? "Internal server error" : message,
+  });
 });
 
 const port = Number(process.env.PORT ?? 3001);
