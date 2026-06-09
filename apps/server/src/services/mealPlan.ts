@@ -28,6 +28,8 @@ interface GenerateMealPlanArgs {
   schedule: TrainingSchedule;
   daysToGenerate?: DayLabel[];
   userSuggestion?: string;
+  /** System-generated corrective guidance — kept separate from user text. */
+  macroFeedback?: string;
 }
 
 /** Core generation: prompt → structured Gemini call → normalize → Zod validate. */
@@ -84,11 +86,10 @@ export async function generateMealPlan(args: GenerateMealPlanArgs): Promise<Meal
 
   try {
     const feedback = buildMacroFeedback(report, fixDays);
-    const suggestion = [args.userSuggestion?.trim(), feedback].filter(Boolean).join("\n\n");
     const corrected = await generateMealPlanRaw({
       ...args,
       daysToGenerate: fixDays,
-      userSuggestion: suggestion,
+      macroFeedback: feedback,
     });
     for (const cd of corrected.days) {
       const idx = plan.days.findIndex((d) => d.day === cd.day);
