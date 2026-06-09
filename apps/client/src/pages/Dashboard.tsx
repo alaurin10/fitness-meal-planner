@@ -15,7 +15,7 @@ import { SkeletonList } from "../components/Skeleton";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
-import { useHydration, useLogHydration } from "../hooks/useHydration";
+import { useHydration, useLogHydration, useUnlogHydration } from "../hooks/useHydration";
 import { useDailySummary } from "../hooks/useDailySummary";
 import { useStreaks } from "../hooks/useStreaks";
 import {
@@ -106,6 +106,7 @@ export function DashboardPage() {
   );
   const hydrationQuery = useHydration();
   const logHydration = useLogHydration();
+  const unlogHydration = useUnlogHydration();
   const summaryQuery = useDailySummary();
   const streaksQuery = useStreaks();
   const prevAllDoneRef = useRef(false);
@@ -502,6 +503,7 @@ export function DashboardPage() {
         cups={hydrationQuery.data?.cups ?? 0}
         goal={profileQuery.data?.profile?.hydrationGoal ?? 8}
         onAdd={() => logHydration.mutate()}
+        onRemove={() => unlogHydration.mutate()}
         loading={hydrationQuery.isLoading}
       />
     </Layout>
@@ -567,11 +569,13 @@ function HydrationCard({
   cups,
   goal,
   onAdd,
+  onRemove,
   loading,
 }: {
   cups: number;
   goal: number;
   onAdd: () => void;
+  onRemove: () => void;
   loading: boolean;
 }) {
   const reached = cups >= goal;
@@ -615,27 +619,50 @@ function HydrationCard({
           </div>
 
           {!loading && (
-            <button
-              type="button"
-              onClick={onAdd}
-              className="tappable"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                border: "none",
-                background: reached ? "var(--clay)" : "var(--accent)",
-                color: reached ? "var(--sumi)" : "var(--paper)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                cursor: "pointer",
-              }}
-              aria-label="Add cup"
-            >
-              <Icon name="plus" size={20} stroke={2.5} />
-            </button>
+            <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+              {cups > 0 && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="tappable"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    border: "1px solid var(--hair)",
+                    background: "transparent",
+                    color: "var(--sumi)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                  aria-label="Remove cup"
+                >
+                  <Icon name="minus" size={16} stroke={2.5} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onAdd}
+                className="tappable"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: reached ? "var(--clay)" : "var(--accent)",
+                  color: reached ? "var(--sumi)" : "var(--paper)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+                aria-label="Add cup"
+              >
+                <Icon name="plus" size={20} stroke={2.5} />
+              </button>
+            </div>
           )}
         </div>
       </Card>

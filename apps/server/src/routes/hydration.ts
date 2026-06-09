@@ -63,4 +63,25 @@ router.post("/increment", requireAuth, async (req, res) => {
   res.json({ cups: log.cups });
 });
 
+router.post("/decrement", requireAuth, async (req, res) => {
+  const userId = currentUserId(req);
+  const dayKey = resolveDayKey(req.body?.dayKey);
+  if (!dayKey) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
+  const date = dayKeyToDate(dayKey);
+
+  // Guarded updateMany never goes below zero and never creates a row.
+  await prisma.hydrationLog.updateMany({
+    where: { userId, date, cups: { gt: 0 } },
+    data: { cups: { decrement: 1 } },
+  });
+
+  const log = await prisma.hydrationLog.findUnique({
+    where: { userId_date: { userId, date } },
+  });
+  res.json({ cups: log?.cups ?? 0 });
+});
+
 export default router;

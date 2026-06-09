@@ -11,6 +11,7 @@ export type IconName =
   | "flame"
   | "check"
   | "plus"
+  | "minus"
   | "chevron"
   | "chevron-down"
   | "chevron-left"
@@ -119,6 +120,12 @@ export function Icon({ name, size = 20, stroke = 1.75, style, className }: Props
       return (
         <svg viewBox="0 0 24 24" style={s} className={className}>
           <path {...common} d="M12 5v14M5 12h14" />
+        </svg>
+      );
+    case "minus":
+      return (
+        <svg viewBox="0 0 24 24" style={s} className={className}>
+          <path {...common} d="M5 12h14" />
         </svg>
       );
     case "chevron":
