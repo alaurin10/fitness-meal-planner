@@ -15,20 +15,21 @@ function dayKeyToDate(dayKey: string): Date {
   return new Date(dayKey + "T00:00:00.000Z");
 }
 
-function serverLocalDayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function resolveDayKey(input: unknown): string {
-  return typeof input === "string" && DAY_KEY_RE.test(input)
-    ? input
-    : serverLocalDayKey();
+/**
+ * The client always sends its local dayKey — there is no sensible server-side
+ * fallback, since the server's timezone need not match the user's.
+ */
+function resolveDayKey(input: unknown): string | null {
+  return typeof input === "string" && DAY_KEY_RE.test(input) ? input : null;
 }
 
 router.get("/", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
   const dayKey = resolveDayKey(req.query.dayKey);
+  if (!dayKey) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
   const date = dayKeyToDate(dayKey);
 
   const log = await prisma.hydrationLog.findUnique({
@@ -41,6 +42,10 @@ router.get("/", requireAuth, async (req, res) => {
 router.post("/increment", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
   const dayKey = resolveDayKey(req.body?.dayKey);
+  if (!dayKey) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
   const date = dayKeyToDate(dayKey);
 
   await prisma.user.upsert({
