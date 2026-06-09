@@ -83,6 +83,22 @@ describe("rateLimit", () => {
     expect(run(mw, "u1").next).toHaveBeenCalledOnce();
   });
 
+  it("sweeps stale users without affecting active limits", () => {
+    const mw = rateLimit({ windowMs: 1_000, max: 2 });
+    // u1 makes requests, then goes idle past the window.
+    expect(run(mw, "u1").next).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1_500);
+
+    // u2's request triggers the lazy sweep (u1's entry is now stale)
+    // and u2 is still limited correctly afterwards.
+    expect(run(mw, "u2").next).toHaveBeenCalledOnce();
+    expect(run(mw, "u2").next).toHaveBeenCalledOnce();
+    expect(run(mw, "u2").res.statusCode).toBe(429);
+
+    // u1 starts fresh after having been swept.
+    expect(run(mw, "u1").next).toHaveBeenCalledOnce();
+  });
+
   it("passes through to next when the user can't be identified", () => {
     const mw = rateLimit({ windowMs: 1_000, max: 1 });
     const { res, next } = run(mw, undefined);
