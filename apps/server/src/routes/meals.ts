@@ -19,6 +19,10 @@ import { mergeGroceryItems } from "../services/groceryMerge.js";
 import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
 import {
+  dayLabelForDayKey,
+  validateMealCompletion,
+} from "../services/completionValidation.js";
+import {
   findCurrentWeekMealPlan,
   findMealPlanForWeek,
 } from "../services/activePlan.js";
@@ -41,7 +45,6 @@ const mealCompletionSchema = z.object({
   planId: z.string().min(1),
   dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   indices: z.array(z.number().int().nonnegative()),
-  totalMeals: z.number().int().nonnegative(),
 });
 
 const router = Router();
@@ -613,7 +616,7 @@ router.put("/completions", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { planId, dayKey, indices, totalMeals } = parsed.data;
+  const { planId, dayKey, indices } = parsed.data;
 
   // Verify plan belongs to user
   const plan = await prisma.weeklyMealPlan.findFirst({
@@ -624,12 +627,36 @@ router.put("/completions", requireAuth, async (req, res) => {
     return;
   }
 
-  const completedAt = totalMeals > 0 && indices.length >= totalMeals ? new Date() : null;
+  // Derive completion state from the plan — never trust client counts.
+  const planJson = normalizeMealPlan(plan.planJson);
+  const dayLabel = dayLabelForDayKey(dayKey);
+  const mealCount =
+    planJson.days.find((d) => d.day === dayLabel)?.meals.length ?? 0;
+  const existing = await prisma.mealCompletion.findUnique({
+    where: { userId_planId_dayKey: { userId, planId, dayKey } },
+  });
+  const result = validateMealCompletion({
+    dayKey,
+    weekStartDate: plan.weekStartDate,
+    mealCount,
+    indices,
+    previousCompletedAt: existing?.completedAt ?? null,
+  });
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
 
   const completion = await prisma.mealCompletion.upsert({
     where: { userId_planId_dayKey: { userId, planId, dayKey } },
-    update: { indicesJson: indices, completedAt },
-    create: { userId, planId, dayKey, indicesJson: indices, completedAt },
+    update: { indicesJson: result.indices, completedAt: result.completedAt },
+    create: {
+      userId,
+      planId,
+      dayKey,
+      indicesJson: result.indices,
+      completedAt: result.completedAt,
+    },
   });
   res.json({ completion });
 });

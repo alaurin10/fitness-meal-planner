@@ -40,7 +40,7 @@ export function useWorkoutCompletions(
     mutationFn: async (setsJson: Record<string, number[]>) => {
       const { data } = await api.put<{ completion: CompletionRecord }>(
         "/api/workouts/completions",
-        { planId, dayKey, setsJson, totalExercises: 0 },
+        { planId, dayKey, setsJson },
       );
       return data.completion;
     },

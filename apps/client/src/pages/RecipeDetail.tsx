@@ -38,7 +38,6 @@ export function RecipeDetailPage() {
   const idx = Number(params.index);
   const dayEntry = plan?.planJson.days.find((d) => d.day === day);
   const meal = dayEntry?.meals[idx];
-  const totalMeals = dayEntry?.meals.length ?? 0;
 
   if (isLoading) {
     return (
@@ -73,7 +72,7 @@ export function RecipeDetailPage() {
         meal={meal}
         slotLabel={slotLabel}
         isComplete={completions.isComplete(idx)}
-        onToggleComplete={() => completions.toggle(idx, totalMeals)}
+        onToggleComplete={() => completions.toggle(idx)}
         topAction={
           <div style={{ padding: "8px 16px 0" }}>
             <Button

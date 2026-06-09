@@ -60,7 +60,6 @@ const completionSchema = z.object({
   planId: z.string().min(1),
   dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   setsJson: z.record(z.array(z.number().int().positive())),
-  totalExercises: z.number().int().nonnegative(),
 });
 
 router.get("/current", requireAuth, async (req, res) => {
@@ -364,7 +363,8 @@ router.put("/completions", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { planId, dayKey, setsJson, totalExercises } = parsed.data;
+  const { planId, dayKey } = parsed.data;
+  let setsJson = parsed.data.setsJson as Record<string, number[]>;
 
   // Verify plan belongs to user
   const plan = await prisma.weeklyPlan.findFirst({
@@ -384,11 +384,25 @@ router.put("/completions", requireAuth, async (req, res) => {
     const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const dayEntry = validated.data.days.find((d) => d.day === dayLabel);
     if (dayEntry) {
+      // Drop keys that don't map to an exercise on that day so stored
+      // completions never reference slots outside the plan.
+      setsJson = Object.fromEntries(
+        Object.entries(setsJson).filter(([key]) => {
+          const idx = Number(key);
+          return Number.isInteger(idx) && idx >= 0 && idx < dayEntry.exercises.length;
+        }),
+      );
       const allDone = dayEntry.exercises.every((ex, idx) => {
-        const completedSets = (setsJson as Record<string, number[]>)[String(idx)] ?? [];
+        const completedSets = setsJson[String(idx)] ?? [];
         return completedSets.length >= ex.sets;
       });
-      if (allDone) completedAt = new Date();
+      if (allDone) {
+        // Preserve the original completion timestamp on re-PUTs.
+        const existing = await prisma.workoutCompletion.findUnique({
+          where: { userId_planId_dayKey: { userId, planId, dayKey } },
+        });
+        completedAt = existing?.completedAt ?? new Date();
+      }
     }
   }
 
