@@ -21,6 +21,7 @@ export function rateLimit(opts: {
 }): RequestHandler {
   const hits = new Map<string, number[]>();
   const label = opts.name ?? "request";
+  let lastSweep = Date.now();
 
   return (req, res, next) => {
     let userId: string;
@@ -33,6 +34,19 @@ export function rateLimit(opts: {
     }
 
     const now = Date.now();
+
+    // The per-request filter only prunes the active user's timestamps, so
+    // users who stop making requests would otherwise linger in the map
+    // forever. Sweep them out lazily at most once per window.
+    if (now - lastSweep > opts.windowMs) {
+      lastSweep = now;
+      for (const [key, timestamps] of hits) {
+        if (timestamps.every((t) => now - t >= opts.windowMs)) {
+          hits.delete(key);
+        }
+      }
+    }
+
     const recent = (hits.get(userId) ?? []).filter((t) => now - t < opts.windowMs);
 
     if (recent.length >= opts.max) {

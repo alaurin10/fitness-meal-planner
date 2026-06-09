@@ -8,6 +8,7 @@ import {
   parseLocalDate,
   ALL_DAYS,
   type WeekStartDay,
+  type DayLabel,
 } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -18,6 +19,14 @@ import { buildGroceryItems } from "../services/groceryAggregator.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
 import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
+import {
+  dayLabelForDayKey,
+  validateMealCompletion,
+} from "../services/completionValidation.js";
+import {
+  reconcileIndices,
+  type ReconcileOp,
+} from "../services/completionReconciler.js";
 import {
   findCurrentWeekMealPlan,
   findMealPlanForWeek,
@@ -41,7 +50,6 @@ const mealCompletionSchema = z.object({
   planId: z.string().min(1),
   dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   indices: z.array(z.number().int().nonnegative()),
-  totalMeals: z.number().int().nonnegative(),
 });
 
 const router = Router();
@@ -112,14 +120,16 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
     const planJson = await generateMealPlan({ profile, schedule, daysToGenerate: daysToInclude });
 
     const result = await prisma.$transaction(async (tx) => {
-      // Deactivate (not delete) existing plan for this week to preserve completions
-      const existingPlan = await findMealPlanForWeek(userId, target);
-      if (existingPlan) {
-        await tx.weeklyMealPlan.update({
-          where: { id: existingPlan.id },
-          data: { isActive: false },
-        });
-      }
+      // Deactivate (not delete) existing plans for this week to preserve
+      // completions. updateMany keyed on (userId, weekStartDate) keeps the
+      // read-modify-write inside this transaction. Two truly concurrent
+      // generates can still both commit isActive: true, but readers order
+      // by createdAt desc so the outcome stays deterministic — acceptable
+      // for a single-user app.
+      await tx.weeklyMealPlan.updateMany({
+        where: { userId, weekStartDate: target, isActive: true },
+        data: { isActive: false },
+      });
 
       // Deactivate older plans only when the new plan is for the current week
       if (isCurrentWeek) {
@@ -192,13 +202,11 @@ router.post("/empty", requireAuth, async (req, res) => {
   };
 
   const result = await prisma.$transaction(async (tx) => {
-    const existingPlan = await findMealPlanForWeek(userId, target);
-    if (existingPlan) {
-      await tx.weeklyMealPlan.update({
-        where: { id: existingPlan.id },
-        data: { isActive: false },
-      });
-    }
+    // Same transactional deactivation pattern as /generate.
+    await tx.weeklyMealPlan.updateMany({
+      where: { userId, weekStartDate: target, isActive: true },
+      data: { isActive: false },
+    });
 
     const plan = await tx.weeklyMealPlan.create({
       data: {
@@ -279,6 +287,7 @@ router.put("/slot", requireAuth, async (req, res) => {
         }
         return planJson;
       },
+      { day: parsed.data.day, op: { type: "recount" } },
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -308,6 +317,7 @@ router.post("/slot/add", requireAuth, async (req, res) => {
         day.meals.push(parsed.data.meal);
         return planJson;
       },
+      { day: parsed.data.day, op: { type: "recount" } },
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -334,9 +344,13 @@ router.delete("/slot", requireAuth, async (req, res) => {
       (planJson) => {
         const day = planJson.days.find((d) => d.day === parsed.data.day);
         if (!day) throw new Error("Day not found in plan");
+        if (parsed.data.index >= day.meals.length) {
+          throw new Error("No meal at that index");
+        }
         day.meals.splice(parsed.data.index, 1);
         return planJson;
       },
+      { day: parsed.data.day, op: { type: "remove", index: parsed.data.index } },
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -417,6 +431,7 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
         }
         return json;
       },
+      { day: parsed.data.day, op: { type: "recount" } },
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -488,6 +503,9 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
         }
         return planJson;
       },
+      // The day's meals were wholly replaced — old completion indices no
+      // longer refer to anything meaningful.
+      { day: parsed.data.day, op: { type: "clearDay" } },
     );
 
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
@@ -522,6 +540,7 @@ async function mutatePlanForWeek(
   userId: string,
   weekStart: string | undefined,
   mutator: (json: MealPlanJson) => MealPlanJson,
+  reconcile?: { day: DayLabel; op: ReconcileOp },
 ) {
   const target = weekStart
     ? await findMealPlanForWeek(userId, parseLocalDate(weekStart))
@@ -530,9 +549,43 @@ async function mutatePlanForWeek(
     throw new Error("No meal plan for the requested week");
   }
   const next = mutator(normalizeMealPlan(target.planJson));
-  const updated = await prisma.weeklyMealPlan.update({
-    where: { id: target.id },
-    data: { planJson: next as unknown as object },
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const plan = await tx.weeklyMealPlan.update({
+      where: { id: target.id },
+      data: { planJson: next as unknown as object },
+    });
+
+    // Keep completion indices for the mutated day pointing at the right
+    // meals (e.g. deleting meal 0 shifts the rest down by one).
+    if (reconcile) {
+      const newMealCount =
+        next.days.find((d) => d.day === reconcile.day)?.meals.length ?? 0;
+      const completions = await tx.mealCompletion.findMany({
+        where: { userId, planId: target.id },
+      });
+      for (const row of completions) {
+        if (dayLabelForDayKey(row.dayKey) !== reconcile.day) continue;
+        const current = Array.isArray(row.indicesJson)
+          ? (row.indicesJson as number[])
+          : [];
+        const result = reconcileIndices(current, reconcile.op, newMealCount);
+        const completedAt = result.complete
+          ? (row.completedAt ?? new Date())
+          : null;
+        const indicesChanged =
+          result.indices.length !== current.length ||
+          result.indices.some((v, i) => v !== current[i]);
+        if (indicesChanged || (completedAt?.getTime() ?? null) !== (row.completedAt?.getTime() ?? null)) {
+          await tx.mealCompletion.update({
+            where: { id: row.id },
+            data: { indicesJson: result.indices, completedAt },
+          });
+        }
+      }
+    }
+
+    return plan;
   });
   return { plan: updated };
 }
@@ -613,7 +666,7 @@ router.put("/completions", requireAuth, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { planId, dayKey, indices, totalMeals } = parsed.data;
+  const { planId, dayKey, indices } = parsed.data;
 
   // Verify plan belongs to user
   const plan = await prisma.weeklyMealPlan.findFirst({
@@ -624,12 +677,36 @@ router.put("/completions", requireAuth, async (req, res) => {
     return;
   }
 
-  const completedAt = totalMeals > 0 && indices.length >= totalMeals ? new Date() : null;
+  // Derive completion state from the plan — never trust client counts.
+  const planJson = normalizeMealPlan(plan.planJson);
+  const dayLabel = dayLabelForDayKey(dayKey);
+  const mealCount =
+    planJson.days.find((d) => d.day === dayLabel)?.meals.length ?? 0;
+  const existing = await prisma.mealCompletion.findUnique({
+    where: { userId_planId_dayKey: { userId, planId, dayKey } },
+  });
+  const result = validateMealCompletion({
+    dayKey,
+    weekStartDate: plan.weekStartDate,
+    mealCount,
+    indices,
+    previousCompletedAt: existing?.completedAt ?? null,
+  });
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
 
   const completion = await prisma.mealCompletion.upsert({
     where: { userId_planId_dayKey: { userId, planId, dayKey } },
-    update: { indicesJson: indices, completedAt },
-    create: { userId, planId, dayKey, indicesJson: indices, completedAt },
+    update: { indicesJson: result.indices, completedAt: result.completedAt },
+    create: {
+      userId,
+      planId,
+      dayKey,
+      indicesJson: result.indices,
+      completedAt: result.completedAt,
+    },
   });
   res.json({ completion });
 });

@@ -42,24 +42,21 @@ export function useHydration() {
   });
 }
 
-export function useLogHydration() {
+function useHydrationMutation(path: string, delta: number) {
   const api = useApi();
   const qc = useQueryClient();
   const dayKey = useTodayDayKey();
   const key = ["hydration", dayKey];
   return useMutation({
     mutationFn: async () => {
-      const { data } = await api.post<{ cups: number }>(
-        "/api/hydration/increment",
-        { dayKey },
-      );
+      const { data } = await api.post<{ cups: number }>(path, { dayKey });
       return data;
     },
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<{ cups: number }>(key);
       qc.setQueryData(key, (old: { cups: number } | undefined) => ({
-        cups: (old?.cups ?? 0) + 1,
+        cups: Math.max(0, (old?.cups ?? 0) + delta),
       }));
       return { previous };
     },
@@ -75,4 +72,13 @@ export function useLogHydration() {
       qc.invalidateQueries({ queryKey: ["history"] });
     },
   });
+}
+
+export function useLogHydration() {
+  return useHydrationMutation("/api/hydration/increment", 1);
+}
+
+/** Undo an accidental tap — clamps at 0 on both client and server. */
+export function useUnlogHydration() {
+  return useHydrationMutation("/api/hydration/decrement", -1);
 }

@@ -558,7 +558,7 @@ export function MealsPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    completions.toggle(i, meals.length);
+                    completions.toggle(i);
                     // Fire confetti when completing the last meal
                     if (!mealComplete && completions.completed.size === meals.length - 1) {
                       setTimeout(() => fireCelebration(), 200);

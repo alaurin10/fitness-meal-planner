@@ -45,10 +45,10 @@ export function useMealCompletions(
   });
 
   const mutation = useMutation({
-    mutationFn: async (vars: { indices: number[]; totalMeals: number }) => {
+    mutationFn: async (vars: { indices: number[] }) => {
       const { data } = await api.put<{ completion: CompletionRecord }>(
         "/api/meals/completions",
-        { planId, dayKey, indices: vars.indices, totalMeals: vars.totalMeals },
+        { planId, dayKey, indices: vars.indices },
       );
       return data.completion;
     },
@@ -77,7 +77,7 @@ export function useMealCompletions(
   const completed = new Set(completedIndices);
 
   const toggle = useCallback(
-    (index: number, totalMeals = 0) => {
+    (index: number) => {
       if (!planId) return;
       const next = [...completedIndices];
       const pos = next.indexOf(index);
@@ -87,17 +87,17 @@ export function useMealCompletions(
         next.push(index);
         next.sort((a, b) => a - b);
       }
-      mutation.mutate({ indices: next, totalMeals });
+      mutation.mutate({ indices: next });
     },
     [planId, completedIndices, mutation],
   );
 
   const markComplete = useCallback(
-    (index: number, totalMeals = 0) => {
+    (index: number) => {
       if (!planId) return;
       if (completedIndices.includes(index)) return;
       const next = [...completedIndices, index].sort((a, b) => a - b);
-      mutation.mutate({ indices: next, totalMeals });
+      mutation.mutate({ indices: next });
     },
     [planId, completedIndices, mutation],
   );

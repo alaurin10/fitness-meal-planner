@@ -10,6 +10,7 @@ import {
   findActiveMealPlan,
 } from "../services/activePlan.js";
 import { computeWorkoutVolumeLbs } from "../services/workoutVolume.js";
+import { historyPlanDateBounds } from "../services/historyBounds.js";
 
 const router = Router();
 
@@ -105,9 +106,15 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.get("/daily-summary", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
+  // The client always sends its local dayKey; the server's timezone is not a
+  // valid substitute for the user's.
   const dayKey = typeof req.query.dayKey === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dayKey)
     ? req.query.dayKey
-    : localDayKey();
+    : null;
+  if (!dayKey) {
+    res.status(400).json({ error: "dayKey must be YYYY-MM-DD" });
+    return;
+  }
 
   const [profile, workoutPlan, mealPlan, hydrationLog] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
@@ -203,6 +210,9 @@ router.get("/history", requireAuth, async (req, res) => {
   const { from, to } = parsed.data;
   const fromDate = new Date(from + "T00:00:00Z");
   const toDate = new Date(to + "T23:59:59Z");
+  // Only plans whose week overlaps the requested range matter — fetching the
+  // user's full plan history made this endpoint slow down as data accumulated.
+  const planBounds = historyPlanDateBounds(from, to);
 
   const [workoutCompletions, mealCompletions, hydrationLogs, profile, allWorkoutPlans, allMealPlans] = await Promise.all([
     prisma.workoutCompletion.findMany({
@@ -216,11 +226,11 @@ router.get("/history", requireAuth, async (req, res) => {
     }),
     prisma.profile.findUnique({ where: { userId } }),
     prisma.weeklyPlan.findMany({
-      where: { userId },
+      where: { userId, weekStartDate: planBounds },
       orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.weeklyMealPlan.findMany({
-      where: { userId },
+      where: { userId, weekStartDate: planBounds },
       orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
     }),
   ]);
@@ -290,6 +300,10 @@ router.get("/history", requireAuth, async (req, res) => {
     day.meals.done = mc.completedAt != null;
   }
 
+  const mealCompletionsByDay = new Map(
+    mealCompletions.map((c) => [c.dayKey, c]),
+  );
+
   // Fill meal totals from per-dayKey plan resolution
   for (const dk of Object.keys(days)) {
     const rec = days[dk];
@@ -303,7 +317,7 @@ router.get("/history", requireAuth, async (req, res) => {
     rec.meals.total = dayEntry?.meals?.length ?? 0;
 
     // Fill calorie/protein from completed meal indices
-    const mc = mealCompletions.find((c) => c.dayKey === dk);
+    const mc = mealCompletionsByDay.get(dk);
     if (mc && dayEntry?.meals) {
       const indices = mc.indicesJson as number[];
       rec.meals.calories = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.calories ?? 0), 0);
@@ -381,11 +395,8 @@ router.get("/streaks", requireAuth, async (req, res) => {
   res.json(streaks);
 });
 
-function localDayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
+// Server-local day keys are only used for coarse range bounds (e.g. the
+// 90-day streak window), never to attribute data to a specific user-local day.
 function localDayKeyFromDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
