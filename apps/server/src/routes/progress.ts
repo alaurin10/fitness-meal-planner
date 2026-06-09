@@ -10,6 +10,7 @@ import {
   findActiveMealPlan,
 } from "../services/activePlan.js";
 import { computeWorkoutVolumeLbs } from "../services/workoutVolume.js";
+import { historyPlanDateBounds } from "../services/historyBounds.js";
 
 const router = Router();
 
@@ -209,6 +210,9 @@ router.get("/history", requireAuth, async (req, res) => {
   const { from, to } = parsed.data;
   const fromDate = new Date(from + "T00:00:00Z");
   const toDate = new Date(to + "T23:59:59Z");
+  // Only plans whose week overlaps the requested range matter — fetching the
+  // user's full plan history made this endpoint slow down as data accumulated.
+  const planBounds = historyPlanDateBounds(from, to);
 
   const [workoutCompletions, mealCompletions, hydrationLogs, profile, allWorkoutPlans, allMealPlans] = await Promise.all([
     prisma.workoutCompletion.findMany({
@@ -222,11 +226,11 @@ router.get("/history", requireAuth, async (req, res) => {
     }),
     prisma.profile.findUnique({ where: { userId } }),
     prisma.weeklyPlan.findMany({
-      where: { userId },
+      where: { userId, weekStartDate: planBounds },
       orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.weeklyMealPlan.findMany({
-      where: { userId },
+      where: { userId, weekStartDate: planBounds },
       orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
     }),
   ]);
@@ -296,6 +300,10 @@ router.get("/history", requireAuth, async (req, res) => {
     day.meals.done = mc.completedAt != null;
   }
 
+  const mealCompletionsByDay = new Map(
+    mealCompletions.map((c) => [c.dayKey, c]),
+  );
+
   // Fill meal totals from per-dayKey plan resolution
   for (const dk of Object.keys(days)) {
     const rec = days[dk];
@@ -309,7 +317,7 @@ router.get("/history", requireAuth, async (req, res) => {
     rec.meals.total = dayEntry?.meals?.length ?? 0;
 
     // Fill calorie/protein from completed meal indices
-    const mc = mealCompletions.find((c) => c.dayKey === dk);
+    const mc = mealCompletionsByDay.get(dk);
     if (mc && dayEntry?.meals) {
       const indices = mc.indicesJson as number[];
       rec.meals.calories = indices.reduce((s, idx) => s + (dayEntry.meals?.[idx]?.calories ?? 0), 0);
