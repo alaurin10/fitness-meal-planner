@@ -12,6 +12,7 @@ export type IconName =
   | "check"
   | "plus"
   | "minus"
+  | "list"
   | "chevron"
   | "chevron-down"
   | "chevron-left"
@@ -126,6 +127,15 @@ export function Icon({ name, size = 20, stroke = 1.75, style, className }: Props
       return (
         <svg viewBox="0 0 24 24" style={s} className={className}>
           <path {...common} d="M5 12h14" />
+        </svg>
+      );
+    case "list":
+      return (
+        <svg viewBox="0 0 24 24" style={s} className={className}>
+          <path {...common} d="M9 6h11M9 12h11M9 18h11" />
+          <circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none" />
+          <circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none" />
         </svg>
       );
     case "chevron":

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { parseRepDuration } from "@platform/shared";
+import { useIsDesktop } from "../hooks/useIsDesktop";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { formatLoad, weightUnitLabel, kgToPounds, poundsToKg, roundTo, type UnitSystem } from "../lib/units";
@@ -46,6 +48,7 @@ export function WorkoutMode({
   const [exerciseIdx, setExerciseIdx] = useState(initialExerciseIdx);
   const [setNum, setSetNum] = useState(initialSetNum);
   const [phase, setPhase] = useState<Phase>("active");
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const completionFiredRef = useRef(false);
 
   // Fire onComplete the moment the user lands on the Done screen.
@@ -97,6 +100,16 @@ export function WorkoutMode({
     setPhase("active");
   }
 
+  // Jumping rewinds/advances the linear position, exactly like the Back
+  // button — jumping back to a finished exercise restarts it at Set 1.
+  // Server-side per-set completions (setsJson) are append-only and unaffected.
+  function jumpToExercise(idx: number) {
+    setExerciseIdx(idx);
+    setSetNum(1);
+    setPhase("active");
+    setOverviewOpen(false);
+  }
+
   const loadLabel =
     exercise.loadLbs !== null
       ? `${formatLoad(exercise.loadLbs, unitSystem)} ${weightUnitLabel(unitSystem)}`
@@ -121,9 +134,30 @@ export function WorkoutMode({
           justifyContent: "space-between",
         }}
       >
-        <div className="eyebrow">
-          {dayLabel} · {exercise.name && phase !== "done" ? `Exercise ${exerciseIdx + 1} of ${exercises.length}` : "Workout"}
-        </div>
+        {phase !== "done" ? (
+          <button
+            type="button"
+            onClick={() => setOverviewOpen(true)}
+            aria-label="Workout overview"
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "inherit",
+            }}
+          >
+            <div className="eyebrow">
+              {dayLabel} · Exercise {exerciseIdx + 1} of {exercises.length}
+            </div>
+            <Icon name="list" size={14} style={{ color: "var(--muted)" }} />
+          </button>
+        ) : (
+          <div className="eyebrow">{dayLabel} · Workout</div>
+        )}
         <button
           type="button"
           onClick={onExit}
@@ -217,6 +251,221 @@ export function WorkoutMode({
           </Button>
         </div>
       )}
+
+      {overviewOpen && (
+        <OverviewSheet
+          exercises={exercises}
+          exerciseIdx={exerciseIdx}
+          setNum={setNum}
+          onJump={jumpToExercise}
+          onClose={() => setOverviewOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function OverviewSheet({
+  exercises,
+  exerciseIdx,
+  setNum,
+  onJump,
+  onClose,
+}: {
+  exercises: Exercise[];
+  exerciseIdx: number;
+  setNum: number;
+  onJump: (idx: number) => void;
+  onClose: () => void;
+}) {
+  const isDesktop = useIsDesktop();
+  const currentRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({ block: "center" });
+  }, []);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Workout overview"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        zIndex: 60,
+        display: "flex",
+        alignItems: isDesktop ? "center" : "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "75vh",
+          background: "var(--bg)",
+          borderRadius: isDesktop ? 24 : undefined,
+          borderTopLeftRadius: isDesktop ? undefined : 24,
+          borderTopRightRadius: isDesktop ? undefined : 24,
+          display: "flex",
+          flexDirection: "column",
+          paddingBottom: isDesktop ? 8 : "calc(env(safe-area-inset-bottom, 16px) + 8px)",
+        }}
+      >
+        <div
+          style={{
+            padding: "14px 18px 10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
+            Workout overview
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--sumi)",
+              cursor: "pointer",
+              padding: 6,
+            }}
+          >
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        <div style={{ overflowY: "auto", padding: "0 6px" }}>
+          {exercises.map((ex, i) => {
+            const isDone = i < exerciseIdx;
+            const isCurrent = i === exerciseIdx;
+            // Same linear derivation as the progress header: sets in the
+            // current exercise count as done only once advanced past.
+            const doneSets = isDone ? ex.sets : isCurrent ? setNum - 1 : 0;
+            return (
+              <button
+                key={i}
+                type="button"
+                ref={isCurrent ? currentRef : undefined}
+                onClick={() => onJump(i)}
+                aria-current={isCurrent ? "true" : undefined}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "13px 12px",
+                  background: isCurrent
+                    ? "color-mix(in srgb, var(--accent) 7%, transparent)"
+                    : "transparent",
+                  border: "none",
+                  borderBottom: i < exercises.length - 1 ? "1px solid var(--hair)" : "none",
+                  borderRadius: isCurrent ? 12 : 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: isDone ? "var(--accent)" : "var(--clay)",
+                    border: isCurrent ? "2px solid var(--accent)" : "none",
+                    color: isDone ? "var(--paper)" : "var(--ink)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  {isDone ? <Icon name="check" size={14} stroke={2.5} /> : i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>
+                      {ex.name}
+                    </span>
+                    {ex.muscleGroup && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: "var(--accent-2)",
+                          background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          letterSpacing: "0.03em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {ex.muscleGroup}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      marginTop: 3,
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>
+                      <b>{ex.sets}</b> × {ex.reps}
+                    </span>
+                    <span>·</span>
+                    <span>{ex.restSeconds}s rest</span>
+                    <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+                      {Array.from({ length: ex.sets }, (_, s) => (
+                        <span
+                          key={s}
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: s < doneSets ? "var(--accent)" : "var(--hair)",
+                            transition: "background 200ms ease",
+                          }}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                </div>
+                <Icon name="chevron" size={14} style={{ color: "var(--muted)", flexShrink: 0 }} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -325,9 +574,13 @@ function ActiveScreen({
         }}
       >
         {(() => {
-          const repSecs = parseRepSeconds(exercise.reps);
-          return repSecs !== null ? (
-            <RepTimer key={`${exerciseIdx}-${setNum}`} seconds={repSecs} />
+          const duration = parseRepDuration(exercise.reps);
+          return duration !== null ? (
+            <RepTimer
+              key={`${exerciseIdx}-${setNum}`}
+              seconds={duration.seconds}
+              perSide={duration.perSide}
+            />
           ) : (
             <Stat label="Reps" value={exercise.reps} />
           );
@@ -667,16 +920,7 @@ function LoadEditor({
   );
 }
 
-function parseRepSeconds(reps: string): number | null {
-  const t = reps.trim().toLowerCase();
-  const mS = t.match(/^(\d+)\s*s(?:ec(?:onds?)?)?$/);
-  if (mS) return parseInt(mS[1]!, 10);
-  const mTime = t.match(/^(\d+):(\d{2})$/);
-  if (mTime) return parseInt(mTime[1]!, 10) * 60 + parseInt(mTime[2]!, 10);
-  return null;
-}
-
-function RepTimer({ seconds }: { seconds: number }) {
+function RepTimer({ seconds, perSide }: { seconds: number; perSide?: boolean }) {
   const [started, setStarted] = useState(false);
   const [deadline, setDeadline] = useState(0);
   const [remaining, setRemaining] = useState(seconds);
@@ -712,7 +956,7 @@ function RepTimer({ seconds }: { seconds: number }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div className="eyebrow">Rep Timer</div>
+      <div className="eyebrow">{perSide ? "Rep Timer · Per Side" : "Rep Timer"}</div>
       <div
         className="font-display"
         style={{
