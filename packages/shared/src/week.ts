@@ -166,3 +166,7 @@ export function normalizeExerciseName(name: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+// week.ts doubles as the package entry (see package.json "exports"), so
+// sibling modules are re-exported here.
+export * from "./reps.js";
