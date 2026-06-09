@@ -17,7 +17,7 @@ export function buildSystemPrompt(): string {
     "  { summary: string; progressionNotes: string; days: Array<{ day: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; focus: string; exercises: Array<{ name: string; muscleGroup: string; description: string; sets: number; reps: string; loadLbs: number | null; restSeconds: number; notes?: string }> }> }",
     "- `muscleGroup` is the primary muscle group the exercise targets (e.g. 'Chest', 'Back', 'Quads', 'Core'). Use one concise label.",
     "- `description` is 1-2 sentences explaining how to perform the exercise (stance, grip, motion cues).",
-    "- `reps` is a string like '8-10' or '5'.",
+    "- `reps` is a string like '8-10' or '5'. For timed/isometric work (planks, holds, carries, wall sits), use a canonical duration format: '45s', '90s', or '45s per side' for unilateral holds. Never write 'seconds', 'sec', minutes, or duration ranges in `reps`.",
     "- `loadLbs` rules:",
     "  - If the exercise (matched by name, case-insensitive, ignoring qualifiers like 'barbell'/'dumbbell') appears in `userBaselines`, you MUST set `loadLbs` to that exact value. Do not apply any progression on top.",
     "  - Otherwise, set `loadLbs` to a reasonable starting weight for the athlete's experience level. Use null for bodyweight movements.",

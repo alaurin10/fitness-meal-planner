@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { parseRepDuration } from "@platform/shared";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { formatLoad, weightUnitLabel, kgToPounds, poundsToKg, roundTo, type UnitSystem } from "../lib/units";
@@ -325,9 +326,13 @@ function ActiveScreen({
         }}
       >
         {(() => {
-          const repSecs = parseRepSeconds(exercise.reps);
-          return repSecs !== null ? (
-            <RepTimer key={`${exerciseIdx}-${setNum}`} seconds={repSecs} />
+          const duration = parseRepDuration(exercise.reps);
+          return duration !== null ? (
+            <RepTimer
+              key={`${exerciseIdx}-${setNum}`}
+              seconds={duration.seconds}
+              perSide={duration.perSide}
+            />
           ) : (
             <Stat label="Reps" value={exercise.reps} />
           );
@@ -667,16 +672,7 @@ function LoadEditor({
   );
 }
 
-function parseRepSeconds(reps: string): number | null {
-  const t = reps.trim().toLowerCase();
-  const mS = t.match(/^(\d+)\s*s(?:ec(?:onds?)?)?$/);
-  if (mS) return parseInt(mS[1]!, 10);
-  const mTime = t.match(/^(\d+):(\d{2})$/);
-  if (mTime) return parseInt(mTime[1]!, 10) * 60 + parseInt(mTime[2]!, 10);
-  return null;
-}
-
-function RepTimer({ seconds }: { seconds: number }) {
+function RepTimer({ seconds, perSide }: { seconds: number; perSide?: boolean }) {
   const [started, setStarted] = useState(false);
   const [deadline, setDeadline] = useState(0);
   const [remaining, setRemaining] = useState(seconds);
@@ -712,7 +708,7 @@ function RepTimer({ seconds }: { seconds: number }) {
 
   return (
     <div style={{ textAlign: "center" }}>
-      <div className="eyebrow">Rep Timer</div>
+      <div className="eyebrow">{perSide ? "Rep Timer · Per Side" : "Rep Timer"}</div>
       <div
         className="font-display"
         style={{
