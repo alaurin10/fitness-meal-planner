@@ -2,9 +2,15 @@ import { useState } from "react";
 import { useRecipes } from "../hooks/useRecipes";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import type { MealSlot, RecipeRecord } from "../lib/types";
-import { formatMinutes } from "../lib/units";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { RecipeCard } from "./RecipeCard";
+import {
+  CATEGORY_LABEL,
+  RecipeFilterChips,
+  isCategory,
+  type FilterPreset,
+} from "./RecipeFilterChips";
 import { Skeleton } from "./Skeleton";
 
 interface Props {
@@ -15,18 +21,27 @@ interface Props {
 }
 
 export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
+  // Mount gate: PickerContent remounts on every open so search/filter state
+  // resets and re-initializes from the current slot.
+  if (!open) return null;
+  return <PickerContent slot={slot} onPick={onPick} onClose={onClose} />;
+}
+
+function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
   const [search, setSearch] = useState("");
+  const [preset, setPreset] = useState<FilterPreset>(slot ?? "all");
   const isDesktop = useIsDesktop();
   const { data: recipes, isLoading } = useRecipes({
     search: search.trim() || undefined,
+    favorite: preset === "favorites" ? true : undefined,
+    category: isCategory(preset) ? preset : undefined,
   });
 
-  if (!open) return null;
-
+  // On "All", surface slot-matching recipes first; category chips already
+  // filter server-side, so render those results as-is.
   const filtered = recipes
-    ? slot
-      ? // Surface slot-matching recipes first, then the rest
-        [
+    ? slot && preset === "all"
+      ? [
           ...recipes.filter((r) => r.slotHint === slot),
           ...recipes.filter((r) => r.slotHint !== slot),
         ]
@@ -51,13 +66,10 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%",
-          maxWidth: isDesktop ? 560 : 480,
-          maxHeight: isDesktop ? "70vh" : "85vh",
+          width: isDesktop ? "min(960px, calc(100vw - 48px))" : "100%",
+          height: isDesktop ? "min(88vh, 900px)" : "calc(100dvh - 24px)",
           background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : undefined,
-          borderTopLeftRadius: isDesktop ? undefined : 24,
-          borderTopRightRadius: isDesktop ? undefined : 24,
+          borderRadius: isDesktop ? 24 : "24px 24px 0 0",
           display: "flex",
           flexDirection: "column",
           paddingBottom: isDesktop ? 12 : "calc(env(safe-area-inset-bottom, 16px) + 12px)",
@@ -71,8 +83,15 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
             justifyContent: "space-between",
           }}
         >
-          <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
-            Pick a recipe
+          <div>
+            <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
+              Pick a recipe
+            </div>
+            {slot && (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                Adding {CATEGORY_LABEL[slot]}
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -89,7 +108,7 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
             <Icon name="x" size={20} />
           </button>
         </div>
-        <div style={{ padding: "0 18px 8px" }}>
+        <div style={{ padding: "0 18px" }}>
           <input
             className="field-input"
             placeholder="Search recipes…"
@@ -99,17 +118,19 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
           />
         </div>
 
+        <RecipeFilterChips value={preset} onChange={setPreset} />
+
         <div
           style={{
             overflowY: "auto",
-            padding: "4px 14px 8px",
+            padding: "8px 16px",
             flex: 1,
           }}
         >
           {isLoading && (
-            <div style={{ padding: "12px 6px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} height={48} radius={12} />
+            <div style={{ padding: "4px 2px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} height={84} radius={16} />
               ))}
             </div>
           )}
@@ -122,74 +143,19 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
                 textAlign: "center",
               }}
             >
-              No saved recipes match. Save meals to your book first, or add one
-              manually.
+              {isCategory(preset)
+                ? `No ${CATEGORY_LABEL[preset].toLowerCase()} recipes match. Try “All,” or save more recipes to your book.`
+                : preset === "favorites"
+                  ? "No favorite recipes match. Try “All,” or heart some recipes first."
+                  : "No saved recipes match. Save meals to your book first, or add one manually."}
             </div>
           )}
-          <ul style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {filtered.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(r)}
-                  className="tappable"
-                  style={{
-                    display: "flex",
-                    width: "100%",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 12px",
-                    background: "var(--paper)",
-                    border: "1px solid var(--hair)",
-                    borderRadius: 14,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      className="font-display"
-                      style={{
-                        fontSize: 15,
-                        color: "var(--ink)",
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {r.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: "var(--muted)",
-                        marginTop: 4,
-                      }}
-                    >
-                      {[
-                        r.slotHint ? capitalize(r.slotHint) : null,
-                        `${r.calories} kcal`,
-                        `${r.proteinG}g protein`,
-                        r.totalMinutes ? formatMinutes(r.totalMinutes) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
-                  </div>
-                  {r.isFavorite && (
-                    <Icon
-                      name="heart"
-                      size={14}
-                      style={{ color: "var(--accent)" }}
-                    />
-                  )}
-                  <Icon
-                    name="chevron"
-                    size={14}
-                    style={{ color: "var(--muted)" }}
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3">
+            {!isLoading &&
+              filtered.map((r) => (
+                <RecipeCard key={r.id} recipe={r} onSelect={() => onPick(r)} />
+              ))}
+          </div>
         </div>
 
         <div style={{ padding: "0 18px" }}>
@@ -200,8 +166,4 @@ export function RecipePickerModal({ open, slot, onPick, onClose }: Props) {
       </div>
     </div>
   );
-}
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
