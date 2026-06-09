@@ -142,30 +142,32 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
       daysToGenerate: workoutDays,
     });
 
-    // Deactivate (not delete) any existing plan for this week to preserve completions
-    const existing = await findWorkoutPlanForWeek(userId, target);
-    if (existing) {
-      await prisma.weeklyPlan.update({
-        where: { id: existing.id },
+    // Deactivate (not delete) existing plans for this week to preserve
+    // completions, atomically with creating the replacement. See the
+    // matching comment in meals /generate about the residual concurrent
+    // race being acceptable.
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.weeklyPlan.updateMany({
+        where: { userId, weekStartDate: target, isActive: true },
         data: { isActive: false },
       });
-    }
 
-    // Deactivate older plans only when the new plan is for the current week
-    if (isCurrentWeek) {
-      await prisma.weeklyPlan.updateMany({
-        where: { userId, weekStartDate: { lt: target }, isActive: true },
-        data: { isActive: false },
+      // Deactivate older plans only when the new plan is for the current week
+      if (isCurrentWeek) {
+        await tx.weeklyPlan.updateMany({
+          where: { userId, weekStartDate: { lt: target }, isActive: true },
+          data: { isActive: false },
+        });
+      }
+
+      return tx.weeklyPlan.create({
+        data: {
+          userId,
+          weekStartDate: target,
+          planJson,
+          isActive: true,
+        },
       });
-    }
-
-    const created = await prisma.weeklyPlan.create({
-      data: {
-        userId,
-        weekStartDate: target,
-        planJson,
-        isActive: true,
-      },
     });
 
     res.json({ plan: created });

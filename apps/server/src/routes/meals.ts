@@ -120,14 +120,16 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
     const planJson = await generateMealPlan({ profile, schedule, daysToGenerate: daysToInclude });
 
     const result = await prisma.$transaction(async (tx) => {
-      // Deactivate (not delete) existing plan for this week to preserve completions
-      const existingPlan = await findMealPlanForWeek(userId, target);
-      if (existingPlan) {
-        await tx.weeklyMealPlan.update({
-          where: { id: existingPlan.id },
-          data: { isActive: false },
-        });
-      }
+      // Deactivate (not delete) existing plans for this week to preserve
+      // completions. updateMany keyed on (userId, weekStartDate) keeps the
+      // read-modify-write inside this transaction. Two truly concurrent
+      // generates can still both commit isActive: true, but readers order
+      // by createdAt desc so the outcome stays deterministic — acceptable
+      // for a single-user app.
+      await tx.weeklyMealPlan.updateMany({
+        where: { userId, weekStartDate: target, isActive: true },
+        data: { isActive: false },
+      });
 
       // Deactivate older plans only when the new plan is for the current week
       if (isCurrentWeek) {
@@ -200,13 +202,11 @@ router.post("/empty", requireAuth, async (req, res) => {
   };
 
   const result = await prisma.$transaction(async (tx) => {
-    const existingPlan = await findMealPlanForWeek(userId, target);
-    if (existingPlan) {
-      await tx.weeklyMealPlan.update({
-        where: { id: existingPlan.id },
-        data: { isActive: false },
-      });
-    }
+    // Same transactional deactivation pattern as /generate.
+    await tx.weeklyMealPlan.updateMany({
+      where: { userId, weekStartDate: target, isActive: true },
+      data: { isActive: false },
+    });
 
     const plan = await tx.weeklyMealPlan.create({
       data: {
