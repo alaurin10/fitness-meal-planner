@@ -26,6 +26,11 @@ interface Props {
   onSessionClear?: () => void;
   /** Called when a set is completed — persists per-set progress. */
   onSetComplete?: (exerciseIdx: number, setNum: number) => void;
+  /**
+   * Called when stepping back onto an already-completed set — clears its
+   * persisted completion so going backward reduces the saved set count.
+   */
+  onSetUncomplete?: (exerciseIdx: number, setNum: number) => void;
   /** Called when the user modifies a load in the active screen. */
   onUpdateLoad?: (exerciseIdx: number, loadLbs: number) => void;
 }
@@ -43,6 +48,7 @@ export function WorkoutMode({
   onProgress,
   onSessionClear,
   onSetComplete,
+  onSetUncomplete,
   onUpdateLoad,
 }: Props) {
   const [exerciseIdx, setExerciseIdx] = useState(initialExerciseIdx);
@@ -227,11 +233,18 @@ export function WorkoutMode({
           <Button
             variant="ghost"
             onClick={() => {
+              // Stepping back onto a set means it's the current (incomplete)
+              // set again, so clear its persisted completion — keeps the saved
+              // set count in sync with the linear position shown in the header.
               if (setNum > 1) {
-                setSetNum((n) => n - 1);
+                const target = setNum - 1;
+                onSetUncomplete?.(exerciseIdx, target);
+                setSetNum(target);
               } else if (exerciseIdx > 0) {
-                const prev = exercises[exerciseIdx - 1]!;
-                setExerciseIdx((i) => i - 1);
+                const prevIdx = exerciseIdx - 1;
+                const prev = exercises[prevIdx]!;
+                onSetUncomplete?.(prevIdx, prev.sets);
+                setExerciseIdx(prevIdx);
                 setSetNum(prev.sets);
               }
             }}
