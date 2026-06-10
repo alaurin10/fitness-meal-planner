@@ -102,6 +102,20 @@ export function useWorkoutCompletions(
     [planId, setsJson, mutation],
   );
 
+  const unmarkSetComplete = useCallback(
+    (exerciseIdx: number, setNum: number) => {
+      if (!planId) return;
+      const current = { ...setsJson };
+      const key = String(exerciseIdx);
+      const sets = current[key] ?? [];
+      if (sets.includes(setNum)) {
+        current[key] = sets.filter((n) => n !== setNum);
+        mutation.mutate(current);
+      }
+    },
+    [planId, setsJson, mutation],
+  );
+
   const isSetComplete = useCallback(
     (exerciseIdx: number, setNum: number) => {
       return setsJson[String(exerciseIdx)]?.includes(setNum) ?? false;
@@ -130,6 +144,7 @@ export function useWorkoutCompletions(
     toggle,
     toggleSet,
     markSetComplete,
+    unmarkSetComplete,
     isSetComplete,
     setsJson,
     completedSetsCount,

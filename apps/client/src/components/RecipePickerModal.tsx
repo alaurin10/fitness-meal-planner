@@ -114,7 +114,6 @@ function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
             placeholder="Search recipes…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            autoFocus
           />
         </div>
 

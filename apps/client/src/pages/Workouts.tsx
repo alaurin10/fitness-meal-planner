@@ -279,6 +279,9 @@ export function WorkoutsPage() {
         onSetComplete={
           viewingToday ? completion.markSetComplete : undefined
         }
+        onSetUncomplete={
+          viewingToday ? completion.unmarkSetComplete : undefined
+        }
         onUpdateLoad={(idx, loadLbs) =>
           updateLoad.mutate({ day: activeDay, index: idx, loadLbs })
         }
