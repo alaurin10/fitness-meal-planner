@@ -11,6 +11,15 @@ export function fireCelebration() {
   if (now - lastFired < 2000) return;
   lastFired = now;
 
+  // Read live tokens so particles match the active palette/theme.
+  const styles = getComputedStyle(document.documentElement);
+  const token = (name: string, fallback: string) =>
+    styles.getPropertyValue(name).trim() || fallback;
+  const accent = token("--accent", "#C77D4F");
+  const moss = token("--moss", "#5C6B4F");
+  const honey = token("--honey", "#C79A4B");
+  const rose = token("--rose", "#B5615E");
+
   const count = 120;
   const defaults = {
     origin: { y: 0.65 },
@@ -24,7 +33,7 @@ export function fireCelebration() {
     spread: 55,
     startVelocity: 40,
     scalar: 1.1,
-    colors: ["#C77D4F", "#5C6B4F", "#C79A4B", "#B5615E"],
+    colors: [accent, moss, honey, rose],
   });
 
   confetti({
@@ -34,7 +43,7 @@ export function fireCelebration() {
     startVelocity: 30,
     decay: 0.92,
     scalar: 0.9,
-    colors: ["#C77D4F", "#5C6B4F", "#C79A4B"],
+    colors: [accent, moss, honey],
   });
 
   setTimeout(() => {
@@ -45,7 +54,7 @@ export function fireCelebration() {
       startVelocity: 25,
       decay: 0.94,
       scalar: 0.8,
-      colors: ["#C77D4F", "#C79A4B"],
+      colors: [accent, honey],
     });
   }, 150);
 }

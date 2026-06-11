@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../lib/api";
+import { useSettings } from "../hooks/useSettings";
+import { useSyncServerTheme } from "../lib/theme";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
 import { Icon } from "./Icon";
@@ -17,6 +19,8 @@ export function Layout({ children }: Props) {
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
+  const settings = useSettings();
+  useSyncServerTheme(settings.data?.theme);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;

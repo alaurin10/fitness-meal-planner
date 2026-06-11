@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
@@ -60,38 +61,22 @@ export function RecipesPage() {
           </div>
         )}
         {!isLoading && (recipes?.length ?? 0) === 0 && (
-          <Card tone="clay" className="md:col-span-2">
-            <div className="eyebrow">Empty shelf</div>
-            <div
-              className="font-display"
-              style={{
-                fontSize: 22,
-                color: "var(--ink)",
-                marginTop: 4,
-              }}
+          <div className="md:col-span-2">
+            <EmptyState
+              icon="fork"
+              title="Nothing saved yet"
+              body="Add a recipe by hand, or open a meal you love from your plan and tap “Save to recipe book.”"
             >
-              Nothing saved yet
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--sumi)",
-                marginTop: 8,
-                lineHeight: 1.5,
-              }}
-            >
-              Add a recipe by hand, or open a meal you love from your plan and
-              tap “Save to recipe book.”
-            </div>
-            <Button
-              variant="accent"
-              className="mt-3"
-              onClick={() => navigate("/recipes/new")}
-            >
-              <Icon name="plus" size={14} />
-              Add a recipe
-            </Button>
-          </Card>
+              <Button
+                variant="accent"
+                className="mt-3"
+                onClick={() => navigate("/recipes/new")}
+              >
+                <Icon name="plus" size={14} />
+                Add a recipe
+              </Button>
+            </EmptyState>
+          </div>
         )}
 
         {recipes?.map((r) => (

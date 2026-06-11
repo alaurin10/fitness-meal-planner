@@ -67,6 +67,7 @@ export function BottomNav() {
             <NavLink
               to={item.to}
               end={item.end}
+              viewTransition
               aria-label={item.label}
               className="tappable block"
               style={({ isActive }) => ({

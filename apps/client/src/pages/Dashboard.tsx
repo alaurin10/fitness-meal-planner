@@ -27,7 +27,9 @@ import {
   useWorkoutSession,
   sessionProgress,
 } from "../hooks/useWorkoutSession";
+import { AnimatedNumber } from "../components/Primitives";
 import { fireCelebration } from "../lib/confetti";
+import { success, tap } from "../lib/haptics";
 import type { Meal, MealSlot } from "../lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -207,40 +209,39 @@ export function DashboardPage() {
   const allDoneToday = mealsForToday.length > 0 && nextMeal === null;
   const todayDayKey = todayLabel ?? "Mon";
 
+  // Lead with whichever card is actionable right now: once the workout is
+  // done (or it's a rest day) and a meal is still pending, the meal comes first.
+  const workoutSettled =
+    workoutCompletion.isComplete || (workoutPlan != null && !todayWorkout);
+  const mealCardFirst = nextMeal != null && workoutSettled;
+
   return (
     <Layout>
-      <div
-        className="font-display"
-        style={{
-          padding: "20px 22px 14px",
-          fontSize: 36,
-          color: "var(--ink)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.05,
-        }}
-      >
-        {formatDay(today)}
+      {/* Compact header: date + streak share one block to save vertical space */}
+      <div style={{ padding: "16px 22px 10px" }}>
+        <div className="title-xl" style={{ letterSpacing: "-0.02em" }}>
+          {formatDay(today)}
+        </div>
+        {streaksQuery.data && streaksQuery.data.overall.current > 0 && (
+          <Link
+            to="/progress"
+            viewTransition
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              marginTop: 4,
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--accent)",
+              textDecoration: "none",
+            }}
+          >
+            <Icon name="flame" size={16} />
+            {streaksQuery.data.overall.current} day streak
+          </Link>
+        )}
       </div>
-
-      {/* Streak badge */}
-      {streaksQuery.data && streaksQuery.data.overall.current > 0 && (
-        <Link
-          to="/progress"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            padding: "0 22px 8px",
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--accent)",
-            textDecoration: "none",
-          }}
-        >
-          <Icon name="flame" size={16} />
-          {streaksQuery.data.overall.current} day streak
-        </Link>
-      )}
 
       {/* Today's progress rings */}
       {summary && (
@@ -293,8 +294,12 @@ export function DashboardPage() {
       )}
 
       {/* Today's workout */}
-      <div className="px-4 pt-1 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
-        <Card tone="gradient" className="fade-up">
+      <div className="px-4 pt-1 flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4">
+        <Card
+          tone="gradient"
+          className="fade-up"
+          style={{ order: mealCardFirst ? 2 : 1 }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">Today's workout</div>
             {hasSession ? (
@@ -390,7 +395,11 @@ export function DashboardPage() {
         </Card>
 
         {/* Next meal */}
-        <Card tone="clay" className="fade-up">
+        <Card
+          tone="clay"
+          className="fade-up"
+          style={{ order: mealCardFirst ? 1 : 2 }}
+        >
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">
               {nextMeal ? `Next up · ${nextMeal.label}` : "Today's meals"}
@@ -399,49 +408,77 @@ export function DashboardPage() {
           </div>
           {nextMeal ? (
             <>
-              <Link
-                to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`}
-                className="block tappable"
-                style={{ color: "inherit", textDecoration: "none" }}
-              >
-                <div
-                  className="font-display"
-                  style={{
-                    fontSize: 22,
-                    color: "var(--ink)",
-                    letterSpacing: "-0.01em",
-                    lineHeight: 1.2,
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                {/* One-tap quick complete for the most common daily action */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    success();
+                    completions.toggle(nextMeal.index);
+                    if (completions.completed.size === mealsForToday.length - 1) {
+                      setTimeout(() => fireCelebration(), 200);
+                    }
                   }}
-                >
-                  {nextMeal.meal.name}
-                </div>
-                <div
+                  className="tappable"
+                  aria-label={`Mark ${nextMeal.meal.name} eaten`}
                   style={{
-                    fontSize: 12.5,
-                    color: "var(--sumi)",
-                    marginTop: 6,
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    border: "1.5px solid var(--hair)",
+                    background: "var(--paper)",
+                    color: "var(--muted)",
                     display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    marginTop: 2,
                   }}
                 >
-                  <span>
-                    <b style={{ color: "var(--ink)", fontWeight: 500 }}>{nextMeal.meal.calories}</b> kcal
-                  </span>
-                  <span>·</span>
-                  <span>
-                    <b style={{ color: "var(--ink)", fontWeight: 500 }}>{nextMeal.meal.proteinG}</b>g protein
-                  </span>
-                </div>
-              </Link>
+                  <Icon name="check" size={16} stroke={2} />
+                </button>
+                <Link
+                  to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`}
+                  viewTransition
+                  className="block tappable"
+                  style={{ color: "inherit", textDecoration: "none", flex: 1, minWidth: 0 }}
+                >
+                  <div className="title-md" style={{ lineHeight: 1.2 }}>
+                    {nextMeal.meal.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: "var(--sumi)",
+                      marginTop: 6,
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span>
+                      <b style={{ color: "var(--ink)", fontWeight: 500 }}>{nextMeal.meal.calories}</b> kcal
+                    </span>
+                    <span>·</span>
+                    <span>
+                      <b style={{ color: "var(--ink)", fontWeight: 500 }}>{nextMeal.meal.proteinG}</b>g protein
+                    </span>
+                  </div>
+                </Link>
+              </div>
               <div className="flex gap-2 mt-4">
-                <Link to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`} className="flex-1">
+                <Link
+                  to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`}
+                  viewTransition
+                  className="flex-1"
+                >
                   <Button variant="accent" className="w-full">
                     Open recipe
                     <Icon name="chevron" size={16} />
                   </Button>
                 </Link>
-                <Link to="/meals" className="flex-1">
+                <Link to="/meals" viewTransition className="flex-1">
                   <Button variant="ghost" className="w-full">
                     See day
                   </Button>
@@ -502,8 +539,16 @@ export function DashboardPage() {
       <HydrationCard
         cups={hydrationQuery.data?.cups ?? 0}
         goal={profileQuery.data?.profile?.hydrationGoal ?? 8}
-        onAdd={() => logHydration.mutate()}
-        onRemove={() => unlogHydration.mutate()}
+        onAdd={() => {
+          const goal = profileQuery.data?.profile?.hydrationGoal ?? 8;
+          if ((hydrationQuery.data?.cups ?? 0) + 1 >= goal) success();
+          else tap();
+          logHydration.mutate();
+        }}
+        onRemove={() => {
+          tap();
+          unlogHydration.mutate();
+        }}
         loading={hydrationQuery.isLoading}
       />
     </Layout>
@@ -602,7 +647,7 @@ function HydrationCard({
                 letterSpacing: "-0.01em",
               }}
             >
-              {cups}
+              <AnimatedNumber value={cups} />
             </span>
           </ProgressRing>
 

@@ -1,4 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
+import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
+
+/** Renders a number that tweens toward its target instead of jumping. */
+export function AnimatedNumber({ value }: { value: number }) {
+  return <>{useAnimatedNumber(value)}</>;
+}
 
 export function Eyebrow({
   children,

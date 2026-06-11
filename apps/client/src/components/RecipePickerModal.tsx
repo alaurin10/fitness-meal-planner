@@ -4,6 +4,8 @@ import { useIsDesktop } from "../hooks/useIsDesktop";
 import type { MealSlot, RecipeRecord } from "../lib/types";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
+import { Sheet } from "./Sheet";
 import { RecipeCard } from "./RecipeCard";
 import {
   CATEGORY_LABEL,
@@ -49,35 +51,25 @@ function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
     : [];
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
+    <Sheet
+      open
+      onClose={onClose}
+      aria-label="Pick a recipe"
+      zIndex={60}
+      maxWidth={960}
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.35)",
-        zIndex: 60,
+        height: isDesktop ? "min(88vh, 900px)" : "calc(100dvh - 24px)",
         display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
-        justifyContent: "center",
+        flexDirection: "column",
+        overflow: "hidden",
+        padding: 0,
+        paddingBottom: isDesktop ? 12 : "calc(env(safe-area-inset-bottom, 16px) + 12px)",
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: isDesktop ? "min(960px, calc(100vw - 48px))" : "100%",
-          height: isDesktop ? "min(88vh, 900px)" : "calc(100dvh - 24px)",
-          background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : "24px 24px 0 0",
-          display: "flex",
-          flexDirection: "column",
-          paddingBottom: isDesktop ? 12 : "calc(env(safe-area-inset-bottom, 16px) + 12px)",
-        }}
-      >
+      <>
         <div
           style={{
-            padding: "14px 18px 10px",
+            padding: isDesktop ? "14px 18px 10px" : "4px 18px 10px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -93,20 +85,9 @@ function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--sumi)",
-              cursor: "pointer",
-              padding: 6,
-            }}
-          >
+          <IconButton variant="ghost" size={32} onClick={onClose} aria-label="Close">
             <Icon name="x" size={20} />
-          </button>
+          </IconButton>
         </div>
         <div style={{ padding: "0 18px" }}>
           <input
@@ -162,7 +143,7 @@ function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
             Cancel
           </Button>
         </div>
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }

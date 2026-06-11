@@ -5,16 +5,21 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
 import { DayMacroSummary } from "../components/DayMacroSummary";
+import { DaySelector } from "../components/DaySelector";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PlanInfo } from "../components/PlanInfo";
-import { Chip, PhoneHeader } from "../components/Primitives";
+import { PopMenu } from "../components/PopMenu";
+import { AnimatedNumber, Chip, PhoneHeader } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
+import { useSwipe } from "../hooks/useSwipe";
+import { success, tap } from "../lib/haptics";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { useProfile } from "../hooks/useProfile";
 import {
@@ -79,6 +84,25 @@ export function MealsPage() {
   const completions = useMealCompletions(plan?.id, localDayKey());
   const viewingToday = activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
+  // Directional slide when switching days (swipe or pill tap).
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+
+  function changeDay(next: MealDay["day"]) {
+    if (next === activeDay) return;
+    setSlideDir(DAYS.indexOf(next) > DAYS.indexOf(activeDay) ? "left" : "right");
+    setOpenMenu(null);
+    setActiveDay(next);
+  }
+
+  function stepDay(delta: 1 | -1) {
+    const next = DAYS[DAYS.indexOf(activeDay) + delta];
+    if (next) changeDay(next);
+  }
+
+  const swipe = useSwipe({
+    onSwipeLeft: () => stepDay(1),
+    onSwipeRight: () => stepDay(-1),
+  });
 
   if (isLoading) {
     return (
@@ -109,13 +133,11 @@ export function MealsPage() {
           {generate.isPending ? (
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
-            <Card tone="gradient">
-              <div
-                className="font-display mt-1"
-                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                No active plan
-              </div>
+            <EmptyState
+              icon="leaf"
+              title="No active plan"
+              body="Generate a week of meals matched to your targets, or start from a blank slate."
+            >
               <Button
                 className="w-full mt-5"
                 onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
@@ -140,7 +162,7 @@ export function MealsPage() {
                   onRetry={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
                 />
               )}
-            </Card>
+            </EmptyState>
           )}
         </div>
       </Layout>
@@ -293,82 +315,25 @@ export function MealsPage() {
       />
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
-      <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
-        <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
-          {DAYS.map((d, i) => {
-            const day = plan.planJson.days.find((pd) => pd.day === d);
-            const mealCount = day?.meals.length ?? 0;
-            const isActive = activeDay === d;
-            const isToday = d === DAYS[todayIdx];
-            const dayDate = new Date(viewingWeekStartDate);
-            dayDate.setDate(viewingWeekStartDate.getDate() + i);
-            const dateNum = dayDate.getDate();
-            return (
-              <button
-                key={d}
-                onClick={() => setActiveDay(d)}
-                className="tappable"
-                style={{
-                  flex: isDesktop ? "none" : 1,
-                  minWidth: isDesktop ? undefined : 56,
-                  border: "none",
-                  background: isActive ? "var(--ink)" : "var(--paper)",
-                  color: isActive ? "var(--paper)" : "var(--ink)",
-                  padding: "10px 8px",
-                  borderRadius: "calc(var(--radius) * 0.7)",
-                  fontFamily: "var(--font-body)",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 2,
-                  position: "relative",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    opacity: 0.7,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {d}
-                </span>
-                <span className="font-display" style={{ fontSize: 16 }}>
-                  {dateNum}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 500,
-                    opacity: 0.55,
-                    lineHeight: 1,
-                  }}
-                >
-                  {mealCount > 0 ? mealCount : "·"}
-                </span>
-                {isToday && !isActive && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      right: 6,
-                      width: 6,
-                      height: 6,
-                      borderRadius: 99,
-                      background: "var(--accent)",
-                    }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <DaySelector
+        days={DAYS}
+        counts={DAYS.map(
+          (d) => plan.planJson.days.find((pd) => pd.day === d)?.meals.length ?? 0,
+        )}
+        activeDay={activeDay}
+        todayDay={DAYS[todayIdx]}
+        weekStartDate={viewingWeekStartDate}
+        onChange={changeDay}
+        isDesktop={isDesktop}
+      />
 
-      <div>
+      <div
+        key={activeDay}
+        className={
+          slideDir ? (slideDir === "left" ? "slide-in-left" : "slide-in-right") : undefined
+        }
+        {...swipe}
+      >
       <div className="px-4 pt-2">
         <Card tone="clay">
           <div className="flex items-end justify-between gap-3">
@@ -390,11 +355,17 @@ export function MealsPage() {
                 }}
               >
                 <span>
-                  <b style={{ color: "var(--ink)", fontWeight: 500 }}>{dayKcal}</b> kcal
+                  <b style={{ color: "var(--ink)", fontWeight: 500 }}>
+                    <AnimatedNumber value={dayKcal} />
+                  </b>{" "}
+                  kcal
                 </span>
                 <span>·</span>
                 <span>
-                  <b style={{ color: "var(--ink)", fontWeight: 500 }}>{dayProtein}</b>g protein
+                  <b style={{ color: "var(--ink)", fontWeight: 500 }}>
+                    <AnimatedNumber value={dayProtein} />
+                  </b>
+                  g protein
                 </span>
               </div>
             </div>
@@ -430,16 +401,7 @@ export function MealsPage() {
             <div key={i} style={{ position: "relative" }}>
               <Card
                 flush
-                className="flex tappable"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`);
-                  }
-                }}
+                className="flex"
                 style={{
                   ...(isRegenTarget ? { opacity: 0.55 } : {}),
                   ...(mealComplete ? {
@@ -449,30 +411,73 @@ export function MealsPage() {
                   transition: "opacity 300ms ease",
                 }}
               >
-                {/* Completion checkmark badge */}
-                {mealComplete && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 10,
-                      right: 10,
-                      width: 24,
-                      height: 24,
-                      borderRadius: "50%",
-                      background: "var(--accent)",
-                      color: "var(--paper)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      zIndex: 5,
-                      animation: "checkPop 260ms ease",
-                    }}
-                  >
-                    <Icon name="check" size={14} stroke={2.5} />
+                {/* Leading complete toggle (today only) — a proper 36px target
+                    instead of the old floating corner button. */}
+                {viewingToday && (
+                  <div style={{ display: "flex", alignItems: "center", paddingLeft: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (mealComplete) tap();
+                        else success();
+                        completions.toggle(i);
+                        // Fire confetti when completing the last meal
+                        if (!mealComplete && completions.completed.size === meals.length - 1) {
+                          setTimeout(() => fireCelebration(), 200);
+                        }
+                      }}
+                      className="tappable"
+                      aria-label={
+                        mealComplete
+                          ? `Mark ${m.name} incomplete`
+                          : `Mark ${m.name} complete`
+                      }
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        border: mealComplete ? "none" : "1.5px solid var(--hair)",
+                        background: mealComplete ? "var(--accent)" : "var(--paper)",
+                        color: mealComplete ? "var(--on-accent)" : "var(--muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        transition: "all 200ms ease",
+                      }}
+                    >
+                      <span
+                        key={String(mealComplete)}
+                        className={mealComplete ? "check-pop" : undefined}
+                        style={{ display: "inline-flex" }}
+                      >
+                        <Icon name="check" size={16} stroke={mealComplete ? 2.4 : 2} />
+                      </span>
+                    </button>
                   </div>
                 )}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="tappable"
+                  onClick={() =>
+                    navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`, {
+                      viewTransition: true,
+                    })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/meals/${viewingWeekStart}/${activeDay}/${i}`, {
+                        viewTransition: true,
+                      });
+                    }
+                  }}
+                  style={{ flex: 1, minWidth: 0, display: "flex", cursor: "pointer" }}
+                >
                 <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
-                  <div className="eyebrow">
+                  <div className="eyebrow" style={{ paddingRight: 40 }}>
                     {mealSlotLabel(m, i)} · {m.calories} kcal
                     {m.isLeftover && (
                       <span style={{ color: "var(--accent)", marginLeft: 6 }}>
@@ -542,51 +547,32 @@ export function MealsPage() {
                 >
                   <Icon name="chevron" size={18} />
                 </div>
+                </div>
               </Card>
 
-              <SlotMenu
-                open={openMenu === i}
-                onToggle={() => setOpenMenu(openMenu === i ? null : i)}
-                onRegenerate={() => handleRegenerate(i)}
-                onRegenerateWithHint={() => handleOpenSlotHint(i)}
-                onSwap={() => handleSwap(i, m.slot ?? undefined)}
-                onDelete={() => handleDelete(i)}
-                disabled={anyMutation}
-              />
-              {viewingToday && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    completions.toggle(i);
-                    // Fire confetti when completing the last meal
-                    if (!mealComplete && completions.completed.size === meals.length - 1) {
-                      setTimeout(() => fireCelebration(), 200);
-                    }
-                  }}
-                  className="tappable"
-                  style={{
-                    position: "absolute",
-                    bottom: 8,
-                    right: 8,
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    border: mealComplete ? "none" : "1.5px solid var(--hair)",
-                    background: mealComplete ? "var(--accent)" : "var(--paper)",
-                    color: mealComplete ? "var(--paper)" : "var(--muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 5,
-                    transition: "all 200ms ease",
-                  }}
-                  aria-label={mealComplete ? "Mark incomplete" : "Mark complete"}
-                >
-                  <Icon name="check" size={14} stroke={2} />
-                </button>
-              )}
+              {/* Outside the flush card so the dropdown isn't clipped. */}
+              <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+                <PopMenu
+                  open={openMenu === i}
+                  onToggle={() => setOpenMenu(openMenu === i ? null : i)}
+                  disabled={anyMutation}
+                  aria-label="Meal options"
+                  items={[
+                    { icon: "sparkle", label: "Regenerate", onSelect: () => handleRegenerate(i) },
+                    {
+                      icon: "sparkle",
+                      label: "Regenerate with hint…",
+                      onSelect: () => handleOpenSlotHint(i),
+                    },
+                    {
+                      icon: "swap",
+                      label: "Swap from book",
+                      onSelect: () => handleSwap(i, m.slot ?? undefined),
+                    },
+                    { icon: "x", label: "Remove", tone: "rose", onSelect: () => handleDelete(i) },
+                  ]}
+                />
+              </div>
             </div>
           );
         })}
@@ -698,169 +684,6 @@ export function MealsPage() {
       />
       {confirmDialog}
     </Layout>
-  );
-}
-
-interface SlotMenuProps {
-  open: boolean;
-  onToggle: () => void;
-  onRegenerate: () => void;
-  onRegenerateWithHint: () => void;
-  onSwap: () => void;
-  onDelete: () => void;
-  disabled?: boolean;
-}
-
-function SlotMenu({
-  open,
-  onToggle,
-  onRegenerate,
-  onRegenerateWithHint,
-  onSwap,
-  onDelete,
-  disabled,
-}: SlotMenuProps) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) onToggle();
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open, onToggle]);
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        position: "absolute",
-        top: 8,
-        right: 8,
-        zIndex: 10,
-      }}
-    >
-      <button
-        type="button"
-        aria-label="Meal options"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        disabled={disabled}
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 99,
-          border: "1px solid var(--hair)",
-          background: "var(--paper)",
-          color: "var(--sumi)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        <Icon name="ellipsis" size={16} />
-      </button>
-      {open && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            top: 36,
-            right: 0,
-            minWidth: 180,
-            background: "var(--paper)",
-            border: "1px solid var(--hair)",
-            borderRadius: 12,
-            boxShadow: "0 12px 28px rgba(0,0,0,0.12)",
-            padding: 4,
-            display: "flex",
-            flexDirection: "column",
-            gap: 1,
-          }}
-        >
-          <MenuItem
-            icon="sparkle"
-            label="Regenerate"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRegenerate();
-            }}
-          />
-          <MenuItem
-            icon="sparkle"
-            label="Regenerate with hint…"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRegenerateWithHint();
-            }}
-          />
-          <MenuItem
-            icon="swap"
-            label="Swap from book"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSwap();
-            }}
-          />
-          <MenuItem
-            icon="x"
-            label="Remove"
-            tone="rose"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MenuItem({
-  icon,
-  label,
-  tone,
-  onClick,
-}: {
-  icon: "sparkle" | "swap" | "x";
-  label: string;
-  tone?: "rose";
-  onClick: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: "transparent",
-        border: "none",
-        textAlign: "left",
-        padding: "9px 10px",
-        borderRadius: 8,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        fontSize: 13.5,
-        color: tone === "rose" ? "var(--rose)" : "var(--ink)",
-        cursor: "pointer",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = "var(--bg)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-      }}
-    >
-      <Icon name={icon} size={14} />
-      {label}
-    </button>
   );
 }
 

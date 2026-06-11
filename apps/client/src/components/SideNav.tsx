@@ -33,6 +33,7 @@ export function SideNav() {
             <NavLink
               to={item.to}
               end={item.end}
+              viewTransition
               style={({ isActive }) => ({
                 display: "flex",
                 alignItems: "center",

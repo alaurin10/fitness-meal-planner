@@ -33,6 +33,7 @@ model UserSettings {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   unitSystem     String   @default("imperial") // "imperial" | "metric"
   weekStartDay   String   @default("Mon") // "Mon"|"Tue"|"Wed"|"Thu"|"Fri"|"Sat"|"Sun"
+  theme          String   @default("system") // "light" | "dark" | "system"
   updatedAt      DateTime @updatedAt
 }
 
