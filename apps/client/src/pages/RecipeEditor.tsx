@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { FormField as Field, useFieldErrors } from "../components/FormField";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
@@ -91,6 +92,20 @@ const EMPTY_FORM: FormState = {
   steps: [{ order: 1, text: "" }],
 };
 
+const FIELD_RULES = {
+  name: (v: string) => (v.trim() ? null : "Recipe name is required."),
+  calories: (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? null : "Calories must be a positive number.";
+  },
+  proteinG: (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && v.trim() !== ""
+      ? null
+      : "Protein must be a non-negative number.";
+  },
+};
+
 export function RecipeEditorPage() {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -100,6 +115,8 @@ export function RecipeEditorPage() {
   const update = useUpdateRecipe();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
+  const { errors: fieldErrors, validateField, revalidateField, validateAll } =
+    useFieldErrors(FIELD_RULES);
 
   useEffect(() => {
     if (!existing) return;
@@ -206,20 +223,17 @@ export function RecipeEditorPage() {
 
   async function onSubmit() {
     setError(null);
-    if (!form.name.trim()) {
-      setError("Recipe name is required.");
+    if (
+      !validateAll({
+        name: form.name,
+        calories: form.calories,
+        proteinG: form.proteinG,
+      })
+    ) {
       return;
     }
     const calories = Number(form.calories);
     const proteinG = Number(form.proteinG);
-    if (!Number.isFinite(calories) || calories <= 0) {
-      setError("Calories must be a positive number.");
-      return;
-    }
-    if (!Number.isFinite(proteinG) || proteinG < 0) {
-      setError("Protein must be a non-negative number.");
-      return;
-    }
     const cleanIngredients = form.ingredients
       .filter((i) => i.name.trim().length > 0)
       .map((i) => ({
@@ -296,11 +310,16 @@ export function RecipeEditorPage() {
 
       <div className="px-4 pt-2 space-y-3">
         <Card>
-          <Field label="Name">
+          <Field label="Name" required error={fieldErrors.name}>
             <input
               className="field-input"
               value={form.name}
-              onChange={(e) => setField("name", e.target.value)}
+              onChange={(e) => {
+                setField("name", e.target.value);
+                revalidateField("name", e.target.value);
+              }}
+              onBlur={(e) => validateField("name", e.target.value)}
+              aria-invalid={!!fieldErrors.name}
               placeholder="e.g. Sheet-pan chicken & broccoli"
             />
           </Field>
@@ -375,22 +394,32 @@ export function RecipeEditorPage() {
             Per serving macros
           </div>
           <Row>
-            <Field label="Calories">
+            <Field label="Calories" required error={fieldErrors.calories}>
               <input
                 type="number"
                 min={0}
                 className="field-input"
                 value={form.calories}
-                onChange={(e) => setField("calories", e.target.value)}
+                onChange={(e) => {
+                  setField("calories", e.target.value);
+                  revalidateField("calories", e.target.value);
+                }}
+                onBlur={(e) => validateField("calories", e.target.value)}
+                aria-invalid={!!fieldErrors.calories}
               />
             </Field>
-            <Field label="Protein (g)">
+            <Field label="Protein (g)" required error={fieldErrors.proteinG}>
               <input
                 type="number"
                 min={0}
                 className="field-input"
                 value={form.proteinG}
-                onChange={(e) => setField("proteinG", e.target.value)}
+                onChange={(e) => {
+                  setField("proteinG", e.target.value);
+                  revalidateField("proteinG", e.target.value);
+                }}
+                onBlur={(e) => validateField("proteinG", e.target.value)}
+                aria-invalid={!!fieldErrors.proteinG}
               />
             </Field>
           </Row>
@@ -649,6 +678,7 @@ export function RecipeEditorPage() {
 
         {error && (
           <div
+            role="alert"
             style={{
               color: "var(--rose)",
               fontSize: 13,
@@ -688,29 +718,6 @@ const iconBtnStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
 };
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        marginBottom: 10,
-        flex: 1,
-      }}
-    >
-      <span className="eyebrow">{label}</span>
-      {children}
-    </label>
-  );
-}
 
 function Row({ children }: { children: React.ReactNode }) {
   return (

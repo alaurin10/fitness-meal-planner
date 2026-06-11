@@ -4,6 +4,7 @@ import { useIsDesktop } from "../hooks/useIsDesktop";
 import type { MealSlot, RecipeRecord } from "../lib/types";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
 import { Sheet } from "./Sheet";
 import { RecipeCard } from "./RecipeCard";
 import {
@@ -84,20 +85,9 @@ function PickerContent({ slot, onPick, onClose }: Omit<Props, "open">) {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--sumi)",
-              cursor: "pointer",
-              padding: 6,
-            }}
-          >
+          <IconButton variant="ghost" size={32} onClick={onClose} aria-label="Close">
             <Icon name="x" size={20} />
-          </button>
+          </IconButton>
         </div>
         <div style={{ padding: "0 18px" }}>
           <input

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
 import { Sheet } from "./Sheet";
 
 interface Props {
@@ -35,20 +36,9 @@ export function RegenerateHintModal({ open, title, onSubmit, onClose }: Props) {
         <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
           {title}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "var(--sumi)",
-            cursor: "pointer",
-            padding: 6,
-          }}
-        >
+        <IconButton variant="ghost" size={32} onClick={onClose} aria-label="Close">
           <Icon name="x" size={20} />
-        </button>
+        </IconButton>
       </div>
 
       <div style={{ paddingBottom: 14 }}>

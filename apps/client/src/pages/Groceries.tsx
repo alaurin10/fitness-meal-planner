@@ -7,6 +7,7 @@ import {
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
+import { EmptyState } from "../components/EmptyState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
@@ -221,16 +222,11 @@ function ListBody({
           {generating ? (
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
-            <Card tone="gradient">
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                {isCurrentWeek ? "No plan for this week" : "No plan for next week"}
-              </div>
-              <p style={{ fontSize: 12.5, color: "var(--sumi)", marginTop: 6 }}>
-                Generate the plan to auto-build the grocery list.
-              </p>
+            <EmptyState
+              icon="groceries"
+              title={isCurrentWeek ? "No plan for this week" : "No plan for next week"}
+              body="Generate the plan to auto-build the grocery list."
+            >
               <Button className="w-full mt-4" onClick={onGeneratePlan}>
                 <Icon name="sparkle" size={16} />
                 {isCurrentWeek ? "Generate this week" : "Generate next week"}
@@ -240,7 +236,7 @@ function ListBody({
                   {generateError.message}
                 </p>
               )}
-            </Card>
+            </EmptyState>
           )}
         </div>
       )}
