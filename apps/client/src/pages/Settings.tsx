@@ -5,11 +5,25 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { useSaveSettings, useSettings } from "../hooks/useSettings";
+import { useTheme, type ThemePreference } from "../lib/theme";
+
+const THEME_OPTIONS = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+] as const;
+
+const PALETTE_OPTIONS = [
+  { value: "earthy", label: "Terracotta" },
+  { value: "carbon", label: "Carbon" },
+] as const;
 
 export function SettingsPage() {
   const settingsQuery = useSettings();
   const save = useSaveSettings();
+  const theme = useTheme();
   const [unitSystem, setUnitSystem] = useState<"imperial" | "metric">("imperial");
   const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>("Mon");
   const [toast, setToast] = useState(false);
@@ -23,6 +37,12 @@ export function SettingsPage() {
     }
   }, [settingsQuery.data?.unitSystem, settingsQuery.data?.weekStartDay]);
 
+  const changeTheme = (pref: ThemePreference) => {
+    theme.setPreference(pref);
+    // Persist quietly so the preference follows the user across devices.
+    save.mutate({ theme: pref });
+  };
+
   return (
     <Layout>
       <PhoneHeader
@@ -31,6 +51,39 @@ export function SettingsPage() {
       />
 
       <div className="px-4 pt-2">
+        <Card>
+          <div className="eyebrow">Appearance</div>
+          <div
+            className="font-display"
+            style={{ fontSize: 24, color: "var(--ink)", marginTop: 6 }}
+          >
+            Theme
+          </div>
+          <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
+            Applies immediately. System follows your device setting.
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <SegmentedControl
+              options={THEME_OPTIONS}
+              value={theme.preference}
+              onChange={changeTheme}
+              aria-label="Theme"
+            />
+          </div>
+
+          <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 18, lineHeight: 1.5 }}>
+            Style
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <SegmentedControl
+              options={PALETTE_OPTIONS}
+              value={theme.palette}
+              onChange={theme.setPalette}
+              aria-label="Color style"
+            />
+          </div>
+        </Card>
+
         <Card>
           <div className="eyebrow">Units</div>
           <div
@@ -44,7 +97,16 @@ export function SettingsPage() {
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <UnitToggle value={unitSystem} onChange={setUnitSystem} />
+            <SegmentedControl
+              options={[
+                { value: "imperial", label: "Imperial" },
+                { value: "metric", label: "Metric" },
+              ]}
+              value={unitSystem}
+              onChange={setUnitSystem}
+              aria-label="Unit system"
+              minSegmentWidth={96}
+            />
           </div>
 
           <Button
@@ -115,7 +177,7 @@ export function SettingsPage() {
                     border: "1px solid var(--hair)",
                     borderRadius: 999,
                     background: active ? "var(--ink)" : "transparent",
-                    color: active ? "var(--paper)" : "var(--sumi)",
+                    color: active ? "var(--bg)" : "var(--sumi)",
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
@@ -129,55 +191,5 @@ export function SettingsPage() {
         </Card>
       </div>
     </Layout>
-  );
-}
-
-function UnitToggle({
-  value,
-  onChange,
-}: {
-  value: "imperial" | "metric";
-  onChange: (value: "imperial" | "metric") => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "inline-grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: 4,
-        padding: 4,
-        borderRadius: 999,
-        border: "1px solid var(--hair)",
-        background: "color-mix(in srgb, var(--clay) 45%, var(--paper))",
-      }}
-    >
-      {([
-        ["imperial", "Imperial"],
-        ["metric", "Metric"],
-      ] as const).map(([option, label]) => {
-        const active = value === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onChange(option)}
-            className="tappable"
-            aria-pressed={active}
-            style={{
-              minWidth: 96,
-              padding: "10px 14px",
-              border: "none",
-              borderRadius: 999,
-              background: active ? "var(--ink)" : "transparent",
-              color: active ? "var(--paper)" : "var(--sumi)",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
   );
 }

@@ -5,6 +5,7 @@ import type { WeekStartDay } from "@platform/shared";
 export interface AppSettings {
   unitSystem: "imperial" | "metric";
   weekStartDay?: WeekStartDay;
+  theme?: "light" | "dark" | "system";
 }
 
 export function useSettings() {
@@ -22,11 +23,24 @@ export function useSaveSettings() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: AppSettings) => {
+    mutationFn: async (input: Partial<AppSettings>) => {
       const { data } = await api.patch<{ settings: AppSettings }>("/api/settings", input);
       return data.settings;
     },
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: ["settings"] });
+      const previous = qc.getQueryData<AppSettings>(["settings"]);
+      if (previous) {
+        qc.setQueryData<AppSettings>(["settings"], { ...previous, ...input });
+      }
+      return { previous };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["settings"], context.previous);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["settings"] });
       qc.invalidateQueries({ queryKey: ["profile"] });
     },

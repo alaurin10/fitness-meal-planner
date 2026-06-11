@@ -7,8 +7,9 @@ import { currentUserId, requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 const settingsSchema = z.object({
-  unitSystem: z.enum(["imperial", "metric"]),
+  unitSystem: z.enum(["imperial", "metric"]).optional(),
   weekStartDay: z.enum(ALL_DAYS as unknown as [string, ...string[]]).optional(),
+  theme: z.enum(["light", "dark", "system"]).optional(),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -28,6 +29,7 @@ router.get("/", requireAuth, async (req, res) => {
     settings: {
       unitSystem: settings?.unitSystem ?? profile?.unitSystem ?? "imperial",
       weekStartDay: settings?.weekStartDay ?? "Mon",
+      theme: settings?.theme ?? "system",
     },
   });
 });
@@ -46,28 +48,30 @@ router.patch("/", requireAuth, async (req, res) => {
     create: { id: userId },
   });
 
+  const patch = {
+    ...(parsed.data.unitSystem ? { unitSystem: parsed.data.unitSystem } : {}),
+    ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
+    ...(parsed.data.theme ? { theme: parsed.data.theme } : {}),
+  };
+
   const settings = await prisma.userSettings.upsert({
     where: { userId },
-    update: {
-      unitSystem: parsed.data.unitSystem,
-      ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
-    },
-    create: {
-      userId,
-      unitSystem: parsed.data.unitSystem,
-      ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
-    },
+    update: patch,
+    create: { userId, ...patch },
   });
 
-  await prisma.profile.updateMany({
-    where: { userId },
-    data: { unitSystem: parsed.data.unitSystem },
-  });
+  if (parsed.data.unitSystem) {
+    await prisma.profile.updateMany({
+      where: { userId },
+      data: { unitSystem: parsed.data.unitSystem },
+    });
+  }
 
   res.json({
     settings: {
       unitSystem: settings.unitSystem,
       weekStartDay: settings.weekStartDay,
+      theme: settings.theme,
     },
   });
 });

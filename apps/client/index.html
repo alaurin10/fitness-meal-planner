@@ -5,10 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#F4EADB" />
     <title>Meal and Fitness Planner</title>
+    <script>
+      // Resolve theme before first paint to avoid a flash of the wrong theme.
+      // Keep in sync with src/lib/theme.ts.
+      (function () {
+        try {
+          var palette = localStorage.getItem("palette") === "carbon" ? "carbon" : "earthy";
+          var pref = localStorage.getItem("theme");
+          if (pref !== "light" && pref !== "dark") pref = "system";
+          var dark =
+            pref === "dark" ||
+            (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          root.setAttribute("data-palette", palette);
+          root.setAttribute("data-theme", dark ? "dark" : "light");
+          var bg = {
+            earthy: { light: "#F4EADB", dark: "#1A1410" },
+            carbon: { light: "#F4F5F7", dark: "#0E0F11" },
+          }[palette][dark ? "dark" : "light"];
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", bg);
+        } catch (e) {
+          /* default to light earthy */
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
   </head>
