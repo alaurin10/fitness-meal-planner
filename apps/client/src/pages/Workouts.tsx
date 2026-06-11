@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { DaySelector } from "../components/DaySelector";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
@@ -11,6 +13,8 @@ import { PhoneHeader } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
 import { WorkoutMode } from "../components/WorkoutMode";
+import { useSwipe } from "../hooks/useSwipe";
+import { success, tap } from "../lib/haptics";
 import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useActivities";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { localDayKey } from "../hooks/useMealCompletions";
@@ -75,6 +79,24 @@ export function WorkoutsPage() {
   const logActivity = useLogActivity();
   const deleteActivity = useDeleteActivity();
   const unitLabel = weightUnitLabel(unitSystem);
+  // Directional slide when switching days (swipe or pill tap).
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+
+  function changeDay(next: TrainingDay["day"]) {
+    if (next === activeDay) return;
+    setSlideDir(DAYS.indexOf(next) > DAYS.indexOf(activeDay) ? "left" : "right");
+    setActiveDay(next);
+  }
+
+  function stepDay(delta: 1 | -1) {
+    const next = DAYS[DAYS.indexOf(activeDay) + delta];
+    if (next) changeDay(next);
+  }
+
+  const swipe = useSwipe({
+    onSwipeLeft: () => stepDay(1),
+    onSwipeRight: () => stepDay(-1),
+  });
 
   if (isLoading) {
     return (
@@ -105,13 +127,11 @@ export function WorkoutsPage() {
           {generate.isPending ? (
             <GeneratingProgress kind="workout" estimatedSeconds={45} />
           ) : (
-            <Card tone="gradient">
-              <div
-                className="font-display mt-1"
-                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                No active plan
-              </div>
+            <EmptyState
+              icon="dumbbell"
+              title="No active plan"
+              body="Generate a training week tailored to your goals, split, and equipment."
+            >
               <Button
                 className="w-full mt-5"
                 onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
@@ -127,7 +147,7 @@ export function WorkoutsPage() {
                   onRetry={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
                 />
               )}
-            </Card>
+            </EmptyState>
           )}
         </div>
 
@@ -277,7 +297,12 @@ export function WorkoutsPage() {
         onSessionClear={workoutSession.clearSession}
         onExit={() => setWorkoutInProgress(false)}
         onSetComplete={
-          viewingToday ? completion.markSetComplete : undefined
+          viewingToday
+            ? (...args: Parameters<typeof completion.markSetComplete>) => {
+                tap();
+                completion.markSetComplete(...args);
+              }
+            : undefined
         }
         onSetUncomplete={
           viewingToday ? completion.unmarkSetComplete : undefined
@@ -289,7 +314,10 @@ export function WorkoutsPage() {
           // Only auto-mark complete when the user is doing today's session.
           // Browsing a future/past day is just preview.
           viewingToday && !completion.isComplete
-            ? completion.markComplete
+            ? () => {
+                success();
+                completion.markComplete();
+              }
             : undefined
         }
       />
@@ -320,82 +348,25 @@ export function WorkoutsPage() {
       />
 
       <div style={isDesktop ? { display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, padding: "0 16px" } : undefined}>
-      <div style={isDesktop ? { paddingTop: 4 } : { padding: "4px 16px 8px", overflowX: "auto" as const }}>
-        <div style={{ display: "flex", flexDirection: isDesktop ? "column" as const : "row" as const, gap: 6 }}>
-          {DAYS.map((d, i) => {
-            const day = plan.planJson.days.find((pd) => pd.day === d);
-            const exerciseCount = day?.exercises.length ?? 0;
-            const isActive = activeDay === d;
-            const isToday = d === DAYS[todayIdx];
-            const dayDate = new Date(viewingWeekStartDate);
-            dayDate.setDate(viewingWeekStartDate.getDate() + i);
-            const dateNum = dayDate.getDate();
-            return (
-              <button
-                key={d}
-                onClick={() => setActiveDay(d)}
-                className="tappable"
-                style={{
-                  flex: isDesktop ? "none" : 1,
-                  minWidth: isDesktop ? undefined : 56,
-                  border: "none",
-                  background: isActive ? "var(--ink)" : "var(--paper)",
-                  color: isActive ? "var(--paper)" : "var(--ink)",
-                  padding: "10px 8px",
-                  borderRadius: "calc(var(--radius) * 0.7)",
-                  fontFamily: "var(--font-body)",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 2,
-                  position: "relative",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    opacity: 0.7,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {d}
-                </span>
-                <span className="font-display" style={{ fontSize: 16 }}>
-                  {dateNum}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 500,
-                    opacity: 0.55,
-                    lineHeight: 1,
-                  }}
-                >
-                  {exerciseCount > 0 ? exerciseCount : "·"}
-                </span>
-                {isToday && !isActive && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      right: 6,
-                      width: 6,
-                      height: 6,
-                      borderRadius: 99,
-                      background: "var(--accent)",
-                    }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <DaySelector
+        days={DAYS}
+        counts={DAYS.map(
+          (d) => plan.planJson.days.find((pd) => pd.day === d)?.exercises.length ?? 0,
+        )}
+        activeDay={activeDay}
+        todayDay={DAYS[todayIdx]}
+        weekStartDate={viewingWeekStartDate}
+        onChange={changeDay}
+        isDesktop={isDesktop}
+      />
 
-      <div>
+      <div
+        key={activeDay}
+        className={
+          slideDir ? (slideDir === "left" ? "slide-in-left" : "slide-in-right") : undefined
+        }
+        {...swipe}
+      >
       <div className="px-4 pt-2">
         <Card>
           <div className="flex items-end justify-between gap-3">
