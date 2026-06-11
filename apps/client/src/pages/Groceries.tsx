@@ -11,8 +11,11 @@ import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
+import { Sheet } from "../components/Sheet";
 import { SkeletonList } from "../components/Skeleton";
+import { useToast } from "../components/Toast";
 import { WeekSelector } from "../components/WeekSelector";
+import { tap } from "../lib/haptics";
 import {
   useAddGroceryItem,
   useClearChecked,
@@ -63,6 +66,7 @@ export function GroceriesPage() {
   const generate = useGenerateMealPlan();
   const { data: settings } = useSettings();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
+  const toast = useToast();
 
   if (isLoading) {
     return (
@@ -87,12 +91,31 @@ export function GroceriesPage() {
         hasList={!!list}
         isCurrentWeek={isCurrentWeek}
         unitSystem={unitSystem}
-        onToggle={(id, checked) => toggle.mutate({ itemId: id, checked })}
+        onToggle={(id, checked) => {
+          tap();
+          toggle.mutate({ itemId: id, checked });
+        }}
         onUpdate={(itemId, patch) => update.mutate({ itemId, patch })}
         onDelete={(itemId) => remove.mutate(itemId)}
-        onAdd={(input) => add.mutate(input)}
-        onClear={() => clear.mutate()}
-        onRebuild={() => rebuild.mutate()}
+        onAdd={(input) =>
+          add.mutate(input, {
+            onError: (e) => toast.error((e as Error).message),
+          })
+        }
+        onClear={() => {
+          const count = items.filter((i) => i.checked).length;
+          clear.mutate(undefined, {
+            onSuccess: () =>
+              toast.success(`Cleared ${count} item${count === 1 ? "" : "s"}`),
+            onError: (e) => toast.error((e as Error).message),
+          });
+        }}
+        onRebuild={() =>
+          rebuild.mutate(undefined, {
+            onSuccess: () => toast.success("List rebuilt from your meal plan"),
+            onError: (e) => toast.error((e as Error).message),
+          })
+        }
         rebuilding={rebuild.isPending}
         onGeneratePlan={() =>
           generate.mutate({ targetWeekStart: viewingWeekStart })
@@ -303,7 +326,15 @@ function ListBody({
 function ListProgress({ checked, total }: { checked: number; total: number }) {
   const pct = total > 0 ? checked / total : 0;
   return (
-    <div className="px-4 pt-2 md:max-w-[640px] md:mx-auto">
+    // Sticky under the mobile header so progress stays visible while
+    // working down a long list.
+    <div
+      className="px-4 pt-2 pb-2 sticky top-[52px] md:top-0 z-[5] md:max-w-[640px] md:mx-auto"
+      style={{
+        background: "color-mix(in srgb, var(--bg) 88%, transparent)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -368,17 +399,6 @@ function AddItemSheet({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   function submit() {
     const n = name.trim();
     if (!n) return;
@@ -393,36 +413,10 @@ function AddItemSheet({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add item"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.35)",
-        zIndex: 70,
-        display: "flex",
-        // Centered popup (not a bottom sheet) so the on-screen keyboard
-        // doesn't push it up and down.
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "var(--bg)",
-          borderRadius: 24,
-          display: "flex",
-          flexDirection: "column",
-          padding: 18,
-        }}
-      >
+    // Centered popup (not a bottom sheet) so the on-screen keyboard
+    // doesn't push it up and down.
+    <Sheet open={open} onClose={onClose} aria-label="Add item" position="center">
+      <>
         <div
           style={{
             display: "flex",
@@ -458,7 +452,7 @@ function AddItemSheet({
           }}
         >
           <input
-            autoFocus
+            data-autofocus
             className="field-input"
             placeholder="e.g. avocado"
             value={name}
@@ -497,8 +491,8 @@ function AddItemSheet({
             <Icon name="plus" size={14} /> Add
           </Button>
         </div>
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }
 
@@ -949,7 +943,11 @@ function CheckBoxVisual({ checked, style: extraStyle }: { checked: boolean; styl
         ...extraStyle,
       }}
     >
-      {checked && <Icon name="check" size={13} stroke={2.5} />}
+      {checked && (
+        <span className="check-pop" style={{ display: "inline-flex" }}>
+          <Icon name="check" size={13} stroke={2.5} />
+        </span>
+      )}
     </span>
   );
 }

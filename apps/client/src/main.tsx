@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { ToastProvider } from "./components/Toast";
 import "./index.css";
 import { queryClient } from "./lib/queryClient";
 
@@ -24,9 +25,11 @@ createRoot(rootEl).render(
       afterSignOutUrl="/sign-in"
     >
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </ToastProvider>
       </QueryClientProvider>
     </ClerkProvider>
   </StrictMode>,

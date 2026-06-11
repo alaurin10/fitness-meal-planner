@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { ALL_DAYS, type WeekStartDay } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PhoneHeader } from "../components/Primitives";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { useToast } from "../components/Toast";
 import { useSaveSettings, useSettings } from "../hooks/useSettings";
 import { useTheme, type ThemePreference } from "../lib/theme";
 
@@ -24,9 +24,9 @@ export function SettingsPage() {
   const settingsQuery = useSettings();
   const save = useSaveSettings();
   const theme = useTheme();
+  const toast = useToast();
   const [unitSystem, setUnitSystem] = useState<"imperial" | "metric">("imperial");
   const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>("Mon");
-  const [toast, setToast] = useState(false);
 
   useEffect(() => {
     if (settingsQuery.data?.unitSystem) {
@@ -115,10 +115,8 @@ export function SettingsPage() {
               save.mutate(
                 { unitSystem, weekStartDay },
                 {
-                  onSuccess: () => {
-                    setToast(true);
-                    setTimeout(() => setToast(false), 1800);
-                  },
+                  onSuccess: () => toast.success("Settings saved"),
+                  onError: (e) => toast.error((e as Error).message),
                 },
               )
             }
@@ -126,29 +124,6 @@ export function SettingsPage() {
           >
             {save.isPending ? "Saving…" : "Save settings"}
           </Button>
-
-          {save.isError && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--rose)", textAlign: "center" }}>
-              {(save.error as Error).message}
-            </div>
-          )}
-
-          {toast && (
-            <div
-              className="fade-up"
-              style={{
-                marginTop: 10,
-                fontSize: 12,
-                color: "var(--moss)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="check" size={14} /> Settings saved.
-            </div>
-          )}
         </Card>
 
         <Card>

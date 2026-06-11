@@ -89,6 +89,7 @@ export function useUpdateGroceryItem(weekStart?: string) {
 export function useAddGroceryItem(weekStart?: string) {
   const api = useApi();
   const qc = useQueryClient();
+  const cacheKey = ["groceries", weekStart ?? "current"];
   return useMutation({
     mutationFn: async (input: {
       name: string;
@@ -103,8 +104,35 @@ export function useAddGroceryItem(weekStart?: string) {
       );
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groceries", weekStart ?? "current"] });
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: cacheKey });
+      const prev = qc.getQueryData<GroceryList | null>(cacheKey);
+      if (prev) {
+        // Temp id + "Other" category until the server classifies and assigns ids.
+        const tempItem: GroceryItem = {
+          id: `temp-${Date.now()}`,
+          name: input.name,
+          qty: input.qty ?? "",
+          category: input.category ?? "Other",
+          note: input.note,
+          checked: false,
+          pushed: false,
+          source: "manual",
+        };
+        qc.setQueryData<GroceryList>(cacheKey, {
+          ...prev,
+          items: [...prev.items, tempItem],
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) {
+        qc.setQueryData(cacheKey, ctx.prev);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: cacheKey });
     },
   });
 }
@@ -112,6 +140,7 @@ export function useAddGroceryItem(weekStart?: string) {
 export function useDeleteGroceryItem(weekStart?: string) {
   const api = useApi();
   const qc = useQueryClient();
+  const cacheKey = ["groceries", weekStart ?? "current"];
   return useMutation({
     mutationFn: async (itemId: string) => {
       const { data } = await api.delete<{ list: GroceryList }>(
@@ -119,8 +148,24 @@ export function useDeleteGroceryItem(weekStart?: string) {
       );
       return data.list;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groceries", weekStart ?? "current"] });
+    onMutate: async (itemId) => {
+      await qc.cancelQueries({ queryKey: cacheKey });
+      const prev = qc.getQueryData<GroceryList | null>(cacheKey);
+      if (prev) {
+        qc.setQueryData<GroceryList>(cacheKey, {
+          ...prev,
+          items: prev.items.filter((i) => i.id !== itemId),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) {
+        qc.setQueryData(cacheKey, ctx.prev);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: cacheKey });
     },
   });
 }
@@ -145,6 +190,7 @@ export function useRebuildGroceries(weekStart?: string) {
 export function useClearChecked(weekStart?: string) {
   const api = useApi();
   const qc = useQueryClient();
+  const cacheKey = ["groceries", weekStart ?? "current"];
   return useMutation({
     mutationFn: async () => {
       const { data } = await api.post<{ list: GroceryList }>(
@@ -153,8 +199,24 @@ export function useClearChecked(weekStart?: string) {
       );
       return data.list;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groceries", weekStart ?? "current"] });
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: cacheKey });
+      const prev = qc.getQueryData<GroceryList | null>(cacheKey);
+      if (prev) {
+        qc.setQueryData<GroceryList>(cacheKey, {
+          ...prev,
+          items: prev.items.filter((i) => !i.checked),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) {
+        qc.setQueryData(cacheKey, ctx.prev);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: cacheKey });
     },
   });
 }

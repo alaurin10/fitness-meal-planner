@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useIsDesktop } from "../hooks/useIsDesktop";
+import { useCallback, useState } from "react";
 import { Button } from "./Button";
+import { Sheet } from "./Sheet";
 
 export interface ConfirmOptions {
   title: string;
@@ -22,75 +22,29 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const isDesktop = useIsDesktop();
-  const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    confirmRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  if (!open) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={options.title}
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.35)",
-        zIndex: 70,
-        display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : undefined,
-          borderTopLeftRadius: isDesktop ? undefined : 24,
-          borderTopRightRadius: isDesktop ? undefined : 24,
-          display: "flex",
-          flexDirection: "column",
-          padding: "18px 18px 16px",
-          paddingBottom: isDesktop ? 16 : "calc(env(safe-area-inset-bottom, 16px) + 16px)",
-        }}
-      >
-        <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
-          {options.title}
-        </div>
-        {options.message && (
-          <div style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 8, lineHeight: 1.5 }}>
-            {options.message}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-          <Button variant="ghost" className="flex-1" onClick={onCancel}>
-            {options.cancelLabel ?? "Cancel"}
-          </Button>
-          <Button
-            ref={confirmRef}
-            variant={options.destructive ? "accent" : "primary"}
-            className="flex-1"
-            onClick={onConfirm}
-          >
-            {options.confirmLabel ?? "Confirm"}
-          </Button>
-        </div>
+    <Sheet open={open} onClose={onCancel} aria-label={options.title}>
+      <div className="font-display" style={{ fontSize: 20, color: "var(--ink)", paddingTop: 6 }}>
+        {options.title}
       </div>
-    </div>
+      {options.message && (
+        <div style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 8, lineHeight: 1.5 }}>
+          {options.message}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+        <Button variant="ghost" className="flex-1" onClick={onCancel}>
+          {options.cancelLabel ?? "Cancel"}
+        </Button>
+        <Button
+          variant={options.destructive ? "accent" : "primary"}
+          className="flex-1"
+          onClick={onConfirm}
+        >
+          {options.confirmLabel ?? "Confirm"}
+        </Button>
+      </div>
+    </Sheet>
   );
 }
 
