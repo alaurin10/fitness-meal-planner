@@ -50,13 +50,26 @@ function apply() {
     ?.setAttribute("content", THEME_COLOR[palette][resolved]);
 }
 
-export function setThemePreference(pref: ThemePreference) {
+// Crossfade colors on explicit user toggles only (styles in tokens.css).
+// Never used for the system listener or server sync — a background change
+// shortly after load animating the whole page would read as a glitch.
+let crossfadeTimer: number | undefined;
+function animateThemeChange() {
+  const root = document.documentElement;
+  root.classList.add("theme-transition");
+  window.clearTimeout(crossfadeTimer);
+  crossfadeTimer = window.setTimeout(() => root.classList.remove("theme-transition"), 240);
+}
+
+export function setThemePreference(pref: ThemePreference, opts?: { animate?: boolean }) {
+  if (opts?.animate) animateThemeChange();
   localStorage.setItem(THEME_KEY, pref);
   apply();
   emit();
 }
 
-export function setPalette(palette: Palette) {
+export function setPalette(palette: Palette, opts?: { animate?: boolean }) {
+  if (opts?.animate) animateThemeChange();
   localStorage.setItem(PALETTE_KEY, palette);
   apply();
   emit();

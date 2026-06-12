@@ -89,7 +89,14 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <Icon name={item.icon} size={22} stroke={isActive ? 2 : 1.6} />
+                  {/* The bar remounts per route change, so the pop replays
+                      exactly once each time a tab becomes active. */}
+                  <span
+                    className={isActive ? "nav-icon-pop" : undefined}
+                    style={{ display: "inline-flex" }}
+                  >
+                    <Icon name={item.icon} size={22} stroke={isActive ? 2 : 1.6} />
+                  </span>
                   <span
                     aria-hidden
                     style={{

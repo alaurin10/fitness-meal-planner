@@ -560,50 +560,64 @@ function CategorySection({
           </span>
         </button>
       </div>
-      {!collapsed && (
-        <div className="px-4">
-          <Card flush>
-            {items.map((item, i) => {
-              const isLast = i === items.length - 1;
-              if (editingId === item.id) {
+      {/* Always rendered so collapse can animate; visibility is delayed past
+          the fold on close, then removes rows from tab order / a11y tree. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: collapsed ? "0fr" : "1fr",
+          opacity: collapsed ? 0 : 1,
+          visibility: collapsed ? "hidden" : "visible",
+          transition: `grid-template-rows 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease, visibility 0s linear ${collapsed ? "260ms" : "0s"}`,
+        }}
+      >
+        {/* minHeight: 0 is required — grid items default to min-height: auto
+            and the 0fr row would never actually collapse. */}
+        <div style={{ overflow: "hidden", minHeight: 0 }}>
+          <div className="px-4">
+            <Card flush>
+              {items.map((item, i) => {
+                const isLast = i === items.length - 1;
+                if (editingId === item.id) {
+                  return (
+                    <ItemEditor
+                      key={item.id}
+                      item={item}
+                      onSave={(patch) => {
+                        onUpdate(item.id, patch);
+                        setEditingId(null);
+                      }}
+                      onCancel={() => setEditingId(null)}
+                      onDelete={async () => {
+                        const ok = await confirm({
+                          title: `Remove "${item.name}"?`,
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        });
+                        if (ok) {
+                          onDelete(item.id);
+                          setEditingId(null);
+                        }
+                      }}
+                      isLast={isLast}
+                    />
+                  );
+                }
                 return (
-                  <ItemEditor
+                  <ItemRow
                     key={item.id}
                     item={item}
-                    onSave={(patch) => {
-                      onUpdate(item.id, patch);
-                      setEditingId(null);
-                    }}
-                    onCancel={() => setEditingId(null)}
-                    onDelete={async () => {
-                      const ok = await confirm({
-                        title: `Remove "${item.name}"?`,
-                        confirmLabel: "Remove",
-                        destructive: true,
-                      });
-                      if (ok) {
-                        onDelete(item.id);
-                        setEditingId(null);
-                      }
-                    }}
                     isLast={isLast}
+                    unitSystem={unitSystem}
+                    onToggle={(c) => onToggle(item.id, c)}
+                    onEdit={() => setEditingId(item.id)}
                   />
                 );
-              }
-              return (
-                <ItemRow
-                  key={item.id}
-                  item={item}
-                  isLast={isLast}
-                  unitSystem={unitSystem}
-                  onToggle={(c) => onToggle(item.id, c)}
-                  onEdit={() => setEditingId(item.id)}
-                />
-              );
-            })}
-          </Card>
+              })}
+            </Card>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -643,7 +657,9 @@ function ItemRow({
           onToggle(!item.checked);
         }
       }}
-      className="tappable"
+      // Only freshly added (optimistic temp-id) rows animate in: the server
+      // remount under the real id and plain page loads render statically.
+      className={item.id.startsWith("temp-") ? "tappable fade-up" : "tappable"}
       style={{
         padding: "13px 14px 13px 18px",
         borderBottom: isLast ? "none" : "1px solid var(--hair)",
@@ -652,6 +668,7 @@ function ItemRow({
         gap: 12,
         cursor: "pointer",
         userSelect: "none",
+        animationDuration: "240ms",
       }}
     >
       <CheckBoxVisual checked={item.checked} style={{ marginTop: 2 }} />

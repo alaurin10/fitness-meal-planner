@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../lib/api";
 import { useSettings } from "../hooks/useSettings";
+import { useScrolled } from "../hooks/useScrolled";
 import { useSyncServerTheme } from "../lib/theme";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
@@ -21,6 +22,7 @@ export function Layout({ children }: Props) {
   const { user } = useUser();
   const settings = useSettings();
   useSyncServerTheme(settings.data?.theme);
+  const scrolled = useScrolled();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -71,6 +73,13 @@ export function Layout({ children }: Props) {
           style={{
             background: "color-mix(in srgb, var(--bg) 88%, transparent)",
             backdropFilter: "blur(10px)",
+            // Hairline + soft ambient shadow fade in once the page scrolls.
+            // Both states keep the same layer count so the transition tweens
+            // instead of snapping; a border would shift layout by 1px.
+            boxShadow: scrolled
+              ? "0 1px 0 var(--hair), 0 6px 20px rgba(0, 0, 0, 0.06)"
+              : "0 1px 0 transparent, 0 6px 20px rgba(0, 0, 0, 0)",
+            transition: "box-shadow 220ms ease",
           }}
         >
           <Wordmark />

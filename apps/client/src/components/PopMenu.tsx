@@ -73,7 +73,7 @@ export function PopMenu({
         <div
           role="menu"
           onClick={(e) => e.stopPropagation()}
-          className="fade-up"
+          className="fade-up popmenu"
           style={{
             position: "absolute",
             top: 38,
