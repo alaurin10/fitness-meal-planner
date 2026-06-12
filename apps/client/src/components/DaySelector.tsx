@@ -1,6 +1,6 @@
 /**
- * Week day-pill strip shared by Meals and Workouts. Horizontal and sticky
- * under the app header on mobile; vertical column on desktop.
+ * Week day-pill strip shared by Meals and Workouts. Horizontal on mobile
+ * (scrolls away with the page content); vertical column on desktop.
  */
 export function DaySelector<D extends string>({
   days,
@@ -22,15 +22,12 @@ export function DaySelector<D extends string>({
 }) {
   return (
     <div
-      className={isDesktop ? undefined : "sticky top-[52px] z-[5]"}
       style={
         isDesktop
           ? { paddingTop: 4 }
           : {
               padding: "4px 16px 8px",
               overflowX: "auto",
-              background: "color-mix(in srgb, var(--bg) 88%, transparent)",
-              backdropFilter: "blur(10px)",
             }
       }
     >
