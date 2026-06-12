@@ -19,8 +19,7 @@ const RecipeEditorPage = lazy(() => import("./pages/RecipeEditor").then((m) => (
 const RecipeViewPage = lazy(() => import("./pages/RecipeView").then((m) => ({ default: m.RecipeViewPage })));
 const GroceriesPage = lazy(() => import("./pages/Groceries").then((m) => ({ default: m.GroceriesPage })));
 const ProgressPage = lazy(() => import("./pages/Progress").then((m) => ({ default: m.ProgressPage })));
-const ProfilePage = lazy(() => import("./pages/Profile").then((m) => ({ default: m.ProfilePage })));
-const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
+const ProfilePage = lazy(() => import("./pages/profile/ProfileHub").then((m) => ({ default: m.ProfilePage })));
 
 function RouteFallback() {
   return (
@@ -54,7 +53,8 @@ export default function App() {
                   <Route path="/groceries" element={<GroceriesPage />} />
                   <Route path="/progress" element={<ProgressPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
+                  {/* Settings now lives in the profile hub; keep old links working. */}
+                  <Route path="/settings" element={<Navigate to="/profile?tab=settings" replace />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

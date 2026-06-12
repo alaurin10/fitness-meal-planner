@@ -1,7 +1,7 @@
-import { useAuth, UserButton } from "@clerk/react";
+import { useAuth, useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useApi } from "../lib/api";
 import { useSettings } from "../hooks/useSettings";
 import { useSyncServerTheme } from "../lib/theme";
@@ -18,7 +18,7 @@ export function Layout({ children }: Props) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useUser();
   const settings = useSettings();
   useSyncServerTheme(settings.data?.theme);
 
@@ -74,15 +74,36 @@ export function Layout({ children }: Props) {
           }}
         >
           <Wordmark />
-          <UserButton>
-            <UserButton.MenuItems>
-              <UserButton.Action
-                label="My Profile"
-                labelIcon={<Icon name="profile" size={16} />}
-                onClick={() => navigate("/profile")}
+          <Link to="/profile" aria-label="Profile" className="tappable" viewTransition>
+            {user?.imageUrl ? (
+              <img
+                src={user.imageUrl}
+                alt=""
+                width={32}
+                height={32}
+                style={{
+                  display: "block",
+                  borderRadius: "50%",
+                  border: "1px solid var(--hair)",
+                }}
               />
-            </UserButton.MenuItems>
-          </UserButton>
+            ) : (
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "1px solid var(--hair)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--sumi)",
+                }}
+              >
+                <Icon name="profile" size={16} />
+              </span>
+            )}
+          </Link>
         </header>
         <main className="md:max-w-[960px] md:mx-auto">{children}</main>
         <BottomNav />
