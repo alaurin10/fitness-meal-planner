@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { UserButton } from "@clerk/react";
+import { useUser } from "@clerk/react";
 import { Icon, type IconName } from "./Icon";
 import { Wordmark } from "./Primitives";
 
@@ -14,6 +14,10 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
 ];
 
 export function SideNav() {
+  const { user } = useUser();
+  const displayName =
+    user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Account";
+
   return (
     <nav
       className="hidden md:flex fixed top-0 left-0 h-screen flex-col z-20"
@@ -75,8 +79,62 @@ export function SideNav() {
         ))}
       </ul>
 
-      <div style={{ padding: "16px 20px", borderTop: "1px solid var(--hair)" }}>
-        <UserButton />
+      <div style={{ padding: "12px 8px", borderTop: "1px solid var(--hair)" }}>
+        <NavLink
+          to="/profile?tab=account"
+          viewTransition
+          aria-label="Account"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            borderRadius: 10,
+            color: "var(--sumi)",
+            fontSize: 13,
+            textDecoration: "none",
+          }}
+          className="popmenu-item"
+        >
+          {user?.imageUrl ? (
+            <img
+              src={user.imageUrl}
+              alt=""
+              width={28}
+              height={28}
+              style={{
+                display: "block",
+                borderRadius: "50%",
+                border: "1px solid var(--hair)",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                border: "1px solid var(--hair)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="profile" size={14} />
+            </span>
+          )}
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {displayName}
+          </span>
+        </NavLink>
       </div>
     </nav>
   );
