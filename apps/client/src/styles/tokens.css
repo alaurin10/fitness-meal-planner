@@ -296,6 +296,27 @@ html[data-palette="carbon"][data-theme="dark"] {
 }
 .check-pop { animation: checkPop 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
+/* Bottom-nav icon pop when its tab becomes active. On the icon's wrapper
+   span, not the NavLink — .tappable:active also animates transform. */
+@keyframes navIconPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.nav-icon-pop { animation: navIconPop 280ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* PopMenu items cascade in behind the container's own fade-up. The 4px
+   travel is deliberately smaller than fadeUp's 10px so they don't stack. */
+@keyframes menuItemIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.popmenu > .popmenu-item { animation: menuItemIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.popmenu > .popmenu-item:nth-child(2) { animation-delay: 25ms; }
+.popmenu > .popmenu-item:nth-child(3) { animation-delay: 50ms; }
+.popmenu > .popmenu-item:nth-child(4) { animation-delay: 75ms; }
+.popmenu > .popmenu-item:nth-child(n + 5) { animation-delay: 90ms; }
+
 /* Directional slide for day switching (swipe or pill tap) */
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(24px); }
@@ -440,6 +461,29 @@ html[data-palette="carbon"][data-theme="dark"] {
     }
     ::view-transition-old(root) { animation: vtOut 140ms ease both; }
     ::view-transition-new(root) { animation: vtIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  }
+}
+
+/* Theme crossfade: lib/theme.ts puts this class on <html> for ~240ms when
+   the user toggles theme/palette in Settings, so colors melt instead of
+   hard-cutting. Must stay inside no-preference: the !important here would
+   otherwise beat the reduce block below. transform/box-shadow are left out
+   on purpose (paint-expensive; shadows differ per theme and should snap). */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-transition,
+  html.theme-transition * {
+    transition:
+      background-color 220ms ease,
+      color 220ms ease,
+      border-color 220ms ease !important;
+  }
+  /* The override above replaces per-element transitions for its 240ms
+     window, which would stop the segmented thumb mid-slide on the very
+     toggle that triggers the crossfade. Re-declare both here. */
+  html.theme-transition .segmented-thumb {
+    transition:
+      transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      background-color 220ms ease !important;
   }
 }
 

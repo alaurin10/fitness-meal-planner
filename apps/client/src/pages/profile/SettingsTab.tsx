@@ -31,7 +31,7 @@ export function SettingsTab() {
   const weekStartDay = settingsQuery.data?.weekStartDay ?? "Mon";
 
   const changeTheme = (pref: ThemePreference) => {
-    theme.setPreference(pref);
+    theme.setPreference(pref, { animate: true });
     // Persist quietly so the preference follows the user across devices.
     save.mutate({ theme: pref });
   };
@@ -71,7 +71,7 @@ export function SettingsTab() {
           <SegmentedControl
             options={PALETTE_OPTIONS}
             value={theme.palette}
-            onChange={theme.setPalette}
+            onChange={(palette) => theme.setPalette(palette, { animate: true })}
             aria-label="Color style"
           />
         </div>
