@@ -44,8 +44,12 @@ export function BottomNav() {
       className="fixed z-20 md:hidden"
       style={{
         bottom: "calc(env(safe-area-inset-bottom, 8px) + 4px)",
-        left: "50%",
-        transform: "translateX(-50%)",
+        // Centered via auto margins rather than translateX(-50%): a transform
+        // on a fixed, backdrop-filtered element makes iOS Safari occasionally
+        // detach it and let it drift up during momentum scrolling.
+        left: 0,
+        right: 0,
+        marginInline: "auto",
         width: collapsed
           ? "min(300px, calc(100vw - 110px))"
           : "min(400px, calc(100vw - 40px))",
