@@ -810,8 +810,8 @@ export function DietaryNotesField({
         style={{
           resize: "vertical",
           minHeight: 80,
-          fontFamily: "var(--font-body)",
-          fontSize: 13.5,
+          // Inherit the 16px from .field-input — a smaller size makes iOS
+          // Safari auto-zoom the page when the textarea is focused.
           lineHeight: 1.5,
         }}
       />

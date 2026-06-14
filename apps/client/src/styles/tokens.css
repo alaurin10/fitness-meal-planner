@@ -265,7 +265,14 @@ html[data-palette="carbon"][data-theme="dark"] {
 .hairline { background: var(--hair); height: 1px; width: 100%; }
 
 /* Tap interaction */
-.tappable { transition: transform 120ms ease, background 150ms ease; cursor: pointer; }
+/* touch-action: manipulation disables iOS double-tap-to-zoom (and the legacy
+   300ms tap delay) on interactive controls, so quick repeated taps — e.g. the
+   settings toggles and day pills — don't zoom the page. Pinch-zoom is kept. */
+.tappable {
+  transition: transform 120ms ease, background 150ms ease;
+  cursor: pointer;
+  touch-action: manipulation;
+}
 .tappable:active { transform: scale(0.97); }
 
 /* Keyboard focus */
