@@ -56,6 +56,13 @@ export function Overlay({
   const panel = panelRef ?? localPanelRef;
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
+  // Hold onClose in a ref so callers can pass an inline closure without the
+  // focus-trap effect below re-running on every render. Re-running would fire
+  // its cleanup — which restores focus — yanking it out of a field mid-edit
+  // (e.g. each keystroke in a textarea dismisses the mobile keyboard).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Mount immediately on open; keep mounted briefly on close for the exit animation.
   useEffect(() => {
     if (open) {
@@ -84,7 +91,7 @@ export function Overlay({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (e.key === "Tab" && panel.current) {
         const focusables = Array.from(panel.current.querySelectorAll<HTMLElement>(FOCUSABLE));
@@ -111,7 +118,7 @@ export function Overlay({
       unlock();
       restoreFocusRef.current?.focus?.();
     };
-  }, [mounted, onClose, panel]);
+  }, [mounted, panel]);
 
   if (!mounted) return null;
 
