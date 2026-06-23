@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GroceryItem } from "@platform/db";
+import type { GroceryItem, GroceryItemRecipe } from "@platform/db";
 import type { MealPlanJson, QuantityJson } from "./mealPlanSchema.js";
 import {
   classifyCategory,
@@ -12,7 +12,13 @@ interface AggregatedItem extends GroceryItem {
   _quantity?: QuantityJson;
   /** Internal: kept only when units are incompatible and we fall back to a string display. */
   _displayParts?: string[];
+  /** Internal: contributing meals keyed by day|slot|name for dedup; serialized to `recipes`. */
+  _recipes?: Map<string, GroceryItemRecipe>;
 }
+
+// Canonical week order so the serialized `recipes` list reads Mon→Sun.
+const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const SLOT_ORDER = ["breakfast", "lunch", "dinner", "snack"];
 
 export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
   const byKey = new Map<string, AggregatedItem>();
@@ -27,6 +33,12 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
       // meal at its `servings` size (cookbook convention), so the
       // aggregator adds them in as-is without further scaling.
 
+      const mealName = meal.name?.trim();
+      const recipeKey = `${day.day}|${meal.slot ?? ""}|${mealName ?? ""}`;
+      const recipeEntry: GroceryItemRecipe | null = mealName
+        ? { name: mealName, day: day.day, ...(meal.slot ? { slot: meal.slot } : {}) }
+        : null;
+
       for (const ing of meal.ingredients) {
         const cleanName = normalizeIngredientName(ing.name);
         const category =
@@ -36,6 +48,10 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
         const existing = byKey.get(key);
 
         if (existing) {
+          // Record the contributing meal first, regardless of which quantity
+          // branch runs below (including the "ignore the to taste" no-op).
+          if (recipeEntry) existing._recipes!.set(recipeKey, recipeEntry);
+
           // "to taste" is non-quantitative — skip it when we already have a
           // real quantity, or just keep one instance if that's all we have.
           const isToTaste = ing.quantity.unit === "to taste" || ing.quantity.amount === 0 && ing.quantity.unit === "to taste";
@@ -91,6 +107,9 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
             amount: ing.quantity.amount,
             unit: ing.quantity.unit,
             _quantity: { ...ing.quantity },
+            _recipes: recipeEntry
+              ? new Map([[recipeKey, recipeEntry]])
+              : new Map(),
           });
         }
       }
@@ -106,10 +125,28 @@ export function buildGroceryItems(plan: MealPlanJson): GroceryItem[] {
 }
 
 function stripInternal(item: AggregatedItem): GroceryItem {
-  const { _quantity, _displayParts, ...rest } = item;
+  const { _quantity, _displayParts, _recipes, ...rest } = item;
   void _quantity;
   void _displayParts;
-  return rest;
+  const recipes = Array.from(_recipes?.values() ?? []).sort((a, b) => {
+    const dayDiff = dayIndex(a.day) - dayIndex(b.day);
+    if (dayDiff !== 0) return dayDiff;
+    const slotDiff = slotIndex(a.slot) - slotIndex(b.slot);
+    if (slotDiff !== 0) return slotDiff;
+    return a.name.localeCompare(b.name);
+  });
+  return { ...rest, recipes };
+}
+
+function dayIndex(day: string): number {
+  const i = DAY_ORDER.indexOf(day);
+  return i === -1 ? DAY_ORDER.length : i;
+}
+
+function slotIndex(slot: string | undefined): number {
+  if (!slot) return SLOT_ORDER.length;
+  const i = SLOT_ORDER.indexOf(slot);
+  return i === -1 ? SLOT_ORDER.length : i;
 }
 
 function titleCase(name: string): string {

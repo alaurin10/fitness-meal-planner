@@ -11,6 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
+import { PopMenu } from "../components/PopMenu";
 import { PhoneHeader } from "../components/Primitives";
 import { Sheet } from "../components/Sheet";
 import { SkeletonList } from "../components/Skeleton";
@@ -369,6 +370,113 @@ function ListProgress({ checked, total }: { checked: number; total: number }) {
   );
 }
 
+function RecipesSheet({
+  item,
+  onClose,
+}: {
+  item: GroceryItem | null;
+  onClose: () => void;
+}) {
+  // Keep the last item around while the sheet animates closed.
+  const [shown, setShown] = useState<GroceryItem | null>(item);
+  useEffect(() => {
+    if (item) setShown(item);
+  }, [item]);
+  const target = item ?? shown;
+  const recipes = target?.recipes ?? [];
+
+  return (
+    <Sheet
+      open={!!item}
+      onClose={onClose}
+      aria-label={target ? `Recipes for ${target.name}` : "Recipes"}
+      position="center"
+    >
+      <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 2 }}>
+              Used in
+            </div>
+            <div className="font-display" style={{ fontSize: 20, color: "var(--ink)" }}>
+              {target?.name}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--sumi)",
+              cursor: "pointer",
+              padding: 6,
+            }}
+          >
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        {recipes.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {recipes.map((r, i) => (
+              <div
+                key={`${r.day}-${r.slot ?? ""}-${r.name}-${i}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 4px",
+                  borderBottom:
+                    i === recipes.length - 1 ? "none" : "1px solid var(--hair)",
+                }}
+              >
+                <Icon name="fork" size={15} />
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{ fontSize: 14, color: "var(--ink)", fontWeight: 500 }}
+                  >
+                    {r.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: "var(--muted)",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    {r.day}
+                    {r.slot ? ` · ${capitalize(r.slot)}` : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.5 }}>
+            {target?.source === "manual"
+              ? "Manually added — not linked to a recipe."
+              : "No recipes recorded yet. Rebuild the list to refresh recipe links."}
+          </div>
+        )}
+      </>
+    </Sheet>
+  );
+}
+
+function capitalize(s: string): string {
+  return s.length > 0 ? s[0]!.toUpperCase() + s.slice(1) : s;
+}
+
 function AddItemSheet({
   open,
   onClose,
@@ -516,8 +624,22 @@ function CategorySection({
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [recipesFor, setRecipesFor] = useState<GroceryItem | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
   const remaining = items.filter((i) => !i.checked).length;
+
+  async function handleRemove(item: GroceryItem) {
+    const ok = await confirm({
+      title: `Remove "${item.name}"?`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (ok) {
+      onDelete(item.id);
+      setEditingId(null);
+    }
+  }
   return (
     <div style={{ opacity: complete ? 0.5 : 1, transition: "opacity 220ms ease" }}>
       {confirmDialog}
@@ -588,17 +710,7 @@ function CategorySection({
                         setEditingId(null);
                       }}
                       onCancel={() => setEditingId(null)}
-                      onDelete={async () => {
-                        const ok = await confirm({
-                          title: `Remove "${item.name}"?`,
-                          confirmLabel: "Remove",
-                          destructive: true,
-                        });
-                        if (ok) {
-                          onDelete(item.id);
-                          setEditingId(null);
-                        }
-                      }}
+                      onDelete={() => handleRemove(item)}
                       isLast={isLast}
                     />
                   );
@@ -611,6 +723,18 @@ function CategorySection({
                     unitSystem={unitSystem}
                     onToggle={(c) => onToggle(item.id, c)}
                     onEdit={() => setEditingId(item.id)}
+                    menuOpen={openMenuId === item.id}
+                    onToggleMenu={() =>
+                      setOpenMenuId((id) => (id === item.id ? null : item.id))
+                    }
+                    onViewRecipes={() => {
+                      setOpenMenuId(null);
+                      setRecipesFor(item);
+                    }}
+                    onRemove={() => {
+                      setOpenMenuId(null);
+                      void handleRemove(item);
+                    }}
                   />
                 );
               })}
@@ -618,6 +742,7 @@ function CategorySection({
           </div>
         </div>
       </div>
+      <RecipesSheet item={recipesFor} onClose={() => setRecipesFor(null)} />
     </div>
   );
 }
@@ -628,12 +753,20 @@ function ItemRow({
   unitSystem,
   onToggle,
   onEdit,
+  menuOpen,
+  onToggleMenu,
+  onViewRecipes,
+  onRemove,
 }: {
   item: GroceryItem;
   isLast: boolean;
   unitSystem: UnitSystem;
   onToggle: (c: boolean) => void;
   onEdit: () => void;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onViewRecipes: () => void;
+  onRemove: () => void;
 }) {
   const [qtyExpanded, setQtyExpanded] = useState(false);
   // If the item has structured amount/unit, use formatQuantity for unit conversion.
@@ -756,31 +889,18 @@ function ItemRow({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        aria-label={`Edit ${item.name}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit();
-        }}
-        className="tappable"
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "var(--muted)",
-          padding: 6,
-          marginLeft: 2,
-          marginRight: -2,
-          borderRadius: 8,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <Icon name="ellipsis" size={16} />
-      </button>
+      <div style={{ flexShrink: 0, marginLeft: 2, marginRight: -2 }}>
+        <PopMenu
+          open={menuOpen}
+          onToggle={onToggleMenu}
+          aria-label={`Options for ${item.name}`}
+          items={[
+            { icon: "note", label: "Edit", onSelect: onEdit },
+            { icon: "fork", label: "View recipes", onSelect: onViewRecipes },
+            { icon: "x", label: "Remove", tone: "rose", onSelect: onRemove },
+          ]}
+        />
+      </div>
     </div>
   );
 }
