@@ -14,6 +14,7 @@ function item(partial: Partial<GroceryItem> & { name: string; category: GroceryI
     amount: partial.amount,
     unit: partial.unit,
     note: partial.note,
+    recipes: partial.recipes,
   };
 }
 
@@ -65,5 +66,28 @@ describe("mergeGroceryItems", () => {
     const existing = [item({ name: "eggs", category: "Protein", checked: true, source: undefined })];
     const merged = mergeGroceryItems(fresh, existing);
     expect(merged[0]!.checked).toBe(true);
+  });
+
+  it("preserves recipes from the fresh build on merged auto items", () => {
+    const fresh = [
+      item({
+        name: "chicken breast",
+        category: "Protein",
+        recipes: [{ name: "Grilled Chicken Salad", day: "Mon", slot: "lunch" }],
+      }),
+    ];
+    const existing = [item({ name: "chicken breast", category: "Protein", checked: true })];
+    const merged = mergeGroceryItems(fresh, existing);
+    expect(merged[0]!.recipes).toEqual([
+      { name: "Grilled Chicken Salad", day: "Mon", slot: "lunch" },
+    ]);
+  });
+
+  it("leaves manual items without recipes", () => {
+    const fresh = [item({ name: "rice", category: "Pantry" })];
+    const existing = [item({ name: "paper towels", category: "Other", source: "manual" })];
+    const merged = mergeGroceryItems(fresh, existing);
+    const manual = merged.find((m) => m.name === "paper towels");
+    expect(manual?.recipes).toBeUndefined();
   });
 });

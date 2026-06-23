@@ -67,6 +67,15 @@ export interface Quantity {
   display?: string;
 }
 
+export interface GroceryItemRecipe {
+  /** Meal name the ingredient came from. */
+  name: string;
+  /** Day of the week the meal is planned for ("Mon".."Sun"). */
+  day: string;
+  /** Meal slot, when known (breakfast | lunch | dinner | snack). */
+  slot?: string;
+}
+
 export interface GroceryItem {
   id: string;
   name: string;
@@ -78,4 +87,6 @@ export interface GroceryItem {
   amount?: number;
   unit?: string;
   note?: string;
+  /** Meals in the week's plan that contributed this ingredient (auto items only). */
+  recipes?: GroceryItemRecipe[];
 }
