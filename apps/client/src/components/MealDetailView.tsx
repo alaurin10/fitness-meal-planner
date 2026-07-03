@@ -580,11 +580,14 @@ function CookingMode({
   if (!step) return null;
 
   return (
+    // Same immersive dark canvas as WorkoutMode — cooking is hands-busy too.
     <div
+      className="canvas-ink"
       style={{
         position: "fixed",
         inset: 0,
         background: "var(--bg)",
+        color: "var(--ink)",
         display: "flex",
         flexDirection: "column",
         zIndex: 50,

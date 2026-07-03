@@ -160,6 +160,58 @@ html[data-palette="carbon"][data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* Immersive canvas (WorkoutMode): force the palette's dark token set
+   locally so the session reads as a focused full-bleed dark room in any
+   theme. MUST mirror the dark blocks above — update together. */
+.canvas-ink {
+  --bg:       #1A1410;
+  --paper:    #241C16;
+  --clay:     #322720;
+  --ink:      #F2E8D9;
+  --sumi:     #CDBBA4;
+  --muted:    #9C8A74;
+  --hair:     #3B2F26;
+  --accent:   #D98C5C;
+  --accent-2: #E8A878;
+  --moss:     #8FA37E;
+  --rose:     #D98C88;
+  --honey:    #D9AE63;
+  --on-accent: #1A1410;
+  --field-bg: color-mix(in srgb, var(--paper) 82%, black 18%);
+  --field-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 20px 60px rgba(0, 0, 0, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.10);
+  color-scheme: dark;
+}
+html[data-palette="carbon"] .canvas-ink {
+  --bg:       #0E0F11;
+  --paper:    #1A1C1F;
+  --clay:     #25282C;
+  --ink:      #F5F6F7;
+  --sumi:     #C9CDD2;
+  --muted:    #8A9099;
+  --hair:     #2E3237;
+  --accent:   #D4FF4F;
+  --accent-2: #AEE03A;
+  --moss:     #4ADE80;
+  --rose:     #F87171;
+  --honey:    #FBBF24;
+  --on-accent: #0E0F11;
+  --field-bg: #141619;
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* Slow breathing pulse (rest countdown ring) */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
 /* Typography helpers */
 .font-display {
   font-family: var(--font-display);
