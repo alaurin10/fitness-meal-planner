@@ -13,7 +13,9 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PlanInfo } from "../components/PlanInfo";
 import { PopMenu } from "../components/PopMenu";
-import { AnimatedNumber, Chip, PhoneHeader } from "../components/Primitives";
+import { CircleButton } from "../components/CircleButton";
+import { Illustration, mealIllustration } from "../components/Illustration";
+import { AnimatedNumber, Chip, PageHero } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
 import { SkeletonList } from "../components/Skeleton";
@@ -117,7 +119,7 @@ export function MealsPage() {
   if (!plan) {
     return (
       <Layout>
-        <PhoneHeader
+        <PageHero
           title="Meals"
           subtitle="No active plan yet."
           right={
@@ -299,7 +301,7 @@ export function MealsPage() {
 
   return (
     <Layout>
-      <PhoneHeader
+      <PageHero
         title="Meals"
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -335,19 +337,16 @@ export function MealsPage() {
         {...swipe}
       >
       <div className="px-4 pt-2">
-        <Card tone="clay">
+        <Card tone="hero">
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="eyebrow">{longDay(activeDay)}</div>
-              <div
-                className="font-display mt-1"
-                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
+              <div className="title-md mt-1">
                 {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>
               <div
+                className="text-caption"
                 style={{
-                  fontSize: 12.5,
                   color: "var(--sumi)",
                   marginTop: 6,
                   display: "flex",
@@ -369,7 +368,11 @@ export function MealsPage() {
                 </span>
               </div>
             </div>
-            <Icon name="leaf" size={36} style={{ color: "var(--moss)", flexShrink: 0 }} />
+            <Illustration
+              name={mealIllustration(nextSlotForDay)}
+              size={80}
+              style={{ flexShrink: 0, marginBottom: -6 }}
+            />
           </div>
           <DayMacroSummary
             meals={meals}
@@ -384,7 +387,7 @@ export function MealsPage() {
         </Card>
       </div>
 
-      <div className="px-4 pt-3 space-y-2.5">
+      <div className="px-4 pt-3 space-y-2.5 stagger-in">
         {isDayRegenerating && (
           <GeneratingProgress kind="meal" estimatedSeconds={45} />
         )}
@@ -415,8 +418,8 @@ export function MealsPage() {
                     instead of the old floating corner button. */}
                 {viewingToday && (
                   <div style={{ display: "flex", alignItems: "center", paddingLeft: 12 }}>
-                    <button
-                      type="button"
+                    <CircleButton
+                      variant={mealComplete ? "accent" : "outline"}
                       onClick={() => {
                         if (mealComplete) tap();
                         else success();
@@ -426,26 +429,12 @@ export function MealsPage() {
                           setTimeout(() => fireCelebration(), 200);
                         }
                       }}
-                      className="tappable"
                       aria-label={
                         mealComplete
                           ? `Mark ${m.name} incomplete`
                           : `Mark ${m.name} complete`
                       }
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        border: mealComplete ? "none" : "1.5px solid var(--hair)",
-                        background: mealComplete ? "var(--accent)" : "var(--paper)",
-                        color: mealComplete ? "var(--on-accent)" : "var(--muted)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        flexShrink: 0,
-                        transition: "all 200ms ease",
-                      }}
+                      style={{ transition: "all 200ms ease" }}
                     >
                       <span
                         key={String(mealComplete)}
@@ -454,7 +443,7 @@ export function MealsPage() {
                       >
                         <Icon name="check" size={16} stroke={mealComplete ? 2.4 : 2} />
                       </span>
-                    </button>
+                    </CircleButton>
                   </div>
                 )}
                 <div
@@ -476,6 +465,19 @@ export function MealsPage() {
                   }}
                   style={{ flex: 1, minWidth: 0, display: "flex", cursor: "pointer" }}
                 >
+                {!viewingToday && (
+                  <div
+                    aria-hidden
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      paddingLeft: 10,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Illustration name={mealIllustration(m.slot)} size={56} />
+                  </div>
+                )}
                 <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
                   <div className="eyebrow" style={{ paddingRight: 40 }}>
                     {mealSlotLabel(m, i)} · {m.calories} kcal
@@ -497,6 +499,7 @@ export function MealsPage() {
                     {isRegenTarget ? "Regenerating…" : m.name}
                   </div>
                   <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {mealComplete && <Chip>Eaten</Chip>}
                     <Chip variant="moss">{m.proteinG}g protein</Chip>
                     {m.isLeftover && (
                       <Chip variant="ghost">

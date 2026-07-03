@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
-import { PhoneHeader } from "../components/Primitives";
+import { PageHero } from "../components/Primitives";
 import { RecipeCard } from "../components/RecipeCard";
 import {
   RecipeFilterChips,
@@ -29,7 +29,7 @@ export function RecipesPage() {
 
   return (
     <Layout>
-      <PhoneHeader
+      <PageHero
         title="Recipe book"
         subtitle="Your saved meals, ready to plan or cook."
         right={
@@ -54,7 +54,7 @@ export function RecipesPage() {
 
       <RecipeFilterChips value={preset} onChange={setPreset} />
 
-      <div className="px-4 pt-3 space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
+      <div className="px-4 pt-3 space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 stagger-in">
         {isLoading && (
           <div className="md:col-span-2">
             <SkeletonList count={4} />
