@@ -12,7 +12,7 @@ import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PopMenu } from "../components/PopMenu";
-import { PhoneHeader } from "../components/Primitives";
+import { PageHero } from "../components/Primitives";
 import { Sheet } from "../components/Sheet";
 import { SkeletonList } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
@@ -199,7 +199,7 @@ function ListBody({
 
   return (
     <>
-      <PhoneHeader
+      <PageHero
         title="Market"
         subtitle={
           total > 0
@@ -328,8 +328,9 @@ function ListProgress({ checked, total }: { checked: number; total: number }) {
     <div
       className="px-4 pt-2 pb-2 sticky top-[52px] md:top-0 z-[5] md:max-w-[640px] md:mx-auto"
       style={{
-        background: "color-mix(in srgb, var(--bg) 88%, transparent)",
-        backdropFilter: "blur(10px)",
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(var(--glass-blur)) saturate(1.7)",
+        WebkitBackdropFilter: "blur(var(--glass-blur)) saturate(1.7)",
       }}
     >
       <div
@@ -360,7 +361,7 @@ function ListProgress({ checked, total }: { checked: number; total: number }) {
           style={{
             width: `${pct * 100}%`,
             height: "100%",
-            background: "var(--moss)",
+            background: "linear-gradient(90deg, var(--moss), color-mix(in srgb, var(--moss) 60%, var(--honey)))",
             borderRadius: 99,
             transition: "width 320ms cubic-bezier(0.2, 0.8, 0.2, 1)",
           }}

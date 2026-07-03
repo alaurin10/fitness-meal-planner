@@ -92,21 +92,6 @@ export function PageHero({
   );
 }
 
-/** @deprecated Use PageHero — kept so existing pages compile until each
- * page's redesign pass migrates it. */
-export function PhoneHeader({
-  greeting,
-  title,
-  subtitle,
-  right,
-}: {
-  greeting?: ReactNode;
-  title: ReactNode;
-  subtitle?: ReactNode;
-  right?: ReactNode;
-}) {
-  return <PageHero eyebrow={greeting} title={title} subtitle={subtitle} right={right} />;
-}
 
 export function Wordmark() {
   return (
