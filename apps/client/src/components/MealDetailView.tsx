@@ -98,7 +98,7 @@ export function MealDetailView({
               marginBottom: 14,
             }}
           >
-            <Illustration name={mealIllustration(meal.slot)} size={150} />
+            <Illustration name={mealIllustration(meal.slot)} size={176} />
           </div>
           <div
             className="display-hero"

@@ -63,25 +63,58 @@ function Preview() {
 
           <div className="px-4 flex flex-col gap-3 stagger-in">
             <Card tone="glass" className="texture-grain">
-              <div className="eyebrow" style={{ marginBottom: 12 }}>Today's progress</div>
-              <div style={{ display: "flex", justifyContent: "space-around" }}>
-                <Ring value={0.75} size={64} stroke={5.5} color="var(--moss)" />
-                <Ring value={1} size={64} stroke={5.5} gradient />
-                <Ring value={0.4} size={64} stroke={5.5} color="var(--honey)" />
-                <ProgressRing value={0.6} size={64} strokeWidth={5.5} gradient />
+              <div className="eyebrow" style={{ marginBottom: 14 }}>Today's progress</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                <Ring value={0.68} size={108} stroke={10} gradient>
+                  <span className="display-stat" style={{ fontSize: 27 }}>
+                    68<span style={{ fontSize: 14, fontWeight: 400 }}>%</span>
+                  </span>
+                </Ring>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 9 }}>
+                  {[
+                    ["Workout", "3/6", "var(--moss)", 0.5],
+                    ["Calories", "1,430 / 2,200", "var(--accent)", 0.65],
+                    ["Protein", "96 / 160g", "var(--honey)", 0.6],
+                    ["Water", "5 / 8", "var(--accent)", 0.62],
+                  ].map(([label, value, color, frac]) => (
+                    <div key={label as string} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span
+                        style={{
+                          width: 13,
+                          height: 13,
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          background: `conic-gradient(${color} ${Math.round((frac as number) * 360)}deg, color-mix(in srgb, var(--muted) 20%, transparent) 0deg)`,
+                        }}
+                      />
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
+                        {label}
+                      </span>
+                      <span className="font-display" style={{ fontSize: 13.5, color: "var(--sumi)" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </Card>
 
-            <Card tone="hero" raised>
+            <Card tone="accent" raised>
               <div className="eyebrow">Today's workout</div>
               <div className="title-lg" style={{ marginTop: 4 }}>Upper push</div>
               <div className="flex gap-2 mt-3">
                 <Chip>6 exercises</Chip>
-                <Chip variant="honey">Session</Chip>
-                <Chip variant="moss">45 min</Chip>
+                <Chip>Session</Chip>
+                <Chip>45 min</Chip>
               </div>
               <Button className="w-full mt-4" size="lg">
                 Start workout <Icon name="chevron" size={16} />
+              </Button>
+            </Card>
+
+            <Card tone="hero" raised>
+              <div className="eyebrow">Hero tone</div>
+              <div className="title-lg" style={{ marginTop: 4 }}>Accent-washed card</div>
+              <Button variant="accent" className="w-full mt-4">
+                Gradient accent button
               </Button>
             </Card>
 

@@ -341,7 +341,7 @@ export function MealsPage() {
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="eyebrow">{longDay(activeDay)}</div>
-              <div className="title-md mt-1">
+              <div className="title-lg mt-1">
                 {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>
               <div
