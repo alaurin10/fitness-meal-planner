@@ -53,9 +53,14 @@ export function DaySelector<D extends string>({
               style={{
                 flex: isDesktop ? "none" : 1,
                 minWidth: isDesktop ? undefined : 56,
-                border: "none",
-                background: isActive ? "var(--ink)" : "var(--paper)",
-                color: isActive ? "var(--bg)" : "var(--ink)",
+                border: isActive ? "none" : "1px solid var(--hair)",
+                background: isActive
+                  ? "linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--honey)))"
+                  : "var(--paper)",
+                color: isActive ? "var(--on-accent)" : "var(--ink)",
+                boxShadow: isActive
+                  ? "0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent)"
+                  : "var(--shadow-sm)",
                 padding: "10px 8px",
                 borderRadius: "calc(var(--radius) * 0.7)",
                 fontFamily: "var(--font-body)",
@@ -66,7 +71,7 @@ export function DaySelector<D extends string>({
                 alignItems: "center",
                 gap: 2,
                 position: "relative",
-                transition: "background 180ms ease, color 180ms ease",
+                transition: "background 180ms ease, color 180ms ease, box-shadow 180ms ease",
               }}
             >
               <span
@@ -79,7 +84,7 @@ export function DaySelector<D extends string>({
               >
                 {d}
               </span>
-              <span className="font-display" style={{ fontSize: 16 }}>
+              <span className="font-display" style={{ fontSize: 19, lineHeight: 1.1 }}>
                 {dayDate.getDate()}
               </span>
               <span
