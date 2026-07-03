@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-type Tone = "paper" | "clay" | "ink" | "gradient" | "hero" | "glass";
+type Tone = "paper" | "clay" | "ink" | "gradient" | "hero" | "glass" | "accent";
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
   tone?: Tone;
@@ -19,6 +19,7 @@ const TONE_CLASS: Record<Tone, string> = {
   gradient: "card card-gradient",
   hero: "card card-hero",
   glass: "card card-glass glass",
+  accent: "card card-accent",
 };
 
 export function Card({
