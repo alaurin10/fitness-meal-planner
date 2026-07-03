@@ -224,7 +224,7 @@ function ListBody({
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
             <EmptyState
-              icon="groceries"
+              illustration="empty-groceries"
               title={isCurrentWeek ? "No plan for this week" : "No plan for next week"}
               body="Generate the plan to auto-build the grocery list."
             >

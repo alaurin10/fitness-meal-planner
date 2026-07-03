@@ -1,6 +1,7 @@
 import { Card } from "./Card";
 import { Chip } from "./Primitives";
 import { Icon } from "./Icon";
+import { Illustration, mealIllustration } from "./Illustration";
 import type { RecipeRecord } from "../lib/types";
 import { formatMinutes } from "../lib/units";
 
@@ -15,7 +16,8 @@ export function RecipeCard({
   return (
     <Card
       flush
-      className="flex tappable"
+      interactive
+      className="flex"
       role="button"
       tabIndex={0}
       onClick={onSelect}
@@ -26,6 +28,21 @@ export function RecipeCard({
         }
       }}
     >
+      {/* Slot art stands in for a photo — cookbook-index feel */}
+      <div
+        aria-hidden
+        style={{
+          alignSelf: "stretch",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 76,
+          flexShrink: 0,
+          background: "var(--wash-accent)",
+        }}
+      >
+        <Illustration name={mealIllustration(recipe.slotHint)} size={64} />
+      </div>
       <div style={{ padding: "14px 16px", flex: 1, minWidth: 0 }}>
         <div className="eyebrow">
           {recipe.source === "AI" ? "From plan" : "Manual"} ·{" "}

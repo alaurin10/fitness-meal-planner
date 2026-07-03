@@ -627,20 +627,6 @@ html[data-palette="carbon"][data-theme="dark"] {
   border: 0;
 }
 
-/* Placeholder photo (meal/exercise imagery) */
-.placeholder-photo {
-  background:
-    repeating-linear-gradient(45deg, transparent 0 10px,
-      color-mix(in srgb, var(--muted) 14%, transparent) 10px 11px),
-    var(--clay);
-  color: var(--sumi);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 /* Route transitions (View Transitions API; unsupported browsers get
    instant navigation, which is the correct fallback) */
 @supports (view-transition-name: root) {

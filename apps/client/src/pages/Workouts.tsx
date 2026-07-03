@@ -128,7 +128,7 @@ export function WorkoutsPage() {
             <GeneratingProgress kind="workout" estimatedSeconds={45} />
           ) : (
             <EmptyState
-              icon="dumbbell"
+              illustration="no-plan"
               title="No active plan"
               body="Generate a training week tailored to your goals, split, and equipment."
             >

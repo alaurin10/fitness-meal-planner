@@ -63,7 +63,7 @@ export function RecipesPage() {
         {!isLoading && (recipes?.length ?? 0) === 0 && (
           <div className="md:col-span-2">
             <EmptyState
-              icon="fork"
+              illustration="no-recipes"
               title="Nothing saved yet"
               body="Add a recipe by hand, or open a meal you love from your plan and tap “Save to recipe book.”"
             >

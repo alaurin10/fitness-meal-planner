@@ -134,7 +134,7 @@ export function MealsPage() {
             <GeneratingProgress kind="meal" estimatedSeconds={60} />
           ) : (
             <EmptyState
-              icon="leaf"
+              illustration="meal-breakfast"
               title="No active plan"
               body="Generate a week of meals matched to your targets, or start from a blank slate."
             >
