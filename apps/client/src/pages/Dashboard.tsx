@@ -7,10 +7,12 @@ import {
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { CircleButton } from "../components/CircleButton";
 import { Icon } from "../components/Icon";
+import { Illustration, mealIllustration } from "../components/Illustration";
 import { Layout } from "../components/Layout";
 import { ProgressRing } from "../components/ProgressRing";
-import { Chip, PhoneHeader, Ring } from "../components/Primitives";
+import { Chip, PageHero, Ring } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
@@ -40,6 +42,14 @@ function formatDay(date: Date) {
     month: "long",
     day: "numeric",
   });
+}
+
+function greeting(date: Date) {
+  const h = date.getHours();
+  if (h < 5) return "Up late.";
+  if (h < 12) return "Good morning.";
+  if (h < 17) return "Good afternoon.";
+  return "Good evening.";
 }
 
 // Order in which meals are naturally eaten through the day. Meals without
@@ -148,48 +158,20 @@ export function DashboardPage() {
   if (!profile) {
     return (
       <Layout>
-        <PhoneHeader
-          greeting={formatDay(today)}
+        <PageHero
+          eyebrow={formatDay(today)}
           title="Welcome."
           subtitle="Set up your profile so we can shape your first week."
         />
         <div className="px-4 pt-2">
-          <Card tone="gradient">
-            <div className="flex items-start gap-3">
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 999,
-                  background: "var(--paper)",
-                  color: "var(--accent)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name="sparkle" size={18} />
-              </div>
-              <div>
-                <div
-                  className="font-display"
-                  style={{ fontSize: 20, color: "var(--ink)", letterSpacing: "-0.01em" }}
-                >
-                  Start with your numbers
-                </div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--sumi)",
-                    marginTop: 6,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Age, sex, weight, experience, and a goal — that's all we need.
-                </p>
-              </div>
+          <Card tone="gradient" style={{ textAlign: "center" }}>
+            <Illustration name="welcome" size={170} style={{ margin: "0 auto" }} />
+            <div className="title-md" style={{ marginTop: 10 }}>
+              Start with your numbers
             </div>
+            <p className="text-body" style={{ marginTop: 6, maxWidth: 300, marginInline: "auto" }}>
+              Age, sex, weight, experience, and a goal — that's all we need.
+            </p>
             <Link to="/profile" className="block mt-5">
               <Button className="w-full">Set up profile</Button>
             </Link>
@@ -217,37 +199,37 @@ export function DashboardPage() {
 
   return (
     <Layout>
-      {/* Compact header: date + streak share one block to save vertical space */}
-      <div style={{ padding: "16px 22px 10px" }}>
-        <div className="title-xl" style={{ letterSpacing: "-0.02em" }}>
-          {formatDay(today)}
-        </div>
-        {streaksQuery.data && streaksQuery.data.overall.current > 0 && (
-          <Link
-            to="/progress"
-            viewTransition
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              marginTop: 4,
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--accent)",
-              textDecoration: "none",
-            }}
-          >
-            <Icon name="flame" size={16} />
-            {streaksQuery.data.overall.current} day streak
-          </Link>
-        )}
-      </div>
+      {/* Masthead: time-aware greeting over the date, streak pill below */}
+      <PageHero
+        eyebrow={formatDay(today)}
+        title={greeting(today)}
+        below={
+          streaksQuery.data && streaksQuery.data.overall.current > 0 ? (
+            <Link
+              to="/progress"
+              viewTransition
+              className="chip chip-honey tappable"
+              style={{ marginTop: 10, textDecoration: "none", fontWeight: 600 }}
+            >
+              <Icon name="flame" size={14} />
+              {streaksQuery.data.overall.current} day streak
+            </Link>
+          ) : undefined
+        }
+      />
 
-      {/* Today's progress rings */}
+      {/* Today's progress rings — the floating glass moment */}
       {summary && (
         <div className="px-4 pt-1 pb-2 fade-up">
-          <Card>
-            <div className="eyebrow" style={{ marginBottom: 12 }}>Today's progress</div>
+          <Card tone="glass" className="texture-grain">
+            {allCategoriesDone && (
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+                <Illustration name="all-done" size={140} className="fade-up" />
+              </div>
+            )}
+            <div className="eyebrow" style={{ marginBottom: 12 }}>
+              {allCategoriesDone ? "Everything done today" : "Today's progress"}
+            </div>
             <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start" }}>
               <ProgressStat
                 label="Workout"
@@ -294,10 +276,10 @@ export function DashboardPage() {
       )}
 
       {/* Today's workout */}
-      <div className="px-4 pt-1 flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4">
+      <div className="px-4 pt-1 flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4 stagger-in">
         <Card
           tone="gradient"
-          className="fade-up"
+          raised
           style={{ order: mealCardFirst ? 2 : 1 }}
         >
           <div className="flex items-center justify-between mb-3">
@@ -336,12 +318,7 @@ export function DashboardPage() {
           </div>
           {todayWorkout ? (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                {todayWorkout.focus}
-              </div>
+              <div className="title-lg">{todayWorkout.focus}</div>
               <div className="flex flex-wrap gap-2 mt-3">
                 <Chip>{todayWorkout.exercises.length} exercises</Chip>
                 {hasSession ? (
@@ -361,15 +338,15 @@ export function DashboardPage() {
             </>
           ) : workoutPlan ? (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                Rest day
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <Illustration name="rest-day" size={84} style={{ flexShrink: 0 }} />
+                <div>
+                  <div className="title-lg">Rest day</div>
+                  <p className="text-body" style={{ marginTop: 4 }}>
+                    Recover well.
+                  </p>
+                </div>
               </div>
-              <p style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6 }}>
-                Recover well.
-              </p>
               <Link to="/workouts" className="block mt-4">
                 <Button variant="ghost" className="w-full">
                   See full week
@@ -378,12 +355,7 @@ export function DashboardPage() {
             </>
           ) : (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                No plan yet
-              </div>
+              <div className="title-lg">No plan yet</div>
               <Link to="/workouts" className="block mt-4">
                 <Button className="w-full">
                   <Icon name="sparkle" size={16} />
@@ -397,7 +369,7 @@ export function DashboardPage() {
         {/* Next meal */}
         <Card
           tone="clay"
-          className="fade-up"
+          raised
           style={{ order: mealCardFirst ? 1 : 2 }}
         >
           <div className="flex items-center justify-between mb-3">
@@ -410,8 +382,7 @@ export function DashboardPage() {
             <>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 {/* One-tap quick complete for the most common daily action */}
-                <button
-                  type="button"
+                <CircleButton
                   onClick={() => {
                     success();
                     completions.toggle(nextMeal.index);
@@ -419,25 +390,11 @@ export function DashboardPage() {
                       setTimeout(() => fireCelebration(), 200);
                     }
                   }}
-                  className="tappable"
                   aria-label={`Mark ${nextMeal.meal.name} eaten`}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    border: "1.5px solid var(--hair)",
-                    background: "var(--paper)",
-                    color: "var(--muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    marginTop: 2,
-                  }}
+                  style={{ marginTop: 2 }}
                 >
                   <Icon name="check" size={16} stroke={2} />
-                </button>
+                </CircleButton>
                 <Link
                   to={`/meals/${thisWeekStartIso}/${todayDayKey}/${nextMeal.index}`}
                   viewTransition
@@ -448,8 +405,8 @@ export function DashboardPage() {
                     {nextMeal.meal.name}
                   </div>
                   <div
+                    className="text-caption"
                     style={{
-                      fontSize: 12.5,
                       color: "var(--sumi)",
                       marginTop: 6,
                       display: "flex",
@@ -466,6 +423,11 @@ export function DashboardPage() {
                     </span>
                   </div>
                 </Link>
+                <Illustration
+                  name={mealIllustration(nextMeal.meal.slot)}
+                  size={72}
+                  style={{ flexShrink: 0, marginTop: -4 }}
+                />
               </div>
               <div className="flex gap-2 mt-4">
                 <Link
@@ -487,15 +449,15 @@ export function DashboardPage() {
             </>
           ) : allDoneToday ? (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                All done for today
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <Illustration name="meals-done" size={84} style={{ flexShrink: 0 }} />
+                <div>
+                  <div className="title-lg">All done for today</div>
+                  <p className="text-body" style={{ marginTop: 4 }}>
+                    Nicely fueled — see you in the morning.
+                  </p>
+                </div>
               </div>
-              <p style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6 }}>
-                Nicely fueled — see you in the morning.
-              </p>
               <Link to="/meals" className="block mt-4">
                 <Button variant="ghost" className="w-full">
                   See today's meals
@@ -504,12 +466,7 @@ export function DashboardPage() {
             </>
           ) : mealPlan ? (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                No meals today
-              </div>
+              <div className="title-lg">No meals today</div>
               <Link to="/meals" className="block mt-4">
                 <Button variant="ghost" className="w-full">
                   See full week
@@ -518,12 +475,7 @@ export function DashboardPage() {
             </>
           ) : (
             <>
-              <div
-                className="font-display"
-                style={{ fontSize: 22, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                No plan yet
-              </div>
+              <div className="title-lg">No plan yet</div>
               <Link to="/meals" className="block mt-4">
                 <Button variant="accent" className="w-full">
                   <Icon name="sparkle" size={16} />
@@ -574,19 +526,20 @@ function ProgressStat({
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
       <Ring
         value={fraction}
-        size={56}
-        stroke={5}
+        size={64}
+        stroke={5.5}
         color={color}
+        gradient={done}
       >
         {done ? (
           <div style={{ color, animation: "checkPop 260ms ease" }}>
-            <Icon name="check" size={18} stroke={2.5} />
+            <Icon name="check" size={20} stroke={2.5} />
           </div>
         ) : (
           <span
             className="font-display"
             style={{
-              fontSize: 12,
+              fontSize: 13,
               color: "var(--ink)",
               letterSpacing: "-0.01em",
               lineHeight: 1,
@@ -638,6 +591,7 @@ function HydrationCard({
             size={64}
             strokeWidth={5}
             fillColor={reached ? "var(--moss)" : "var(--accent)"}
+            gradient={reached}
           >
             <span
               className="font-display"
@@ -652,13 +606,10 @@ function HydrationCard({
           </ProgressRing>
 
           <div className="flex-1">
-            <div
-              className="font-display"
-              style={{ fontSize: 20, color: "var(--ink)", letterSpacing: "-0.01em" }}
-            >
+            <div className="title-md">
               {reached ? "Goal reached" : `${cups} / ${goal} cups`}
             </div>
-            <p style={{ fontSize: 13, color: "var(--sumi)", marginTop: 4 }}>
+            <p className="text-body" style={{ marginTop: 4 }}>
               {reached ? "Well hydrated — keep it up." : "Tap to log a drink."}
             </p>
           </div>
@@ -666,47 +617,22 @@ function HydrationCard({
           {!loading && (
             <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
               {cups > 0 && (
-                <button
-                  type="button"
+                <CircleButton
                   onClick={onRemove}
-                  className="tappable"
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    border: "1px solid var(--hair)",
-                    background: "transparent",
-                    color: "var(--sumi)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                  }}
                   aria-label="Remove cup"
+                  style={{ color: "var(--sumi)" }}
                 >
                   <Icon name="minus" size={16} stroke={2.5} />
-                </button>
+                </CircleButton>
               )}
-              <button
-                type="button"
+              <CircleButton
+                size={44}
+                variant={reached ? "soft" : "accent"}
                 onClick={onAdd}
-                className="tappable"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  border: "none",
-                  background: reached ? "var(--clay)" : "var(--accent)",
-                  color: reached ? "var(--sumi)" : "var(--paper)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                }}
                 aria-label="Add cup"
               >
                 <Icon name="plus" size={20} stroke={2.5} />
-              </button>
+              </CircleButton>
             </div>
           )}
         </div>
