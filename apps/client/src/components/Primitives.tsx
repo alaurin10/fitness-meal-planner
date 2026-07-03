@@ -77,7 +77,7 @@ export function PageHero({
           gap: 16,
         }}
       >
-        <h1 className="display-hero" style={{ margin: 0, minWidth: 0 }}>
+        <h1 className="display-hero text-gradient" style={{ margin: 0, minWidth: 0 }}>
           {title}
         </h1>
         {right}

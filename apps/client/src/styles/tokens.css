@@ -63,11 +63,11 @@
   --wash-accent-strong: color-mix(in srgb, var(--accent) 16%, transparent);
 
   /* Liquid Glass surfaces (chrome layer: nav, menus, sheets, floating bars) */
-  --glass-bg: color-mix(in srgb, var(--paper) 60%, transparent);
-  --glass-bg-strong: color-mix(in srgb, var(--paper) 78%, transparent);
+  --glass-bg: color-mix(in srgb, var(--paper) 52%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--paper) 76%, transparent);
   --glass-border: color-mix(in srgb, var(--ink) 10%, transparent);
   --glass-highlight: rgba(255, 255, 255, 0.35);
-  --glass-blur: 20px;
+  --glass-blur: 26px;
 
   color-scheme: light;
 }
@@ -227,10 +227,20 @@ html[data-palette="carbon"] .canvas-ink {
   font-family: var(--font-display);
   font-optical-sizing: auto;
   font-weight: var(--font-display-weight-hero);
-  font-size: clamp(38px, 10vw, 52px);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
+  font-size: clamp(42px, 11.5vw, 62px);
+  line-height: 0.96;
+  letter-spacing: -0.035em;
   color: var(--ink);
+}
+
+/* Gradient ink for hero titles — ink melting into the accent. Requires a
+   solid fallback color for browsers without background-clip: text. */
+.text-gradient {
+  color: var(--ink);
+  background: linear-gradient(100deg, var(--ink) 30%, var(--accent) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .display-stat {
   font-family: var(--font-display);
@@ -267,6 +277,18 @@ html[data-palette="carbon"] .canvas-ink {
   color: var(--muted);
 }
 
+/* Section header: a small display-set title with more presence than the
+   eyebrow alone — pair as <eyebrow> + <section-title>. */
+.section-title {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: var(--font-display-weight);
+  font-size: 21px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
 /* Card surfaces */
 .card {
   background: var(--paper);
@@ -283,10 +305,32 @@ html[data-palette="carbon"] .canvas-ink {
 .card-raised { box-shadow: var(--shadow-md); }
 .card-hero {
   background: linear-gradient(160deg,
-    color-mix(in srgb, var(--accent) 10%, var(--paper)),
+    color-mix(in srgb, var(--accent) 14%, var(--paper)),
     var(--paper) 70%);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
+}
+/* Full color-block statement card: solid accent surface, on-accent text.
+   The radial highlight keeps large accent fills from reading flat. */
+.card-accent {
+  background:
+    radial-gradient(120% 90% at 85% -10%,
+      color-mix(in srgb, var(--honey) 34%, transparent), transparent 60%),
+    linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--accent-2)));
+  color: var(--on-accent);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.card-accent .eyebrow { color: color-mix(in srgb, var(--on-accent) 72%, transparent); }
+.card-accent .title-lg,
+.card-accent .title-md,
+.card-accent .display-stat { color: var(--on-accent); }
+.card-accent .text-body,
+.card-accent .text-caption { color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+/* Chips read as frosted tags on the accent block */
+.card-accent .chip {
+  background: color-mix(in srgb, var(--on-accent) 16%, transparent);
+  color: var(--on-accent);
 }
 .card-lift {
   transition:
@@ -352,8 +396,16 @@ html[data-palette="carbon"] .canvas-ink {
 .btn-primary { background: var(--ink); color: var(--bg); }
 .btn-primary:hover:not(:disabled) { background: var(--sumi); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-primary:active:not(:disabled) { transform: translateY(0); }
-.btn-accent { background: var(--accent); color: var(--on-accent); }
-.btn-accent:hover:not(:disabled) { background: var(--accent-2); transform: translateY(-1px); }
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--honey)));
+  color: var(--on-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.btn-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 42%, transparent);
+}
 .btn-ghost { background: transparent; color: var(--sumi); border: 1px solid var(--hair); }
 .btn-ghost:hover:not(:disabled) { background: var(--clay); border-color: var(--muted); }
 .btn-plain { background: transparent; color: var(--sumi); padding: 8px 12px; }
@@ -437,19 +489,44 @@ html[data-palette="carbon"] .canvas-ink {
 
 /* Ambient background — fixed color field behind the content that gives the
    glass chrome something to refract. Pure gradients on semantic vars, so it
-   adapts to every palette/theme combo. */
+   adapts to every palette/theme combo. The two blob layers drift very
+   slowly so the field feels alive; reduced-motion freezes them in place. */
 .ambient-bg {
   position: fixed;
   inset: 0;
   z-index: -2;
   pointer-events: none;
+  overflow: hidden;
+}
+.ambient-bg::before,
+.ambient-bg::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+}
+.ambient-bg::before {
   background:
-    radial-gradient(55% 38% at 18% -6%,
-      color-mix(in srgb, var(--accent) 11%, transparent), transparent 72%),
-    radial-gradient(48% 34% at 88% 4%,
-      color-mix(in srgb, var(--honey) 9%, transparent), transparent 70%),
-    radial-gradient(60% 44% at 50% 108%,
-      color-mix(in srgb, var(--moss) 8%, transparent), transparent 72%);
+    radial-gradient(55% 38% at 18% -2%,
+      color-mix(in srgb, var(--accent) 18%, transparent), transparent 72%),
+    radial-gradient(60% 44% at 50% 106%,
+      color-mix(in srgb, var(--moss) 13%, transparent), transparent 72%);
+  animation: ambientDriftA 46s ease-in-out infinite alternate;
+}
+.ambient-bg::after {
+  background:
+    radial-gradient(48% 34% at 88% 6%,
+      color-mix(in srgb, var(--honey) 15%, transparent), transparent 70%),
+    radial-gradient(40% 30% at -4% 55%,
+      color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+  animation: ambientDriftB 58s ease-in-out infinite alternate;
+}
+@keyframes ambientDriftA {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(4%, 2.5%, 0) scale(1.08); }
+}
+@keyframes ambientDriftB {
+  from { transform: translate3d(0, 0, 0) scale(1.06); }
+  to   { transform: translate3d(-4%, -2%, 0) scale(1); }
 }
 
 /* Grain texture for hero surfaces — barely-there tooth so large flat fills
