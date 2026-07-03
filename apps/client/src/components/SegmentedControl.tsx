@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="group"
       aria-label={rest["aria-label"]}
-      className={className}
+      className={`glass ${className ?? ""}`.trim()}
       style={{
         position: "relative",
         display: "inline-grid",
@@ -37,8 +37,6 @@ export function SegmentedControl<T extends string>({
         gap: GAP,
         padding: PAD,
         borderRadius: 999,
-        border: "1px solid var(--hair)",
-        background: "color-mix(in srgb, var(--clay) 45%, var(--paper))",
       }}
     >
       {activeIndex >= 0 && (

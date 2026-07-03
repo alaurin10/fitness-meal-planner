@@ -46,6 +46,53 @@ export function Chip({
   );
 }
 
+/**
+ * Page masthead: eyebrow → oversized display title → subtitle, with an
+ * accent glow bleeding from the top of the page (.page-hero::before).
+ * `right` sits beside the title (week selectors, big stats); `below`
+ * renders full-width under the text block (chips, illustration).
+ */
+export function PageHero({
+  eyebrow,
+  title,
+  subtitle,
+  right,
+  below,
+}: {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  right?: ReactNode;
+  below?: ReactNode;
+}) {
+  return (
+    <div className="page-hero">
+      {eyebrow && <div className="eyebrow" style={{ marginBottom: 8 }}>{eyebrow}</div>}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+        }}
+      >
+        <h1 className="display-hero" style={{ margin: 0, minWidth: 0 }}>
+          {title}
+        </h1>
+        {right}
+      </div>
+      {subtitle && (
+        <div className="text-body" style={{ color: "var(--muted)", marginTop: 8 }}>
+          {subtitle}
+        </div>
+      )}
+      {below}
+    </div>
+  );
+}
+
+/** @deprecated Use PageHero — kept so existing pages compile until each
+ * page's redesign pass migrates it. */
 export function PhoneHeader({
   greeting,
   title,
@@ -57,42 +104,7 @@ export function PhoneHeader({
   subtitle?: ReactNode;
   right?: ReactNode;
 }) {
-  return (
-    <div
-      style={{
-        padding: "16px 22px 10px",
-      }}
-    >
-      {greeting && <div className="eyebrow" style={{ marginBottom: 6 }}>{greeting}</div>}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-        }}
-      >
-        <div
-          className="font-display"
-          style={{
-            fontSize: 30,
-            color: "var(--ink)",
-            lineHeight: 1.05,
-            letterSpacing: "-0.015em",
-            minWidth: 0,
-          }}
-        >
-          {title}
-        </div>
-        {right}
-      </div>
-      {subtitle && (
-        <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
-          {subtitle}
-        </div>
-      )}
-    </div>
-  );
+  return <PageHero eyebrow={greeting} title={title} subtitle={subtitle} right={right} />;
 }
 
 export function Wordmark() {

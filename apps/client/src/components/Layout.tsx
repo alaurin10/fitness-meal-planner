@@ -63,23 +63,26 @@ export function Layout({ children }: Props) {
 
   return (
     <>
+      {/* Ambient color field behind everything — gives the glass chrome
+          something to refract; blur over a flat background is invisible. */}
+      <div aria-hidden className="ambient-bg" />
       <SideNav />
-      <div
-        className="mx-auto max-w-[480px] min-h-screen relative pb-[84px] md:max-w-none md:ml-[220px] md:pb-6"
-        style={{ background: "var(--bg)" }}
-      >
+      <div className="mx-auto max-w-[480px] min-h-screen relative pb-[84px] md:max-w-none md:ml-[220px] md:pb-6">
         <header
           className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 md:hidden"
           style={{
-            background: "color-mix(in srgb, var(--bg) 88%, transparent)",
-            backdropFilter: "blur(10px)",
+            background: scrolled
+              ? "var(--glass-bg)"
+              : "color-mix(in srgb, var(--bg) 30%, transparent)",
+            backdropFilter: "blur(var(--glass-blur)) saturate(1.7)",
+            WebkitBackdropFilter: "blur(var(--glass-blur)) saturate(1.7)",
             // Hairline + soft ambient shadow fade in once the page scrolls.
             // Both states keep the same layer count so the transition tweens
             // instead of snapping; a border would shift layout by 1px.
             boxShadow: scrolled
-              ? "0 1px 0 var(--hair), 0 6px 20px rgba(0, 0, 0, 0.06)"
+              ? "0 1px 0 var(--glass-border), 0 6px 20px rgba(0, 0, 0, 0.06)"
               : "0 1px 0 transparent, 0 6px 20px rgba(0, 0, 0, 0)",
-            transition: "box-shadow 220ms ease",
+            transition: "box-shadow 220ms ease, background 220ms ease",
           }}
         >
           <Wordmark />
@@ -114,7 +117,9 @@ export function Layout({ children }: Props) {
             )}
           </Link>
         </header>
-        <main className="md:max-w-[960px] md:mx-auto">{children}</main>
+        {/* overflow-x-clip keeps the page-hero glow's horizontal bleed from
+            creating a sideways scroll without clipping vertical shadows. */}
+        <main className="relative overflow-x-clip md:max-w-[960px] md:mx-auto">{children}</main>
         <BottomNav />
       </div>
     </>

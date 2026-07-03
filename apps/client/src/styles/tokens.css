@@ -10,14 +10,29 @@
 
 :root {
   --radius: 20px;
+  --radius-xs: calc(var(--radius) * 0.35);
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) * 1.4);
+  --radius-xl: calc(var(--radius) * 1.8);
 
   --pad-card: 20px;
+  --pad-page: 20px;
+
+  /* Spacing rhythm — prefer these over one-off pixel values */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
 
   --font-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
   --font-display-weight: 400;
+  /* Hero display tier: Fraunces goes big & light; carbon overrides to heavy. */
+  --font-display-weight-hero: 340;
   --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', ui-monospace, monospace;
 
@@ -42,6 +57,17 @@
   --shadow-sm: 0 1px 2px rgba(90, 60, 30, 0.04), 0 2px 6px rgba(90, 60, 30, 0.035);
   --shadow-md: 0 2px 8px rgba(90, 60, 30, 0.06), 0 8px 24px rgba(90, 60, 30, 0.05);
   --shadow-lg: 0 4px 16px rgba(90, 60, 30, 0.09), 0 20px 60px rgba(90, 60, 30, 0.08);
+
+  /* Accent washes — tinted fills computed from the palette accent */
+  --wash-accent: color-mix(in srgb, var(--accent) 10%, transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 16%, transparent);
+
+  /* Liquid Glass surfaces (chrome layer: nav, menus, sheets, floating bars) */
+  --glass-bg: color-mix(in srgb, var(--paper) 60%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--paper) 78%, transparent);
+  --glass-border: color-mix(in srgb, var(--ink) 10%, transparent);
+  --glass-highlight: rgba(255, 255, 255, 0.35);
+  --glass-blur: 20px;
 
   color-scheme: light;
 }
@@ -70,6 +96,10 @@ html[data-theme="dark"] {
   --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 20px 60px rgba(0, 0, 0, 0.55);
 
+  /* Glass on dark: a white rim reads as an edge catch-light, not a border. */
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.10);
+
   color-scheme: dark;
 }
 
@@ -78,6 +108,7 @@ html[data-palette="carbon"] {
   --radius: 14px;
   --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-display-weight: 600;
+  --font-display-weight-hero: 700;
 
   --bg:       #F4F5F7;
   --paper:    #FFFFFF;
@@ -140,6 +171,24 @@ html[data-palette="carbon"][data-theme="dark"] {
 .font-mono { font-family: var(--font-mono); }
 
 /* Type scale — use these instead of repeating inline font styles */
+.display-hero {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: var(--font-display-weight-hero);
+  font-size: clamp(38px, 10vw, 52px);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.display-stat {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: var(--font-display-weight);
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
 .title-xl, .title-lg, .title-md, .title-sm {
   font-family: var(--font-display);
   font-optical-sizing: auto;
@@ -147,14 +196,15 @@ html[data-palette="carbon"][data-theme="dark"] {
   letter-spacing: -0.01em;
   color: var(--ink);
 }
-.title-xl { font-size: 34px; line-height: 1.1; }
-.title-lg { font-size: 28px; line-height: 1.15; }
+.title-xl { font-size: 36px; line-height: 1.06; letter-spacing: -0.02em; }
+.title-lg { font-size: 29px; line-height: 1.15; }
 .title-md { font-size: 22px; line-height: 1.2; }
 .title-sm { font-size: 17px; line-height: 1.25; }
-.text-body { font-size: 13.5px; color: var(--sumi); line-height: 1.5; }
+.text-body { font-size: 14px; color: var(--sumi); line-height: 1.5; }
 .text-caption { font-size: 12px; color: var(--muted); line-height: 1.45; }
 
-.popmenu-item:hover { background: var(--bg); }
+/* Translucent so it also works on glass menu surfaces */
+.popmenu-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 
 .eyebrow {
   font-family: var(--font-body);
@@ -171,19 +221,70 @@ html[data-palette="carbon"][data-theme="dark"] {
   border-radius: var(--radius);
   padding: var(--pad-card);
   position: relative;
+  box-shadow: var(--shadow-sm);
 }
 .card-clay { background: var(--clay); }
 .card-ink  { background: var(--ink); color: var(--paper); }
 .card-gradient {
   background: linear-gradient(135deg, var(--paper), var(--clay));
 }
+.card-raised { box-shadow: var(--shadow-md); }
+.card-hero {
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--accent) 10%, var(--paper)),
+    var(--paper) 70%);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.card-lift {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.card-lift:hover  { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.card-lift:active { transform: translateY(0) scale(0.99); box-shadow: var(--shadow-sm); }
+
+/* Liquid Glass — floating chrome only (nav, menus, sheets, sticky bars,
+   singular hero cards). Never on repeated list rows: stacked backdrop
+   filters are the fastest way to jank mobile Safari. */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  border: 1px solid var(--glass-border);
+  /* Specular top rim + ambient drop — the "lit edge" that sells the glass. */
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
+}
+.glass-strong { background: var(--glass-bg-strong); }
+@supports not (backdrop-filter: blur(1px)) {
+  .glass, .glass-strong { background: var(--paper); }
+}
+.card-glass {
+  border-radius: var(--radius-lg);
+}
+
+/* Accent-washed section band */
+.section-wash { background: var(--wash-accent); border-radius: var(--radius-lg); }
+
+/* Rounded-square tinted icon holder (empty states, feature callouts) */
+.icon-badge {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  align-items: center;
+  justify-content: center;
+  background: var(--wash-accent-strong);
+  color: var(--accent);
+  flex-shrink: 0;
+}
 
 /* Buttons */
 .btn {
   font-family: var(--font-body);
   font-weight: 500;
-  font-size: 14px;
-  padding: 11px 18px;
+  font-size: 14.5px;
+  padding: 12px 20px;
   border-radius: calc(var(--radius) * 0.7);
   border: none;
   cursor: pointer;
@@ -205,6 +306,7 @@ html[data-palette="carbon"][data-theme="dark"] {
 .btn-ghost:hover:not(:disabled) { background: var(--clay); border-color: var(--muted); }
 .btn-plain { background: transparent; color: var(--sumi); padding: 8px 12px; }
 .btn-plain:hover:not(:disabled) { color: var(--ink); }
+.btn-lg { font-size: 16px; padding: 16px 24px; border-radius: calc(var(--radius) * 0.85); }
 
 /* Fields */
 .field-input {
@@ -264,6 +366,53 @@ html[data-palette="carbon"][data-theme="dark"] {
 /* Hairline */
 .hairline { background: var(--hair); height: 1px; width: 100%; }
 
+/* Page hero masthead — eyebrow, display title, subtitle; a soft accent
+   glow bleeds from the top so the page opens with color. */
+.page-hero {
+  position: relative;
+  padding: var(--space-6) var(--pad-page) 14px;
+}
+.page-hero::before {
+  content: "";
+  position: absolute;
+  inset: -60px -40px auto;
+  height: 220px;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(70% 90% at 25% 15%,
+    var(--wash-accent-strong), transparent 70%);
+}
+
+/* Ambient background — fixed color field behind the content that gives the
+   glass chrome something to refract. Pure gradients on semantic vars, so it
+   adapts to every palette/theme combo. */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 38% at 18% -6%,
+      color-mix(in srgb, var(--accent) 11%, transparent), transparent 72%),
+    radial-gradient(48% 34% at 88% 4%,
+      color-mix(in srgb, var(--honey) 9%, transparent), transparent 70%),
+    radial-gradient(60% 44% at 50% 108%,
+      color-mix(in srgb, var(--moss) 8%, transparent), transparent 72%);
+}
+
+/* Grain texture for hero surfaces — barely-there tooth so large flat fills
+   don't read as vector-flat. */
+.texture-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 /* Tap interaction */
 /* touch-action: manipulation disables iOS double-tap-to-zoom (and the legacy
    300ms tap delay) on interactive controls, so quick repeated taps — e.g. the
@@ -302,6 +451,31 @@ html[data-palette="carbon"][data-theme="dark"] {
   100% { transform: scale(1); }
 }
 .check-pop { animation: checkPop 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Springy press for primary actions — dips, overshoots, settles. */
+@keyframes pressSpring {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.96); }
+  70%  { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+.press-spring:active { animation: pressSpring 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* Staggered entrance — put on a list/grid container; children cascade in. */
+.stagger-in > * { animation: fadeUp 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.stagger-in > *:nth-child(2) { animation-delay: 40ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 80ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 120ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 160ms; }
+.stagger-in > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+/* Chart entrances: lines trace themselves (pair with pathLength=1), bars
+   grow from their baseline (pair with transform-origin: bottom). */
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes barGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
 
 /* Bottom-nav icon pop when its tab becomes active. On the icon's wrapper
    span, not the NavLink — .tappable:active also animates transform. */
@@ -360,13 +534,20 @@ html[data-palette="carbon"][data-theme="dark"] {
 }
 .overlay-backdrop[data-state="open"] { opacity: 1; }
 
+/* Modal/Sheet panels are Liquid Glass (strong tint so body text stays
+   readable); box-shadow overrides .glass's md tier — overlays float highest.
+   The @supports fallback above still applies, but on an opaque background
+   the translucency read is what matters, so also fall back there. */
 .modal-panel {
   width: 100%;
-  background: var(--bg);
-  border-radius: 24px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
   padding: 18px 18px 16px;
   margin: 0 16px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-lg);
   opacity: 0;
   transform: scale(0.96) translateY(8px);
   transition: opacity 200ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -378,16 +559,22 @@ html[data-palette="carbon"][data-theme="dark"] {
   width: 100%;
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
-  background: var(--bg);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  border-top: 1px solid var(--glass-border);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
   padding: 0 18px calc(env(safe-area-inset-bottom, 16px) + 16px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-lg);
   transform: translateY(100%);
   transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
   outline: none;
 }
 .sheet-panel[data-state="open"] { transform: translateY(0); }
+@supports not (backdrop-filter: blur(1px)) {
+  .modal-panel, .sheet-panel { background: var(--bg); }
+}
 
 /* Heatmap grid */
 .heatmap { display: grid; gap: 3px; }

@@ -94,7 +94,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role={t.kind === "error" ? "alert" : "status"}
-              className={t.leaving ? "toast-leave" : "fade-up"}
+              className={`glass glass-strong ${t.leaving ? "toast-leave" : "fade-up"}`}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -102,11 +102,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 maxWidth: 420,
                 padding: "10px 16px",
                 borderRadius: 999,
-                background: "var(--ink)",
-                color: "var(--bg)",
+                color: "var(--ink)",
                 fontSize: 13,
                 fontWeight: 500,
-                boxShadow: "var(--shadow-lg)",
+                boxShadow: "inset 0 1px 0 var(--glass-highlight), var(--shadow-lg)",
                 pointerEvents: "auto",
               }}
               onClick={() => dismiss(t.id)}
