@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useId, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
+import { ChartTooltip } from "./ChartTooltip";
 
 /** Renders a number that tweens toward its target instead of jumping. */
 export function AnimatedNumber({ value }: { value: number }) {
@@ -149,6 +150,7 @@ export function Ring({
   stroke = 8,
   color,
   track,
+  gradient = false,
   children,
   label,
   sublabel,
@@ -158,10 +160,13 @@ export function Ring({
   stroke?: number;
   color?: string;
   track?: string;
+  /** Accent→honey gradient stroke instead of a flat color. */
+  gradient?: boolean;
   children?: ReactNode;
   label?: ReactNode;
   sublabel?: ReactNode;
 }) {
+  const gradId = useId();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = Math.max(0, Math.min(1, value));
@@ -169,6 +174,14 @@ export function Ring({
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        {gradient && (
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor={color || "var(--accent)"} />
+              <stop offset="100%" stopColor="var(--honey)" />
+            </linearGradient>
+          </defs>
+        )}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -181,7 +194,7 @@ export function Ring({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={color || "var(--accent)"}
+          stroke={gradient ? `url(#${gradId})` : color || "var(--accent)"}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}
@@ -244,6 +257,7 @@ export function Sparkline({
   height?: number;
   color?: string;
 }) {
+  const gradId = useId();
   if (!data.length) return null;
   const min = Math.min(...data) - 1;
   const max = Math.max(...data) + 1;
@@ -254,19 +268,37 @@ export function Sparkline({
     .map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1))
     .join(" ");
   const areaPath = path + ` L${width},${height} L0,${height} Z`;
+  const last = pts[pts.length - 1]!;
   return (
     <svg width={width} height={height} style={{ display: "block", maxWidth: "100%" }}>
       <defs>
-        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.12" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill="url(#sparkGrad)" />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={i === pts.length - 1 ? 4 : 0} fill={color} />
-      ))}
+      <path d={areaPath} fill={`url(#${gradId})`} style={{ animation: "fadeUp 500ms ease 350ms both" }} />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength={1}
+        strokeDasharray={1}
+        strokeDashoffset={1}
+        style={{ animation: "drawLine 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both" }}
+      />
+      <circle
+        cx={last[0]}
+        cy={last[1]}
+        r={4}
+        fill={color}
+        stroke="var(--paper)"
+        strokeWidth={2}
+        style={{ animation: "fadeUp 300ms ease 550ms both" }}
+      />
     </svg>
   );
 }
@@ -289,6 +321,9 @@ export function TimeSparkline({
   color?: string;
   formatValue?: (v: number) => string;
 }) {
+  const gradId = useId();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
   if (data.length < 2) return null;
 
   const fmt = formatValue ?? ((v: number) => String(Math.round(v)));
@@ -324,8 +359,6 @@ export function TimeSparkline({
   const areaPath =
     path + ` L${pts[pts.length - 1]![0].toFixed(1)},${TOP + plotH} L${LEFT},${TOP + plotH} Z`;
 
-  const gradId = `tsg_${color.replace(/[^a-zA-Z0-9]/g, "")}`;
-
   // X-axis labels — first, middle, last
   const xLabels: { x: number; label: string }[] = [];
   const fmtDate = (d: Date) =>
@@ -342,94 +375,135 @@ export function TimeSparkline({
     });
   }
 
+  // Map a pointer event to the nearest datum (the svg may be CSS-scaled
+  // down by max-width, so convert client px into viewBox px first).
+  function onPointer(e: PointerEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * width;
+    let nearest = 0;
+    let best = Infinity;
+    pts.forEach(([px], i) => {
+      const d = Math.abs(px - x);
+      if (d < best) {
+        best = d;
+        nearest = i;
+      }
+    });
+    setHover(nearest);
+  }
+
+  // The svg can be CSS-scaled down by max-width; the HTML tooltip is not,
+  // so convert viewBox px → rendered px when positioning it.
+  const scale = svgRef.current
+    ? svgRef.current.getBoundingClientRect().width / width || 1
+    : 1;
+  const hoverPt = hover != null ? pts[hover] : undefined;
+  const hoverDatum = hover != null ? data[hover] : undefined;
+
   return (
-    <svg
-      width={width}
-      height={height}
-      style={{ display: "block", maxWidth: "100%", overflow: "visible" }}
-    >
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
-      {/* Y-axis labels */}
-      <text
-        x={LEFT - 4}
-        y={TOP + 4}
-        textAnchor="end"
-        fill="var(--muted)"
-        fontSize="9"
-      >
-        {fmt(maxV)}
-      </text>
-      <text
-        x={LEFT - 4}
-        y={TOP + plotH}
-        textAnchor="end"
-        fill="var(--muted)"
-        fontSize="9"
-      >
-        {fmt(minV)}
-      </text>
-
-      {/* Grid lines */}
-      <line
-        x1={LEFT}
-        y1={TOP}
-        x2={LEFT + plotW}
-        y2={TOP}
-        stroke="var(--hair)"
-        strokeDasharray="3,3"
-      />
-      <line
-        x1={LEFT}
-        y1={TOP + plotH}
-        x2={LEFT + plotW}
-        y2={TOP + plotH}
-        stroke="var(--hair)"
-        strokeDasharray="3,3"
-      />
-
-      {/* Area + line */}
-      <path d={areaPath} fill={`url(#${gradId})`} />
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* Dots */}
-      {pts.map(([x, y], i) => (
-        <circle
-          key={i}
-          cx={x}
-          cy={y}
-          r={i === pts.length - 1 ? 4 : 1.5}
-          fill={color}
-        />
-      ))}
-
-      {/* X-axis labels */}
-      {xLabels.map((lbl, i) => (
-        <text
-          key={i}
-          x={lbl.x}
-          y={height - 2}
-          textAnchor={
-            i === 0 ? "start" : i === xLabels.length - 1 ? "end" : "middle"
-          }
-          fill="var(--muted)"
-          fontSize="9"
+    <div style={{ position: "relative", maxWidth: "100%" }}>
+      {hoverPt && hoverDatum && (
+        <ChartTooltip
+          x={hoverPt[0] * scale}
+          y={hoverPt[1] * scale}
+          seriesColor={color}
+          label={fmtDate(hoverDatum.date)}
         >
-          {lbl.label}
+          {fmt(hoverDatum.value)}
+        </ChartTooltip>
+      )}
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        style={{ display: "block", maxWidth: "100%", height: "auto", overflow: "visible", touchAction: "pan-y" }}
+        onPointerMove={onPointer}
+        onPointerDown={onPointer}
+        onPointerLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.12" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Y-axis labels */}
+        <text x={LEFT - 4} y={TOP + 4} textAnchor="end" fill="var(--muted)" fontSize="9">
+          {fmt(maxV)}
         </text>
-      ))}
-    </svg>
+        <text x={LEFT - 4} y={TOP + plotH} textAnchor="end" fill="var(--muted)" fontSize="9">
+          {fmt(minV)}
+        </text>
+
+        {/* Grid lines */}
+        <line x1={LEFT} y1={TOP} x2={LEFT + plotW} y2={TOP} stroke="var(--hair)" />
+        <line x1={LEFT} y1={TOP + plotH} x2={LEFT + plotW} y2={TOP + plotH} stroke="var(--hair)" />
+
+        {/* Crosshair */}
+        {hoverPt && (
+          <line
+            x1={hoverPt[0]}
+            y1={TOP}
+            x2={hoverPt[0]}
+            y2={TOP + plotH}
+            stroke="var(--hair)"
+            strokeWidth="1"
+          />
+        )}
+
+        {/* Area + line (traces itself in) */}
+        <path d={areaPath} fill={`url(#${gradId})`} style={{ animation: "fadeUp 500ms ease 400ms both" }} />
+        <path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1}
+          style={{ animation: "drawLine 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both" }}
+        />
+
+        {/* Dots — hovered datum swells; last point always ringed */}
+        {pts.map(([x, y], i) => {
+          const isLast = i === pts.length - 1;
+          const isHover = i === hover;
+          if (!isLast && !isHover) {
+            return <circle key={i} cx={x} cy={y} r={1.5} fill={color} />;
+          }
+          return (
+            <circle
+              key={i}
+              cx={x}
+              cy={y}
+              r={4}
+              fill={color}
+              stroke="var(--paper)"
+              strokeWidth={2}
+            />
+          );
+        })}
+
+        {/* X-axis labels */}
+        {xLabels.map((lbl, i) => (
+          <text
+            key={i}
+            x={lbl.x}
+            y={height - 2}
+            textAnchor={i === 0 ? "start" : i === xLabels.length - 1 ? "end" : "middle"}
+            fill="var(--muted)"
+            fontSize="9"
+          >
+            {lbl.label}
+          </text>
+        ))}
+      </svg>
+    </div>
   );
 }
