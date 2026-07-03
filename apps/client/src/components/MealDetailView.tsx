@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Icon } from "./Icon";
+import { Illustration, mealIllustration } from "./Illustration";
 import { Chip } from "./Primitives";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -84,15 +85,24 @@ export function MealDetailView({
     <>
       {topAction}
       <div className="px-4 pt-2 space-y-3">
-        <Card tone="clay">
+        <Card tone="hero" className="texture-grain">
+          {/* The "photo" moment: slot art on an accent wash banner */}
           <div
-            className="font-display"
+            aria-hidden
             style={{
-              fontSize: 24,
-              color: "var(--ink)",
-              letterSpacing: "-0.01em",
-              lineHeight: 1.15,
+              display: "flex",
+              justifyContent: "center",
+              background: "var(--wash-accent)",
+              borderRadius: "var(--radius-sm)",
+              padding: "10px 0 4px",
+              marginBottom: 14,
             }}
+          >
+            <Illustration name={mealIllustration(meal.slot)} size={150} />
+          </div>
+          <div
+            className="display-hero"
+            style={{ fontSize: "clamp(28px, 7.5vw, 36px)", lineHeight: 1.05 }}
           >
             {meal.name}
           </div>
@@ -319,8 +329,8 @@ export function MealDetailView({
                       width: 28,
                       height: 28,
                       borderRadius: "50%",
-                      background: "var(--clay)",
-                      color: "var(--ink)",
+                      background: "var(--accent)",
+                      color: "var(--on-accent)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -362,34 +372,49 @@ export function MealDetailView({
           )}
         </Card>
 
-        {meal.steps.length > 0 && (
-          <Button
-            className="w-full"
-            variant="accent"
-            onClick={() => setCooking(true)}
-          >
-            <Icon name="flame" size={16} />
-            Start cooking
-          </Button>
-        )}
-        {onToggleComplete && (
-          <Button
-            className="w-full"
-            variant={isComplete ? "ghost" : "accent"}
-            onClick={onToggleComplete}
+        {(meal.steps.length > 0 || onToggleComplete) && (
+          <div
+            className="glass sticky bottom-[calc(env(safe-area-inset-bottom,8px)+78px)] md:bottom-4"
             style={{
-              transition: "all 300ms ease",
-              ...(isComplete ? {
-                background: "color-mix(in srgb, var(--accent) 10%, transparent)",
-                borderColor: "var(--accent)",
-              } : {}),
+              borderRadius: "var(--radius-lg)",
+              padding: 10,
+              display: "flex",
+              gap: 8,
+              zIndex: 15,
             }}
           >
-            <span style={{ display: "inline-flex", animation: isComplete ? "checkPop 260ms ease" : undefined }}>
-              <Icon name="check" size={16} />
-            </span>
-            {isComplete ? "Completed ✓" : "Mark complete"}
-          </Button>
+            {meal.steps.length > 0 && (
+              <Button
+                size="lg"
+                variant={onToggleComplete ? "ghost" : "accent"}
+                onClick={() => setCooking(true)}
+                style={{ flex: 1 }}
+              >
+                <Icon name="flame" size={16} />
+                Cook
+              </Button>
+            )}
+            {onToggleComplete && (
+              <Button
+                size="lg"
+                variant={isComplete ? "ghost" : "accent"}
+                onClick={onToggleComplete}
+                style={{
+                  flex: 1.4,
+                  transition: "all 300ms ease",
+                  ...(isComplete ? {
+                    background: "color-mix(in srgb, var(--accent) 10%, transparent)",
+                    borderColor: "var(--accent)",
+                  } : {}),
+                }}
+              >
+                <span style={{ display: "inline-flex", animation: isComplete ? "checkPop 260ms ease" : undefined }}>
+                  <Icon name="check" size={16} />
+                </span>
+                {isComplete ? "Eaten ✓" : "Mark eaten"}
+              </Button>
+            )}
+          </div>
         )}
         </div>
         </div>
@@ -429,10 +454,7 @@ function Stat({
   return (
     <div>
       <div className="eyebrow">{label}</div>
-      <div
-        className="font-display"
-        style={{ fontSize: 22, color: "var(--ink)", marginTop: 2 }}
-      >
+      <div className="display-stat" style={{ fontSize: 28, marginTop: 2 }}>
         {value}
         {suffix ? (
           <span
@@ -441,6 +463,7 @@ function Stat({
               color: "var(--muted)",
               marginLeft: 4,
               fontFamily: "var(--font-body)",
+              fontWeight: 400,
             }}
           >
             {suffix}
@@ -557,11 +580,14 @@ function CookingMode({
   if (!step) return null;
 
   return (
+    // Same immersive dark canvas as WorkoutMode — cooking is hands-busy too.
     <div
+      className="canvas-ink"
       style={{
         position: "fixed",
         inset: 0,
         background: "var(--bg)",
+        color: "var(--ink)",
         display: "flex",
         flexDirection: "column",
         zIndex: 50,

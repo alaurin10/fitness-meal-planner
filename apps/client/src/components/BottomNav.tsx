@@ -41,7 +41,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed z-20 md:hidden"
+      className="fixed z-20 md:hidden glass"
       style={{
         bottom: "calc(env(safe-area-inset-bottom, 8px) + 4px)",
         // Centered via auto margins rather than translateX(-50%): a transform
@@ -53,12 +53,7 @@ export function BottomNav() {
         width: collapsed
           ? "min(300px, calc(100vw - 110px))"
           : "min(400px, calc(100vw - 40px))",
-        background: "color-mix(in srgb, var(--paper) 70%, transparent)",
-        backdropFilter: "blur(16px) saturate(1.6)",
-        WebkitBackdropFilter: "blur(16px) saturate(1.6)",
-        border: "1px solid color-mix(in srgb, var(--muted) 22%, transparent)",
-        borderRadius: 26,
-        boxShadow: "0 10px 28px rgba(0, 0, 0, 0.14)",
+        borderRadius: "var(--radius-lg)",
         paddingTop: collapsed ? 5 : 8,
         paddingBottom: collapsed ? 5 : 8,
         paddingInline: collapsed ? 4 : 6,
@@ -80,10 +75,8 @@ export function BottomNav() {
                 alignItems: "center",
                 gap: collapsed ? 0 : 4,
                 padding: collapsed ? "6px 0" : "7px 0",
-                borderRadius: 14,
-                background: isActive
-                  ? "color-mix(in srgb, var(--accent) 14%, transparent)"
-                  : "transparent",
+                borderRadius: "var(--radius-sm)",
+                background: isActive ? "var(--wash-accent-strong)" : "transparent",
                 color: isActive ? "var(--accent)" : "var(--muted)",
                 fontSize: 10,
                 fontWeight: 500,

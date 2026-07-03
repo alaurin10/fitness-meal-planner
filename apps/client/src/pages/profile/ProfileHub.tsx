@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { Layout } from "../../components/Layout";
-import { PhoneHeader } from "../../components/Primitives";
+import { PageHero } from "../../components/Primitives";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { AccountTab } from "./AccountTab";
 import { ProfileTab } from "./ProfileTab";
@@ -49,7 +49,7 @@ export function ProfilePage() {
 
   return (
     <Layout>
-      <PhoneHeader title={TAB_COPY[tab].title} subtitle={TAB_COPY[tab].subtitle} />
+      <PageHero title={TAB_COPY[tab].title} subtitle={TAB_COPY[tab].subtitle} />
 
       <div className="px-4 pb-3">
         <SegmentedControl

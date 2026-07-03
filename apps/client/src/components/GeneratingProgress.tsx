@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "./Card";
 import { Icon } from "./Icon";
+import { Illustration } from "./Illustration";
 
 interface Props {
   /** Kind of plan being generated — controls the sequence of messages. */
@@ -57,6 +58,17 @@ export function GeneratingProgress({ kind, estimatedSeconds = 45 }: Props) {
 
   return (
     <Card tone="gradient">
+      <div
+        aria-hidden
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          marginBottom: 6,
+          animation: "generatingBreathe 3.2s ease-in-out infinite",
+        }}
+      >
+        <Illustration name={kind === "workout" ? "workout-done" : "meal-dinner"} size={130} />
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
           <svg
@@ -131,6 +143,10 @@ export function GeneratingProgress({ kind, estimatedSeconds = 45 }: Props) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes generatingBreathe {
+          0%, 100% { transform: scale(1); opacity: 0.85; }
+          50% { transform: scale(1.04); opacity: 1; }
         }
       `}</style>
     </Card>

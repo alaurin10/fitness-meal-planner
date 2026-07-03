@@ -3,6 +3,8 @@ import { parseRepDuration } from "@platform/shared";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { Illustration } from "./Illustration";
+import { Ring } from "./Primitives";
 import { formatLoad, weightUnitLabel, kgToPounds, poundsToKg, roundTo, type UnitSystem } from "../lib/units";
 import { fireCelebration } from "../lib/confetti";
 import type { Exercise } from "../hooks/useWorkoutPlan";
@@ -122,16 +124,35 @@ export function WorkoutMode({
       : "Bodyweight";
 
   return (
+    // canvas-ink forces the palette's dark tokens: the session takes over
+    // the screen as a focused dark room regardless of the app theme.
     <div
+      className="canvas-ink"
       style={{
         position: "fixed",
         inset: 0,
         background: "var(--bg)",
+        color: "var(--ink)",
         display: "flex",
         flexDirection: "column",
         zIndex: 50,
       }}
     >
+      {/* Overall progress as a hairline of accent along the top edge */}
+      <div
+        aria-hidden
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3 }}
+      >
+        <span
+          style={{
+            display: "block",
+            height: "100%",
+            width: `${overallPct * 100}%`,
+            background: "linear-gradient(90deg, var(--accent), var(--honey))",
+            transition: "width 600ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          }}
+        />
+      </div>
       <div
         style={{
           padding: "16px 20px 10px",
@@ -181,14 +202,10 @@ export function WorkoutMode({
       </div>
 
       <div className="px-5">
-        <div className="prog">
-          <span style={{ width: `${overallPct * 100}%` }} />
-        </div>
         <div
           style={{
             fontSize: 11.5,
             color: "var(--muted)",
-            marginTop: 6,
             letterSpacing: "0.08em",
           }}
         >
@@ -197,7 +214,7 @@ export function WorkoutMode({
       </div>
 
       {phase === "done" ? (
-        <DoneScreen onExit={onExit} />
+        <DoneScreen onExit={onExit} totalSets={totalSets} exerciseCount={exercises.length} />
       ) : phase === "resting" ? (
         <RestScreen
           seconds={exercise.restSeconds}
@@ -329,9 +346,9 @@ function OverviewSheet({
           maxWidth: 480,
           maxHeight: "75vh",
           background: "var(--bg)",
-          borderRadius: isDesktop ? 24 : undefined,
-          borderTopLeftRadius: isDesktop ? undefined : 24,
-          borderTopRightRadius: isDesktop ? undefined : 24,
+          borderRadius: isDesktop ? "var(--radius-lg)" : undefined,
+          borderTopLeftRadius: isDesktop ? undefined : "var(--radius-lg)",
+          borderTopRightRadius: isDesktop ? undefined : "var(--radius-lg)",
           display: "flex",
           flexDirection: "column",
           paddingBottom: isDesktop ? 8 : "calc(env(safe-area-inset-bottom, 16px) + 8px)",
@@ -519,12 +536,10 @@ function ActiveScreen({
         Set {setNum} of {exercise.sets}
       </div>
       <div
-        className="font-display"
+        className="display-hero"
         style={{
-          fontSize: 30,
-          color: "var(--ink)",
-          lineHeight: 1.15,
-          letterSpacing: "-0.01em",
+          fontSize: "clamp(30px, 8.5vw, 42px)",
+          lineHeight: 1.05,
           maxWidth: 420,
         }}
       >
@@ -760,17 +775,27 @@ function RestScreen({
       <div className="eyebrow" style={{ opacity: 0.8 }}>
         Rest
       </div>
-      <div
-        className="font-display"
-        style={{
-          fontSize: 88,
-          color: done ? "var(--accent)" : "var(--ink)",
-          letterSpacing: "0.02em",
-          fontVariantNumeric: "tabular-nums",
-          lineHeight: 1,
-        }}
-      >
-        {mm}:{ss}
+      {/* Breathing countdown ring — drains as the rest elapses */}
+      <div style={{ animation: done ? undefined : "breathe 4s ease-in-out infinite" }}>
+        <Ring
+          value={seconds > 0 ? remaining / seconds : 0}
+          size={190}
+          stroke={9}
+          gradient
+        >
+          <span
+            className="font-display"
+            style={{
+              fontSize: 52,
+              color: done ? "var(--accent)" : "var(--ink)",
+              letterSpacing: "0.02em",
+              fontVariantNumeric: "tabular-nums",
+              lineHeight: 1,
+            }}
+          >
+            {mm}:{ss}
+          </span>
+        </Ring>
       </div>
       <div
         style={{
@@ -796,7 +821,15 @@ function RestScreen({
   );
 }
 
-function DoneScreen({ onExit }: { onExit: () => void }) {
+function DoneScreen({
+  onExit,
+  totalSets,
+  exerciseCount,
+}: {
+  onExit: () => void;
+  totalSets: number;
+  exerciseCount: number;
+}) {
   const firedRef = useRef(false);
 
   useEffect(() => {
@@ -819,37 +852,25 @@ function DoneScreen({ onExit }: { onExit: () => void }) {
         gap: 18,
       }}
     >
-      <div
-        style={{
-          width: 88,
-          height: 88,
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "var(--paper)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          animation: "checkPop 400ms ease",
-          boxShadow: "0 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)",
-        }}
-      >
-        <Icon name="check" size={44} stroke={2.5} />
+      <Illustration name="workout-done" size={190} className="fade-up" />
+      <div className="display-hero" style={{ fontSize: "clamp(38px, 11vw, 52px)" }}>
+        Done.
       </div>
-      <div
-        className="font-display"
-        style={{
-          fontSize: 32,
-          color: "var(--ink)",
-          letterSpacing: "-0.01em",
-        }}
-      >
-        Workout complete!
+      <div style={{ display: "flex", gap: 32, justifyContent: "center" }}>
+        <div>
+          <div className="display-stat" style={{ fontSize: 34 }}>{totalSets}</div>
+          <div className="eyebrow" style={{ marginTop: 4 }}>sets</div>
+        </div>
+        <div>
+          <div className="display-stat" style={{ fontSize: 34 }}>{exerciseCount}</div>
+          <div className="eyebrow" style={{ marginTop: 4 }}>exercises</div>
+        </div>
       </div>
-      <p style={{ fontSize: 13.5, color: "var(--sumi)", maxWidth: 320 }}>
+      <p className="text-body" style={{ maxWidth: 320 }}>
         Nicely done. Log your weight on the progress page so the next plan
         evolves with you.
       </p>
-      <Button variant="accent" onClick={onExit} style={{ minWidth: 160 }}>
+      <Button variant="accent" size="lg" onClick={onExit} style={{ minWidth: 180 }}>
         Done
       </Button>
     </div>
@@ -1001,11 +1022,9 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="eyebrow">{label}</div>
       <div
-        className="font-display"
+        className="display-stat"
         style={{
-          fontSize: 28,
-          color: "var(--ink)",
-          letterSpacing: "-0.01em",
+          fontSize: 40,
           marginTop: 2,
           fontVariantNumeric: "tabular-nums",
         }}

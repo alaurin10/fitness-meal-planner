@@ -7,7 +7,7 @@ import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { WeeklyBars } from "../components/WeeklyBars";
 import { SkeletonList } from "../components/Skeleton";
-import { Chip, PhoneHeader, Sparkline, TimeSparkline } from "../components/Primitives";
+import { AnimatedNumber, Chip, PageHero, TimeSparkline } from "../components/Primitives";
 import type { TimeDatum } from "../components/Primitives";
 import { useLogProgress, useProgress } from "../hooks/useProgress";
 import { useStreaks } from "../hooks/useStreaks";
@@ -179,7 +179,7 @@ export function ProgressPage() {
 
   return (
     <Layout>
-      <PhoneHeader
+      <PageHero
         title="Progress"
         subtitle={
           latest != null
@@ -190,15 +190,47 @@ export function ProgressPage() {
         }
       />
 
-      {/* ── Streaks ──────────────────────────────────────────────────── */}
+      {/* ── Streaks: overall as the statement, categories as cells ───── */}
       {streaksQuery.data && (
-        <div className="px-4 pt-1">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-            <StreakCard label="Workout" current={streaksQuery.data.workout.current} best={streaksQuery.data.workout.best} color="var(--moss)" />
-            <StreakCard label="Meals" current={streaksQuery.data.meals.current} best={streaksQuery.data.meals.best} color="var(--honey)" />
-            <StreakCard label="Hydration" current={streaksQuery.data.hydration.current} best={streaksQuery.data.hydration.best} color="var(--accent)" />
-            <StreakCard label="Overall" current={streaksQuery.data.overall.current} best={streaksQuery.data.overall.best} color="var(--accent)" highlight />
-          </div>
+        <div className="px-4 pt-1 fade-up">
+          <Card tone="hero" className="texture-grain">
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{ textAlign: "center", flexShrink: 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    justifyContent: "center",
+                    gap: 4,
+                    color: "var(--accent)",
+                  }}
+                >
+                  <Icon name="flame" size={26} style={{ alignSelf: "center" }} />
+                  <span className="display-stat">
+                    <AnimatedNumber value={streaksQuery.data.overall.current} />
+                  </span>
+                </div>
+                <div className="eyebrow" style={{ marginTop: 4 }}>
+                  day streak
+                </div>
+                <div className="text-caption" style={{ marginTop: 2 }}>
+                  Best: {streaksQuery.data.overall.best}
+                </div>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 8,
+                }}
+              >
+                <StreakCell label="Workout" current={streaksQuery.data.workout.current} best={streaksQuery.data.workout.best} color="var(--moss)" />
+                <StreakCell label="Meals" current={streaksQuery.data.meals.current} best={streaksQuery.data.meals.best} color="var(--honey)" />
+                <StreakCell label="Water" current={streaksQuery.data.hydration.current} best={streaksQuery.data.hydration.best} color="var(--accent)" />
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -214,7 +246,7 @@ export function ProgressPage() {
               <StatCell label="Sets" value={weekStats.totalSets.toString()} color="var(--moss)" />
               <StatCell label="Hydration" value={`${weekStats.hydrationRate}%`} color="var(--accent)" />
             </div>
-            <WeeklyBars days={weekDays} height={100} />
+            <WeeklyBars days={weekDays} height={132} />
             <div style={{ display: "flex", gap: 12, marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--moss)" }} /> Workout
@@ -237,13 +269,10 @@ export function ProgressPage() {
           <Card>
             <div className="flex items-end justify-between mb-2">
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span
-                  className="font-display"
-                  style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1 }}
-                >
+                <span className="display-stat" style={{ fontSize: 34 }}>
                   {formatLoad(loadStats.weekTotal, unitSystem).toLocaleString()}
                 </span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>{unitLabel}</span>
+                <span className="text-caption">{unitLabel}</span>
                 {loadStats.deltaPct != null && loadStats.deltaPct !== 0 && (
                   <Chip
                     variant={loadStats.deltaPct > 0 ? "moss" : "honey"}
@@ -321,13 +350,10 @@ export function ProgressPage() {
         <Card>
           <div className="flex items-end justify-between mb-2">
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span
-                className="font-display"
-                style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1 }}
-              >
+              <span className="display-stat" style={{ fontSize: 34 }}>
                 {latest != null ? latest.toFixed(1) : "—"}
               </span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>{unitLabel}</span>
+              <span className="text-caption">{unitLabel}</span>
               {delta != null && delta !== 0 && (
                 <Chip
                   variant={delta < 0 ? "moss" : "honey"}
@@ -454,7 +480,7 @@ export function ProgressPage() {
       {logs && logs.length > 0 && (
         <div className="px-4 pt-4 pb-4">
           <div className="eyebrow" style={{ marginBottom: 10 }}>Recent entries</div>
-          <Card flush>
+          <Card flush className="stagger-in">
             {logs.slice(0, 5).map((l, i, arr) => {
               // A log is either a body-weight entry (weightLbs) or an exercise
               // load update (liftPRs: { [exerciseName]: lbs }). Render both.
@@ -472,6 +498,7 @@ export function ProgressPage() {
               return (
                 <div
                   key={l.id}
+                  className="popmenu-item"
                   style={{
                     padding: "10px 16px",
                     borderBottom:
@@ -480,6 +507,7 @@ export function ProgressPage() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     gap: 12,
+                    transition: "background 150ms ease",
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -496,13 +524,7 @@ export function ProgressPage() {
                       })}
                     </div>
                     {subLabel && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--muted)",
-                          marginTop: 2,
-                        }}
-                      >
+                      <div className="text-caption" style={{ fontSize: 11, marginTop: 2 }}>
                         {subLabel}
                       </div>
                     )}
@@ -554,32 +576,23 @@ function StatCell({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function StreakCard({
+function StreakCell({
   label,
   current,
   best,
   color,
-  highlight,
 }: {
   label: string;
   current: number;
   best: number;
   color: string;
-  highlight?: boolean;
 }) {
   return (
-    <div
-      className="streak-card"
-      style={highlight ? { borderColor: color, background: `color-mix(in srgb, ${color} 5%, var(--paper))` } : undefined}
-    >
-      <Icon name="flame" size={16} style={{ color }} />
-      <div className="font-display" style={{ fontSize: 28, color: "var(--ink)", lineHeight: 1, marginTop: 2 }}>
+    <div className="streak-card" style={{ padding: "10px 6px" }}>
+      <div className="font-display" style={{ fontSize: 22, color, lineHeight: 1 }}>
         {current}
       </div>
-      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {current === 1 ? "day" : "days"}
-      </div>
-      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", marginTop: 4 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink)", marginTop: 3 }}>
         {label}
       </div>
       <div style={{ fontSize: 9.5, color: "var(--muted)" }}>Best: {best}</div>

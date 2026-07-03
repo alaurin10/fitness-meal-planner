@@ -139,16 +139,14 @@ export function PopMenu({
             ref={menuRef}
             role="menu"
             onClick={(e) => e.stopPropagation()}
-            className="fade-up popmenu"
+            className="fade-up popmenu glass glass-strong"
             style={{
               position: "fixed",
               top: coords.top,
               left: coords.left,
               minWidth: 188,
-              background: "var(--paper)",
-              border: "1px solid var(--hair)",
-              borderRadius: 12,
-              boxShadow: "var(--shadow-lg)",
+              borderRadius: "var(--radius-sm)",
+              boxShadow: "inset 0 1px 0 var(--glass-highlight), var(--shadow-lg)",
               padding: 4,
               display: "flex",
               flexDirection: "column",
@@ -172,7 +170,7 @@ export function PopMenu({
                   border: "none",
                   textAlign: "left",
                   padding: "9px 10px",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-xs)",
                   display: "flex",
                   alignItems: "center",
                   gap: 8,

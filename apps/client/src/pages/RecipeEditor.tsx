@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { FormField as Field, useFieldErrors } from "../components/FormField";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
-import { PhoneHeader } from "../components/Primitives";
+import { PageHero } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import {
   useCreateRecipe,
@@ -306,7 +306,7 @@ export function RecipeEditorPage() {
           Back
         </Button>
       </div>
-      <PhoneHeader title={isEdit ? "Edit recipe" : "New recipe"} />
+      <PageHero title={isEdit ? "Edit recipe" : "New recipe"} />
 
       <div className="px-4 pt-2 space-y-3">
         <Card>
@@ -689,19 +689,26 @@ export function RecipeEditorPage() {
           </div>
         )}
 
-        <Button
-          variant="accent"
-          className="w-full"
-          onClick={onSubmit}
-          disabled={create.isPending || update.isPending}
+        {/* Sticky glass save bar — the form is long; keep save in reach. */}
+        <div
+          className="glass sticky bottom-[calc(env(safe-area-inset-bottom,8px)+78px)] md:bottom-4"
+          style={{ borderRadius: "var(--radius-lg)", padding: 10, zIndex: 15 }}
         >
-          <Icon name="check" size={16} />
-          {create.isPending || update.isPending
-            ? "Saving…"
-            : isEdit
-              ? "Save changes"
-              : "Create recipe"}
-        </Button>
+          <Button
+            variant="accent"
+            size="lg"
+            className="w-full"
+            onClick={onSubmit}
+            disabled={create.isPending || update.isPending}
+          >
+            <Icon name="check" size={16} />
+            {create.isPending || update.isPending
+              ? "Saving…"
+              : isEdit
+                ? "Save changes"
+                : "Create recipe"}
+          </Button>
+        </div>
       </div>
     </Layout>
   );

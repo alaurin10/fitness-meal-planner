@@ -4,10 +4,11 @@ type Variant = "primary" | "accent" | "ghost" | "plain";
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  size?: "md" | "lg";
 }
 
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
-  { variant = "primary", className = "", ...rest },
+  { variant = "primary", size = "md", className = "", ...rest },
   ref,
 ) {
   const variantClass =
@@ -18,5 +19,12 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
         : variant === "plain"
           ? "btn-plain"
           : "btn-primary";
-  return <button ref={ref} {...rest} className={`btn ${variantClass} ${className}`} />;
+  const sizeClass = size === "lg" ? "btn-lg" : "";
+  return (
+    <button
+      ref={ref}
+      {...rest}
+      className={`btn ${variantClass} ${sizeClass} press-spring ${className}`.trim()}
+    />
+  );
 });

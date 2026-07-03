@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 
 interface Props {
   /** Progress value between 0 and 1. */
@@ -11,6 +11,8 @@ interface Props {
   trackColor?: string;
   /** CSS color for the filled arc. */
   fillColor?: string;
+  /** Accent→honey gradient stroke instead of a flat color. */
+  gradient?: boolean;
   /** Optional content rendered in the centre of the ring. */
   children?: ReactNode;
   style?: CSSProperties;
@@ -22,9 +24,11 @@ export function ProgressRing({
   strokeWidth = 4,
   trackColor = "var(--clay)",
   fillColor = "var(--accent)",
+  gradient = false,
   children,
   style,
 }: Props) {
+  const gradId = useId();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(1, value));
@@ -46,6 +50,14 @@ export function ProgressRing({
         viewBox={`0 0 ${size} ${size}`}
         style={{ transform: "rotate(-90deg)", display: "block" }}
       >
+        {gradient && (
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor={fillColor} />
+              <stop offset="100%" stopColor="var(--honey)" />
+            </linearGradient>
+          </defs>
+        )}
         {/* Track */}
         <circle
           cx={size / 2}
@@ -61,7 +73,7 @@ export function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={fillColor}
+          stroke={gradient ? `url(#${gradId})` : fillColor}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}

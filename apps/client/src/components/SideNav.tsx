@@ -43,10 +43,8 @@ export function SideNav() {
                 alignItems: "center",
                 gap: 12,
                 padding: "10px 14px",
-                borderRadius: 10,
-                background: isActive
-                  ? "color-mix(in srgb, var(--accent) 12%, transparent)"
-                  : "transparent",
+                borderRadius: "var(--radius-sm)",
+                background: isActive ? "var(--wash-accent-strong)" : "transparent",
                 color: isActive ? "var(--accent)" : "var(--sumi)",
                 fontSize: 14,
                 fontWeight: isActive ? 500 : 400,

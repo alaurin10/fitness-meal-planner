@@ -78,7 +78,7 @@ export function PlanInfo({ title, sections }: { title: string; sections: Section
               maxHeight: "80vh",
               overflowY: "auto",
               background: "var(--bg)",
-              borderRadius: 24,
+              borderRadius: "var(--radius-lg)",
               display: "flex",
               flexDirection: "column",
               padding: 18,

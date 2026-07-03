@@ -1,4 +1,5 @@
 import { SignUp } from "@clerk/react";
+import { Illustration } from "../components/Illustration";
 import { Wordmark } from "../components/Primitives";
 
 export function SignUpPage() {
@@ -10,9 +11,10 @@ export function SignUpPage() {
           "radial-gradient(1200px 800px at 10% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent), radial-gradient(900px 700px at 110% 110%, color-mix(in srgb, var(--moss) 6%, transparent), transparent), var(--bg)",
       }}
     >
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 14 }}>
         <Wordmark />
       </div>
+      <Illustration name="welcome" size={180} className="fade-up" style={{ marginBottom: 18 }} />
       <SignUp signInUrl="/sign-in" routing="path" path="/sign-up" />
     </div>
   );

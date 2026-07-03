@@ -4,7 +4,7 @@ const SIZES = { 28: 28, 32: 32, 36: 36, 44: 44 } as const;
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: keyof typeof SIZES;
-  variant?: "ghost" | "outline" | "solid";
+  variant?: "ghost" | "outline" | "solid" | "glass";
   "aria-label": string;
   children: ReactNode;
 }
@@ -21,13 +21,14 @@ export function IconButton({
   return (
     <button
       type="button"
-      className={`tappable ${className}`.trim()}
+      className={`tappable ${variant === "glass" ? "glass" : ""} ${className}`.trim()}
       style={{
         width: size,
         height: size,
         borderRadius: "50%",
-        border: variant === "outline" ? "1px solid var(--hair)" : "none",
-        background: variant === "solid" ? "var(--clay)" : "transparent",
+        border: variant === "outline" ? "1px solid var(--hair)" : undefined,
+        background:
+          variant === "solid" ? "var(--clay)" : variant === "glass" ? undefined : "transparent",
         color: "var(--sumi)",
         display: "inline-flex",
         alignItems: "center",

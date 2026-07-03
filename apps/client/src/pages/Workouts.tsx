@@ -9,7 +9,8 @@ import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
 import { PlanInfo } from "../components/PlanInfo";
-import { PhoneHeader } from "../components/Primitives";
+import { Illustration } from "../components/Illustration";
+import { PageHero } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
 import { WorkoutMode } from "../components/WorkoutMode";
@@ -111,7 +112,7 @@ export function WorkoutsPage() {
   if (!plan) {
     return (
       <Layout>
-        <PhoneHeader
+        <PageHero
           title="Workouts"
           subtitle="No active plan yet."
           right={
@@ -128,7 +129,7 @@ export function WorkoutsPage() {
             <GeneratingProgress kind="workout" estimatedSeconds={45} />
           ) : (
             <EmptyState
-              icon="dumbbell"
+              illustration="no-plan"
               title="No active plan"
               body="Generate a training week tailored to your goals, split, and equipment."
             >
@@ -326,7 +327,7 @@ export function WorkoutsPage() {
 
   return (
     <Layout>
-      <PhoneHeader
+      <PageHero
         title="Workouts"
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -368,23 +369,20 @@ export function WorkoutsPage() {
         {...swipe}
       >
       <div className="px-4 pt-2">
-        <Card>
+        <Card tone="hero">
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="eyebrow">{longDay(activeDay)}</div>
-              <div
-                className="font-display mt-1"
-                style={{ fontSize: 24, color: "var(--ink)", letterSpacing: "-0.01em" }}
-              >
-                {dayEntry?.focus ?? "Rest"}
-              </div>
-              <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
+              <div className="title-md mt-1">{dayEntry?.focus ?? "Rest"}</div>
+              <div className="text-caption" style={{ marginTop: 6 }}>
                 {exercises.length
                   ? `${exercises.length} exercises planned.`
                   : "A calm day — recover well."}
               </div>
             </div>
-            {viewingToday && sessProgress.completed > 0 && !completion.isComplete ? (
+            {exercises.length === 0 ? (
+              <Illustration name="rest-day" size={92} style={{ flexShrink: 0, marginBottom: -8 }} />
+            ) : viewingToday && sessProgress.completed > 0 && !completion.isComplete ? (
               <ProgressRing
                 value={sessProgress.fraction}
                 size={44}
@@ -430,7 +428,7 @@ export function WorkoutsPage() {
 
       {exercises.length > 0 && (
         <div className="px-4 pt-3">
-          <Card flush>
+          <Card flush className="stagger-in">
             {exercises.map((ex, i) => {
               const exerciseSets = completion.setsJson[String(i)] ?? [];
               const exerciseDone = exerciseSets.length >= ex.sets;
@@ -633,6 +631,7 @@ export function WorkoutsPage() {
           <Button
             className="w-full"
             variant="accent"
+            size="lg"
             onClick={() => setWorkoutInProgress(true)}
           >
             <Icon name="dumbbell" size={16} />
