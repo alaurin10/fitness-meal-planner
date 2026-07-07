@@ -14,6 +14,12 @@ import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import { getGeminiErrorMessage } from "../services/gemini.js";
 import { generateMealPlan, generateSingleMeal } from "../services/mealPlan.js";
+import {
+  collectWeekAvoidNames,
+  extractRecentMealNames,
+  fetchRecentPlanJsons,
+  varietyParams,
+} from "../services/varietyContext.js";
 import { getTrainingSchedule } from "../services/schedule.js";
 import { buildGroceryItems } from "../services/groceryAggregator.js";
 import { mergeGroceryItems } from "../services/groceryMerge.js";
@@ -117,7 +123,22 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
 
   try {
     const schedule = await getTrainingSchedule(userId);
-    const planJson = await generateMealPlan({ profile, schedule, daysToGenerate: daysToInclude });
+    // Variety: feed recent weeks' meal names in as an avoid list so new weeks
+    // don't rehash the last one. Strength comes from profile prefs (Phase 3);
+    // "medium" until then.
+    const variety = varietyParams("medium");
+    const recentMealNames = extractRecentMealNames(
+      await fetchRecentPlanJsons(userId, target, variety.weeksBack),
+      variety.nameCap,
+    );
+    const planJson = await generateMealPlan({
+      profile,
+      schedule,
+      daysToGenerate: daysToInclude,
+      recentMealNames,
+      varietyTone: variety.promptTone,
+      temperature: variety.temperature,
+    });
 
     const result = await prisma.$transaction(async (tx) => {
       // Deactivate (not delete) existing plans for this week to preserve
@@ -409,12 +430,16 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
     : 30;
 
   try {
+    const weekAvoid = collectWeekAvoidNames(planJson, {
+      day: parsed.data.day,
+      index: parsed.data.index,
+    });
     const newMeal: MealJson = await generateSingleMeal({
       profile,
       slot,
       targetCalories: remainingCal,
       targetProteinG: remainingProtein,
-      avoidNames: existing ? [existing.name] : [],
+      avoidNames: existing ? [existing.name, ...weekAvoid] : weekAvoid,
       userSuggestion: parsed.data.suggestion,
     });
 
@@ -478,11 +503,19 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
 
   try {
     const schedule = await getTrainingSchedule(userId);
+    const variety = varietyParams("medium");
+    const recentMealNames = extractRecentMealNames(
+      await fetchRecentPlanJsons(userId, targetPlan.weekStartDate, variety.weeksBack),
+      variety.nameCap,
+    );
     const freshPlanJson = await generateMealPlan({
       profile,
       schedule,
       daysToGenerate: [parsed.data.day],
       userSuggestion: parsed.data.suggestion,
+      recentMealNames,
+      varietyTone: variety.promptTone,
+      temperature: variety.temperature,
     });
 
     const freshDay = freshPlanJson.days.find((d) => d.day === parsed.data.day);

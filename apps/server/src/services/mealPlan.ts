@@ -1,6 +1,6 @@
 import type { Profile } from "@platform/db";
 import type { DayLabel } from "@platform/shared";
-import { callGemini, generateWithRetry, GenerationSkipError } from "./gemini.js";
+import { callGemini, defaultTemperature, generateWithRetry, GenerationSkipError } from "./gemini.js";
 import {
   buildSingleMealSystemPrompt,
   buildSingleMealUserPrompt,
@@ -30,6 +30,11 @@ interface GenerateMealPlanArgs {
   userSuggestion?: string;
   /** System-generated corrective guidance — kept separate from user text. */
   macroFeedback?: string;
+  /** Recent meal names the model must not repeat (variety). */
+  recentMealNames?: string[];
+  varietyTone?: "soft" | "strict";
+  /** Sampling temperature; defaults to defaultTemperature(). */
+  temperature?: number;
 }
 
 /** Core generation: prompt → structured Gemini call → normalize → Zod validate. */
@@ -42,6 +47,7 @@ async function generateMealPlanRaw(args: GenerateMealPlanArgs): Promise<MealPlan
       responseSchema: mealPlanResponseSchema,
       systemInstruction: buildSystemPrompt(),
       contents: buildUserPrompt(args),
+      temperature: args.temperature ?? defaultTemperature(),
     });
 
     const validated = mealPlanSchema.safeParse(normalizeMealPlan(parsed));
@@ -113,6 +119,7 @@ export async function generateSingleMeal(args: {
   targetProteinG?: number;
   avoidNames?: string[];
   userSuggestion?: string;
+  temperature?: number;
 }): Promise<MealJson> {
   return generateWithRetry(async (model, attempt) => {
     const parsed = await callGemini({
@@ -122,6 +129,7 @@ export async function generateSingleMeal(args: {
       responseSchema: mealResponseSchema,
       systemInstruction: buildSingleMealSystemPrompt(),
       contents: buildSingleMealUserPrompt(args),
+      temperature: args.temperature ?? defaultTemperature(),
     });
 
     const validated = mealSchema.safeParse(parsed);

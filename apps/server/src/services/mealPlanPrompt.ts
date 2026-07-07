@@ -90,6 +90,9 @@ export function buildUserPrompt(args: {
   userSuggestion?: string;
   /** System-generated corrective guidance (e.g. macro feedback) — trusted. */
   macroFeedback?: string;
+  /** Meal names served in recent weeks — the model must not repeat them. */
+  recentMealNames?: string[];
+  varietyTone?: "soft" | "strict";
 }): string {
   const { profile, schedule } = args;
 
@@ -130,6 +133,18 @@ export function buildUserPrompt(args: {
     COMPLEXITY_GUIDANCE[complexity] ?? COMPLEXITY_GUIDANCE.varied!,
   );
   lines.push("");
+  if (args.recentMealNames?.length) {
+    lines.push(
+      "VARIETY — RECENTLY SERVED (avoid repeats): The user was served these recipes in the last few weeks. Do NOT repeat them or near-identical variants (same primary protein with the same preparation) unless the user's preference text explicitly asks for one of them:",
+    );
+    lines.push(args.recentMealNames.join("; "));
+    if (args.varietyTone === "strict") {
+      lines.push(
+        "Aim for a week where no two dinners share a primary protein + cuisine combination, and lean into cuisines the user has not seen recently.",
+      );
+    }
+    lines.push("");
+  }
   if (args.userSuggestion?.trim()) {
     lines.push(
       `${userPreferenceBlock(args.userSuggestion)} Honor this preference across the meals you produce while still hitting the macro targets above.`,
@@ -215,9 +230,17 @@ export function buildSingleMealUserPrompt(args: {
     lines.push(`Target protein for this meal: ~${args.targetProteinG} g (±10).`);
   }
   if (args.avoidNames && args.avoidNames.length > 0) {
+    // First name = the meal being replaced (strict wording); the rest are the
+    // week's other meals, which the new recipe merely must not duplicate.
+    const [replaced, ...others] = args.avoidNames;
     lines.push(
-      `IMPORTANT: Do NOT generate a recipe named ${args.avoidNames.map((n) => `"${n}"`).join(" or ")} or anything substantially similar. You MUST produce a completely different recipe with a different name, different primary ingredients, and a different cooking method.`,
+      `IMPORTANT: Do NOT generate a recipe named "${replaced}" or anything substantially similar. You MUST produce a completely different recipe with a different name, different primary ingredients, and a different cooking method.`,
     );
+    if (others.length > 0) {
+      lines.push(
+        `Also avoid duplicating these other meals already in this week's plan: ${others.map((n) => `"${n}"`).join("; ")}.`,
+      );
+    }
   }
   if (args.userSuggestion?.trim()) {
     lines.push(
