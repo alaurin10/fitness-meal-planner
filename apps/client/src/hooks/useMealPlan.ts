@@ -7,9 +7,20 @@ import type {
   WeeklyMealPlanRecord,
 } from "../lib/types";
 
-interface PlanResult {
+export interface AffectedLeftover {
+  day: MealDay["day"];
+  index: number;
+  name: string;
+  sourceName: string;
+  /** Slot of the replaced source meal — locates its successor in the new plan. */
+  sourceSlot?: string;
+}
+
+export interface PlanResult {
   plan: WeeklyMealPlanRecord;
   groceryList: GroceryList;
+  /** Leftover meals that depended on a meal this mutation replaced. */
+  affectedLeftovers?: AffectedLeftover[];
 }
 
 export function useCurrentMealPlan(weekStart?: string) {
@@ -136,6 +147,29 @@ export function useAddSlot() {
     }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/add",
+        args,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meals"] });
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export function useResolveLeftovers() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      weekStart?: string;
+      source: { day: MealDay["day"]; index: number };
+      cells: Array<{ day: MealDay["day"]; index: number }>;
+      action: "update" | "regenerate";
+    }) => {
+      const { data } = await api.post<PlanResult>(
+        "/api/meals/leftovers/resolve",
         args,
       );
       return data;

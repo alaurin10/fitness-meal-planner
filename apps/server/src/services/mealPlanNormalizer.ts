@@ -1,4 +1,5 @@
 import type { MealPlanJson, MealJson } from "./mealPlanSchema.js";
+import { inferLeftoverLinks } from "./leftoverLinks.js";
 import { parseQuantityString, normalizeUnit } from "./quantity.js";
 
 type LegacyIngredient = {
@@ -42,14 +43,16 @@ type LegacyPlan = {
  */
 export function normalizeMealPlan(raw: unknown): MealPlanJson {
   const plan = raw as LegacyPlan;
-  return {
+  // inferLeftoverLinks backfills leftoverOf on legacy leftovers (name-matched
+  // to an earlier meal) so dependents are findable on every read/mutation.
+  return inferLeftoverLinks({
     summary: plan.summary ?? "",
     dailyCalorieTarget: plan.dailyCalorieTarget ?? 0,
     days: (plan.days ?? []).map((d) => ({
       day: d.day,
       meals: (d.meals ?? []).map((m, idx) => normalizeMeal(m, idx)),
     })),
-  };
+  });
 }
 
 const DEFAULT_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -92,5 +95,18 @@ function normalizeMeal(m: LegacyMeal, idx: number): MealJson {
     tags: m.tags,
     notes: m.notes,
     isLeftover: (m as Record<string, unknown>).isLeftover === true ? true : undefined,
+    leftoverOf: normalizeLeftoverOf((m as Record<string, unknown>).leftoverOf),
   };
+}
+
+const DAY_SET = new Set(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+const SLOT_SET = new Set(DEFAULT_SLOTS);
+
+/** Defensive: old or hand-edited JSON may carry malformed links. */
+function normalizeLeftoverOf(raw: unknown): MealJson["leftoverOf"] {
+  if (raw == null || typeof raw !== "object") return undefined;
+  const link = raw as { day?: unknown; slot?: unknown };
+  if (typeof link.day !== "string" || !DAY_SET.has(link.day)) return undefined;
+  if (typeof link.slot !== "string" || !SLOT_SET.has(link.slot as never)) return undefined;
+  return { day: link.day, slot: link.slot } as MealJson["leftoverOf"];
 }

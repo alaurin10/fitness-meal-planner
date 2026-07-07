@@ -26,6 +26,10 @@ import { mergeGroceryItems } from "../services/groceryMerge.js";
 import type { GroceryItem } from "@platform/db";
 import { normalizeMealPlan } from "../services/mealPlanNormalizer.js";
 import {
+  applyLeftoverUpdate,
+  findDependentLeftovers,
+} from "../services/leftoverLinks.js";
+import {
   dayLabelForDayKey,
   validateMealCompletion,
 } from "../services/completionValidation.js";
@@ -295,6 +299,14 @@ router.put("/slot", requireAuth, async (req, res) => {
     return;
   }
   try {
+    // Dependents of the *outgoing* meal — the client asks the user what to
+    // do with them (update to new leftovers / regenerate / leave).
+    const affectedLeftovers = await collectAffectedLeftovers(
+      userId,
+      parsed.data.weekStart,
+      parsed.data.day,
+      parsed.data.index,
+    );
     const { plan } = await mutatePlanForWeek(
       userId,
       parsed.data.weekStart,
@@ -308,17 +320,53 @@ router.put("/slot", requireAuth, async (req, res) => {
         }
         return planJson;
       },
-      { day: parsed.data.day, op: { type: "recount" } },
+      [{ day: parsed.data.day, op: { type: "recount" } }],
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
+      affectedLeftovers,
     });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
 });
+
+interface AffectedLeftover {
+  day: DayLabel;
+  index: number;
+  name: string;
+  sourceName: string;
+  /** Slot of the replaced source meal — lets the client find its successor. */
+  sourceSlot?: string;
+}
+
+/**
+ * Leftover meals that depended on the meal at (day, index) before a
+ * mutation replaced it. Empty when the source had no dependents.
+ */
+async function collectAffectedLeftovers(
+  userId: string,
+  weekStart: string | undefined,
+  day: DayLabel,
+  index: number,
+): Promise<AffectedLeftover[]> {
+  const target = weekStart
+    ? await findMealPlanForWeek(userId, parseLocalDate(weekStart))
+    : await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
+  if (!target) return [];
+  const planJson = normalizeMealPlan(target.planJson);
+  const source = planJson.days.find((d) => d.day === day)?.meals[index];
+  if (!source) return [];
+  return findDependentLeftovers(planJson, day, index).map((dep) => ({
+    day: dep.day,
+    index: dep.index,
+    name: dep.meal.name,
+    sourceName: source.name,
+    sourceSlot: source.slot,
+  }));
+}
 
 // Append a meal to a day (e.g., add a snack).
 router.post("/slot/add", requireAuth, async (req, res) => {
@@ -338,7 +386,7 @@ router.post("/slot/add", requireAuth, async (req, res) => {
         day.meals.push(parsed.data.meal);
         return planJson;
       },
-      { day: parsed.data.day, op: { type: "recount" } },
+      [{ day: parsed.data.day, op: { type: "recount" } }],
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -371,7 +419,7 @@ router.delete("/slot", requireAuth, async (req, res) => {
         day.meals.splice(parsed.data.index, 1);
         return planJson;
       },
-      { day: parsed.data.day, op: { type: "remove", index: parsed.data.index } },
+      [{ day: parsed.data.day, op: { type: "remove", index: parsed.data.index } }],
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
@@ -430,6 +478,17 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
     : 30;
 
   try {
+    const affectedLeftovers = findDependentLeftovers(
+      planJson,
+      parsed.data.day,
+      parsed.data.index,
+    ).map((dep) => ({
+      day: dep.day,
+      index: dep.index,
+      name: dep.meal.name,
+      sourceName: existing?.name ?? "",
+      sourceSlot: existing?.slot,
+    }));
     const weekAvoid = collectWeekAvoidNames(planJson, {
       day: parsed.data.day,
       index: parsed.data.index,
@@ -456,12 +515,13 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
         }
         return json;
       },
-      { day: parsed.data.day, op: { type: "recount" } },
+      [{ day: parsed.data.day, op: { type: "recount" } }],
     );
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
+      affectedLeftovers,
     });
   } catch (err) {
     const message = getGeminiErrorMessage(err);
@@ -524,6 +584,27 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
       return;
     }
 
+    // Leftovers on OTHER days that depended on any meal of the replaced day.
+    const oldPlanJson = normalizeMealPlan(targetPlan.planJson);
+    const oldDay = oldPlanJson.days.find((d) => d.day === parsed.data.day);
+    const seen = new Set<string>();
+    const affectedLeftovers: AffectedLeftover[] = [];
+    (oldDay?.meals ?? []).forEach((sourceMeal, i) => {
+      for (const dep of findDependentLeftovers(oldPlanJson, parsed.data.day, i)) {
+        if (dep.day === parsed.data.day) continue;
+        const key = `${dep.day}:${dep.index}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        affectedLeftovers.push({
+          day: dep.day,
+          index: dep.index,
+          name: dep.meal.name,
+          sourceName: sourceMeal.name,
+          sourceSlot: sourceMeal.slot,
+        });
+      }
+    });
+
     const { plan } = await mutatePlanForWeek(
       userId,
       parsed.data.weekStart,
@@ -538,7 +619,110 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
       },
       // The day's meals were wholly replaced — old completion indices no
       // longer refer to anything meaningful.
-      { day: parsed.data.day, op: { type: "clearDay" } },
+      [{ day: parsed.data.day, op: { type: "clearDay" } }],
+    );
+
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    res.json({
+      plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
+      groceryList,
+      affectedLeftovers,
+    });
+  } catch (err) {
+    const message = getGeminiErrorMessage(err);
+    console.error("[meals] regenerate-day failed:", message);
+    res.status(503).json({ error: "Failed to regenerate day", detail: message });
+  }
+});
+
+const resolveLeftoversSchema = z.object({
+  weekStart: weekStartField,
+  /** The (new) source meal the leftovers should follow when action=update. */
+  source: z.object({ day: z.enum(DAYS), index: z.number().int().nonnegative() }),
+  cells: z
+    .array(z.object({ day: z.enum(DAYS), index: z.number().int().nonnegative() }))
+    .min(1)
+    .max(8),
+  action: z.enum(["update", "regenerate"]),
+});
+
+// Resolve dangling leftover meals after their source changed. "update" turns
+// each cell into leftovers of the new source; "regenerate" replaces each
+// with a fresh Gemini meal. ("Leave as is" = the client simply doesn't call.)
+router.post("/leftovers/resolve", requireAuth, generationLimiter, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = resolveLeftoversSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const profile = await prisma.profile.findUnique({ where: { userId } });
+  if (!profile) {
+    res.status(400).json({ error: "Create a profile first" });
+    return;
+  }
+
+  try {
+    let freshMeals: Array<{ cell: { day: DayLabel; index: number }; meal: MealJson }> = [];
+    if (parsed.data.action === "regenerate") {
+      const targetPlan = parsed.data.weekStart
+        ? await findMealPlanForWeek(userId, parseLocalDate(parsed.data.weekStart))
+        : await findCurrentWeekMealPlan(userId, await getUserWeekStartDay(userId));
+      if (!targetPlan) {
+        res.status(404).json({ error: "No active meal plan" });
+        return;
+      }
+      const planJson = normalizeMealPlan(targetPlan.planJson);
+      // Sequential per-cell generation: leftover repairs touch 1-2 cells in
+      // practice (capped at 8), and sequencing keeps rate limits simple.
+      for (const cell of parsed.data.cells) {
+        const dayEntry = planJson.days.find((d) => d.day === cell.day);
+        const existing = dayEntry?.meals[cell.index];
+        if (!dayEntry || !existing) continue;
+        const slot = pickSlot(existing, cell.index);
+        const dayTargetCal = planJson.dailyCalorieTarget || profile.caloricTarget || 0;
+        const otherMeals = dayEntry.meals.filter((_, i) => i !== cell.index);
+        const otherCal = otherMeals.reduce((s, m) => s + m.calories, 0);
+        const otherProtein = otherMeals.reduce((s, m) => s + m.proteinG, 0);
+        const meal = await generateSingleMeal({
+          profile,
+          slot,
+          targetCalories: dayTargetCal ? Math.max(200, Math.round(dayTargetCal - otherCal)) : undefined,
+          targetProteinG: profile.proteinTargetG
+            ? Math.max(15, Math.round(profile.proteinTargetG - otherProtein))
+            : undefined,
+          avoidNames: [existing.name, ...collectWeekAvoidNames(planJson, cell)],
+        });
+        // A regenerated meal is fresh — never a leftover of anything.
+        freshMeals.push({
+          cell,
+          meal: { ...meal, isLeftover: undefined, leftoverOf: undefined },
+        });
+      }
+    }
+
+    const { plan } = await mutatePlanForWeek(
+      userId,
+      parsed.data.weekStart,
+      (planJson) => {
+        if (parsed.data.action === "update") {
+          for (const cell of parsed.data.cells) {
+            applyLeftoverUpdate(planJson, cell, parsed.data.source);
+          }
+        } else {
+          for (const { cell, meal } of freshMeals) {
+            const dayEntry = planJson.days.find((d) => d.day === cell.day);
+            if (dayEntry && cell.index < dayEntry.meals.length) {
+              dayEntry.meals[cell.index] = meal;
+            }
+          }
+        }
+        return planJson;
+      },
+      [...new Set(parsed.data.cells.map((c) => c.day))].map((day) => ({
+        day,
+        op: { type: "recount" as const },
+      })),
     );
 
     const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
@@ -548,8 +732,8 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
     });
   } catch (err) {
     const message = getGeminiErrorMessage(err);
-    console.error("[meals] regenerate-day failed:", message);
-    res.status(503).json({ error: "Failed to regenerate day", detail: message });
+    console.error("[meals] leftovers/resolve failed:", message);
+    res.status(503).json({ error: "Failed to update leftovers", detail: message });
   }
 });
 
@@ -573,7 +757,7 @@ async function mutatePlanForWeek(
   userId: string,
   weekStart: string | undefined,
   mutator: (json: MealPlanJson) => MealPlanJson,
-  reconcile?: { day: DayLabel; op: ReconcileOp },
+  reconcile?: Array<{ day: DayLabel; op: ReconcileOp }>,
 ) {
   const target = weekStart
     ? await findMealPlanForWeek(userId, parseLocalDate(weekStart))
@@ -589,31 +773,33 @@ async function mutatePlanForWeek(
       data: { planJson: next as unknown as object },
     });
 
-    // Keep completion indices for the mutated day pointing at the right
+    // Keep completion indices for each mutated day pointing at the right
     // meals (e.g. deleting meal 0 shifts the rest down by one).
-    if (reconcile) {
-      const newMealCount =
-        next.days.find((d) => d.day === reconcile.day)?.meals.length ?? 0;
+    if (reconcile?.length) {
       const completions = await tx.mealCompletion.findMany({
         where: { userId, planId: target.id },
       });
-      for (const row of completions) {
-        if (dayLabelForDayKey(row.dayKey) !== reconcile.day) continue;
-        const current = Array.isArray(row.indicesJson)
-          ? (row.indicesJson as number[])
-          : [];
-        const result = reconcileIndices(current, reconcile.op, newMealCount);
-        const completedAt = result.complete
-          ? (row.completedAt ?? new Date())
-          : null;
-        const indicesChanged =
-          result.indices.length !== current.length ||
-          result.indices.some((v, i) => v !== current[i]);
-        if (indicesChanged || (completedAt?.getTime() ?? null) !== (row.completedAt?.getTime() ?? null)) {
-          await tx.mealCompletion.update({
-            where: { id: row.id },
-            data: { indicesJson: result.indices, completedAt },
-          });
+      for (const entry of reconcile) {
+        const newMealCount =
+          next.days.find((d) => d.day === entry.day)?.meals.length ?? 0;
+        for (const row of completions) {
+          if (dayLabelForDayKey(row.dayKey) !== entry.day) continue;
+          const current = Array.isArray(row.indicesJson)
+            ? (row.indicesJson as number[])
+            : [];
+          const result = reconcileIndices(current, entry.op, newMealCount);
+          const completedAt = result.complete
+            ? (row.completedAt ?? new Date())
+            : null;
+          const indicesChanged =
+            result.indices.length !== current.length ||
+            result.indices.some((v, i) => v !== current[i]);
+          if (indicesChanged || (completedAt?.getTime() ?? null) !== (row.completedAt?.getTime() ?? null)) {
+            await tx.mealCompletion.update({
+              where: { id: row.id },
+              data: { indicesJson: result.indices, completedAt },
+            });
+          }
         }
       }
     }

@@ -38,6 +38,7 @@ export function buildSystemPrompt(): string {
     "        }>;",
     "        tags?: string[];             // e.g. ['high-protein','one-pan','vegetarian']",
     "        isLeftover?: boolean;        // true when this meal is leftovers from a previous cook",
+    "        leftoverOf?: { day: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; slot: 'breakfast'|'lunch'|'dinner'|'snack' }; // required whenever isLeftover is true — points at the meal being reused",
     "      }>",
     "    }>;",
     "  }",
@@ -52,7 +53,7 @@ export function buildSystemPrompt(): string {
     "- Steps must be concrete and ordered: each step is one action a cook can follow without re-reading earlier steps. 4–10 steps per meal is typical. Steps must include flavor-building actions: when to add aromatics, when and how much to season, and any finishing elements (acids, fresh herbs, a drizzle of oil). A recipe whose steps contain no seasoning instructions is incomplete.",
     "- Provide 3 meals per day (breakfast, lunch, dinner) unless the user's target clearly needs a snack to hit calories. If you add a snack, set slot:'snack'.",
     "- Respect dietary notes strictly.",
-    "- LEFTOVERS: When the meal plan reuses a meal from a previous day as leftovers, mark the leftover entry with `\"isLeftover\": true`. The leftover meal should still have a full ingredients list (same as the original) and steps, but will be excluded from the grocery list. On the ORIGINAL cooking day, set `servings` to the total batch size needed (e.g. 2 if one serving is eaten that day and one is saved) AND list ingredient quantities as the totals required to cook that batch (a 2-serving batch lists 2x the per-serving amount). The grocery list adds these totals as-is. Include a `notes` field like 'Make 2 servings — save 1 for [Day] [slot].' so the user knows not to eat everything.",
+    "- LEFTOVERS: When the meal plan reuses a meal from a previous day as leftovers, mark the leftover entry with `\"isLeftover\": true` AND set `\"leftoverOf\": { day, slot }` pointing at the original meal being reused (every isLeftover meal MUST carry leftoverOf). The leftover meal should still have a full ingredients list (same as the original) and steps, but will be excluded from the grocery list. On the ORIGINAL cooking day, set `servings` to the total batch size needed (e.g. 2 if one serving is eaten that day and one is saved) AND list ingredient quantities as the totals required to cook that batch (a 2-serving batch lists 2x the per-serving amount). The grocery list adds these totals as-is. Include a `notes` field like 'Make 2 servings — save 1 for [Day] [slot].' so the user knows not to eat everything.",
   ].join("\n");
 }
 
@@ -78,7 +79,7 @@ const COMPLEXITY_GUIDANCE: Record<string, string> = {
     "STYLE: Lean toward varied, creative meals — different recipes most days, with some shared ingredients to keep the grocery list manageable. The user enjoys cooking new things.",
   simple:
     "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight. " +
-    "LEFTOVER LUNCHES (required): The user cannot cook at work, so EVERY lunch in this plan MUST be leftovers from the immediately preceding day's dinner. Mark each such lunch with `\"isLeftover\": true`, use the same `name` and `ingredients` as that dinner, and add a `notes` field like 'Leftovers from [PrevDay] dinner.'. On the dinner being reused, set `servings: 2` and scale ingredient quantities to the 2-serving total, with a `notes` field like 'Make 2 servings — save 1 for [NextDay] lunch.'. The ONLY allowed exception is the first day of the plan: that day's lunch may be a fresh quick recipe (since there is no prior dinner in this plan to leverage). Breakfasts and dinners are otherwise fresh, simple recipes; do not repeat dinners back-to-back beyond what the leftover-lunch pattern requires.",
+    "LEFTOVER LUNCHES (required): The user cannot cook at work, so EVERY lunch in this plan MUST be leftovers from the immediately preceding day's dinner. Mark each such lunch with `\"isLeftover\": true` and `\"leftoverOf\": { day: [PrevDay], slot: 'dinner' }`, use the same `name` and `ingredients` as that dinner, and add a `notes` field like 'Leftovers from [PrevDay] dinner.'. On the dinner being reused, set `servings: 2` and scale ingredient quantities to the 2-serving total, with a `notes` field like 'Make 2 servings — save 1 for [NextDay] lunch.'. The ONLY allowed exception is the first day of the plan: that day's lunch may be a fresh quick recipe (since there is no prior dinner in this plan to leverage). Breakfasts and dinners are otherwise fresh, simple recipes; do not repeat dinners back-to-back beyond what the leftover-lunch pattern requires.",
   prep:
     "STYLE: Prioritize meal prep and batch cooking — REUSE the same lunch and dinner recipes across at least 3-4 days of the week. Aim for ~3 distinct dinners and 2-3 distinct lunches max for the whole week, scaled up to multiple servings each. Breakfasts and snacks may also repeat. The user wants to cook a few large batches and eat the leftovers.",
 };
@@ -190,6 +191,8 @@ export function buildSingleMealSystemPrompt(): string {
     "    ingredients: Array<{ name, quantity:{amount:number,unit:string}, category:'Produce'|'Protein'|'Dairy'|'Pantry'|'Frozen'|'Other', note?:string }>;",
     "    steps: Array<{ order:number, text:string, durationMinutes?:number }>;",
     "    tags?: string[];",
+    "    isLeftover?: boolean;        // only when explicitly asked to produce a leftover meal",
+    "    leftoverOf?: { day: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; slot: 'breakfast'|'lunch'|'dinner'|'snack' };",
     "  }",
     "- Use ONLY these units: 'g','kg','oz','lb','ml','L','tsp','tbsp','cup','fl oz','piece','slice','clove','can','pinch','to taste',''.",
     "- QUANTITIES: ingredient `quantity.amount` is the TOTAL needed to cook the recipe at the `servings` value (cookbook convention). A `servings: 2` recipe lists the total amounts to cook both servings, not per-serving amounts. Macros remain PER SERVING.",

@@ -15,6 +15,7 @@ import { PlanInfo } from "../components/PlanInfo";
 import { PopMenu } from "../components/PopMenu";
 import { CircleButton } from "../components/CircleButton";
 import { Illustration, mealIllustration } from "../components/Illustration";
+import { LeftoverRepairDialog } from "../components/LeftoverRepairDialog";
 import { AnimatedNumber, Chip, PageHero } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
@@ -33,6 +34,9 @@ import {
   useRegenerateDay,
   useRegenerateSlot,
   useReplaceSlot,
+  useResolveLeftovers,
+  type AffectedLeftover,
+  type PlanResult,
 } from "../hooks/useMealPlan";
 import { localDayKey, useMealCompletions } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
@@ -83,6 +87,35 @@ export function MealsPage() {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [picker, setPicker] = useState<PendingPicker | null>(null);
   const [hintPrompt, setHintPrompt] = useState<PendingHint | null>(null);
+  const resolveLeftovers = useResolveLeftovers();
+  const [leftoverRepair, setLeftoverRepair] = useState<{
+    source: { day: MealDay["day"]; index: number };
+    sourceName: string;
+    newSourceName?: string;
+    affected: AffectedLeftover[];
+  } | null>(null);
+
+  // After a mutation replaced a meal, ask what to do with any leftovers that
+  // depended on it. `sourceIndexHint` locates the successor meal when the
+  // whole day was regenerated (indices may have changed).
+  function maybeOpenLeftoverRepair(data: PlanResult, sourceDay: MealDay["day"], sourceIndexHint?: number) {
+    const affected = data.affectedLeftovers;
+    if (!affected?.length) return;
+    const newDay = data.plan.planJson.days.find((d) => d.day === sourceDay);
+    if (!newDay) return;
+    let index = sourceIndexHint ?? -1;
+    if (index < 0 || index >= newDay.meals.length) {
+      const slot = affected[0]?.sourceSlot;
+      index = slot ? newDay.meals.findIndex((m) => m.slot === slot) : -1;
+    }
+    if (index < 0) return; // successor not resolvable — leave the plan be
+    setLeftoverRepair({
+      source: { day: sourceDay, index },
+      sourceName: affected[0]!.sourceName,
+      newSourceName: newDay.meals[index]?.name,
+      affected,
+    });
+  }
   const completions = useMealCompletions(plan?.id, localDayKey());
   const viewingToday = activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
@@ -186,21 +219,20 @@ export function MealsPage() {
     deleteSlot.isPending;
 
   function handleRegenerateDay(suggestion?: string) {
-    regenDay.mutate({
-      day: activeDay,
-      weekStart: viewingWeekStart,
-      suggestion,
-    });
+    const day = activeDay;
+    regenDay.mutate(
+      { day, weekStart: viewingWeekStart, suggestion },
+      { onSuccess: (data) => maybeOpenLeftoverRepair(data, day) },
+    );
   }
 
   function handleRegenerate(index: number, suggestion?: string) {
     setOpenMenu(null);
-    regenSlot.mutate({
-      day: activeDay,
-      index,
-      weekStart: viewingWeekStart,
-      suggestion,
-    });
+    const day = activeDay;
+    regenSlot.mutate(
+      { day, index, weekStart: viewingWeekStart, suggestion },
+      { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+    );
   }
 
   function handleOpenSlotHint(index: number) {
@@ -221,18 +253,26 @@ export function MealsPage() {
   function handleHintSubmit(suggestion: string) {
     if (!hintPrompt) return;
     if (hintPrompt.kind === "slot") {
-      regenSlot.mutate({
-        day: hintPrompt.day,
-        index: hintPrompt.index,
-        weekStart: viewingWeekStart,
-        suggestion: suggestion || undefined,
-      });
+      const { day, index } = hintPrompt;
+      regenSlot.mutate(
+        {
+          day,
+          index,
+          weekStart: viewingWeekStart,
+          suggestion: suggestion || undefined,
+        },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+      );
     } else {
-      regenDay.mutate({
-        day: hintPrompt.day,
-        weekStart: viewingWeekStart,
-        suggestion: suggestion || undefined,
-      });
+      const { day } = hintPrompt;
+      regenDay.mutate(
+        {
+          day,
+          weekStart: viewingWeekStart,
+          suggestion: suggestion || undefined,
+        },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day) },
+      );
     }
   }
 
@@ -262,12 +302,11 @@ export function MealsPage() {
     const meal: Meal = recipeToMeal(recipe);
     if (picker.slot) meal.slot = picker.slot;
     if (picker.kind === "replace") {
-      replaceSlot.mutate({
-        day: picker.day,
-        index: picker.index,
-        meal,
-        weekStart: viewingWeekStart,
-      });
+      const { day, index } = picker;
+      replaceSlot.mutate(
+        { day, index, meal, weekStart: viewingWeekStart },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+      );
     } else {
       addSlot.mutate({ day: picker.day, meal, weekStart: viewingWeekStart });
     }
@@ -672,6 +711,38 @@ export function MealsPage() {
         slot={picker?.slot}
         onPick={handlePick}
         onClose={() => setPicker(null)}
+      />
+      <LeftoverRepairDialog
+        open={leftoverRepair !== null}
+        sourceName={leftoverRepair?.sourceName ?? ""}
+        newSourceName={leftoverRepair?.newSourceName}
+        affected={leftoverRepair?.affected ?? []}
+        busy={resolveLeftovers.isPending}
+        onUpdate={() => {
+          if (!leftoverRepair) return;
+          resolveLeftovers.mutate(
+            {
+              weekStart: viewingWeekStart,
+              source: leftoverRepair.source,
+              cells: leftoverRepair.affected.map((a) => ({ day: a.day, index: a.index })),
+              action: "update",
+            },
+            { onSettled: () => setLeftoverRepair(null) },
+          );
+        }}
+        onRegenerate={() => {
+          if (!leftoverRepair) return;
+          resolveLeftovers.mutate(
+            {
+              weekStart: viewingWeekStart,
+              source: leftoverRepair.source,
+              cells: leftoverRepair.affected.map((a) => ({ day: a.day, index: a.index })),
+              action: "regenerate",
+            },
+            { onSettled: () => setLeftoverRepair(null) },
+          );
+        }}
+        onClose={() => setLeftoverRepair(null)}
       />
       <RegenerateHintModal
         open={hintPrompt !== null}
