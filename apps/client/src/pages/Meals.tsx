@@ -619,6 +619,20 @@ export function MealsPage() {
           );
         })}
 
+        {/* Slots the recurring schedule template skips this week. Informational,
+            with a one-tap escape hatch to plan the meal anyway. */}
+        {!isDayRegenerating &&
+          (settings?.mealSchedule?.[activeDay] ?? [])
+            .filter((slot) => !meals.some((m) => m.slot === slot))
+            .map((slot) => (
+              <SkippedSlotRow
+                key={`skip-${slot}`}
+                slot={slot}
+                onPlan={() => handleAdd(slot)}
+                disabled={anyMutation}
+              />
+            ))}
+
         <button
           type="button"
           onClick={() => handleAdd(nextSlotForDay)}
@@ -758,6 +772,54 @@ export function MealsPage() {
       />
       {confirmDialog}
     </Layout>
+  );
+}
+
+function SkippedSlotRow({
+  slot,
+  onPlan,
+  disabled,
+}: {
+  slot: MealSlot;
+  onPlan: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "12px 16px",
+        border: "1.5px dashed var(--hair)",
+        borderRadius: "var(--radius)",
+        color: "var(--muted)",
+      }}
+    >
+      <Icon name="x" size={15} />
+      <div style={{ flex: 1 }}>
+        <span style={{ fontWeight: 500, textTransform: "capitalize", color: "var(--sumi)" }}>
+          {slot}
+        </span>{" "}
+        · skipped this week
+      </div>
+      <button
+        type="button"
+        onClick={onPlan}
+        disabled={disabled}
+        className="tappable"
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "var(--accent)",
+          fontWeight: 600,
+          fontSize: 12.5,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        Plan anyway
+      </button>
+    </div>
   );
 }
 

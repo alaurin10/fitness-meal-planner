@@ -1,6 +1,16 @@
 import type { Profile } from "@platform/db";
 import type { DayLabel } from "@platform/shared";
 import type { TrainingSchedule } from "./schedule.js";
+import { buildSlotMaskPromptLines, type SlotMask } from "./mealScheduleMask.js";
+
+/** A meal the user has already locked in — the model plans around it. */
+export interface FixedMealRef {
+  day: DayLabel;
+  slot: string;
+  name: string;
+  calories: number;
+  proteinG: number;
+}
 
 export function buildSystemPrompt(): string {
   return [
@@ -134,6 +144,11 @@ export function buildUserPrompt(args: {
   /** Meal names served in recent weeks — the model must not repeat them. */
   recentMealNames?: string[];
   varietyTone?: "soft" | "strict";
+  /** Slots to skip per day (partial days). Fully-skipped days should be
+   * excluded from `daysToGenerate` by the caller. */
+  skipMask?: SlotMask;
+  /** Meals already chosen by the user — do not regenerate or repeat them. */
+  fixedMeals?: FixedMealRef[];
 }): string {
   const { profile, schedule } = args;
 
@@ -206,13 +221,32 @@ export function buildUserPrompt(args: {
     `Suggested dailyCalorieTarget: ${suggestedTarget}. You may adjust ±150 kcal if it helps macro targets.`,
   );
   lines.push("");
+  if (args.fixedMeals?.length) {
+    lines.push(
+      "LOCKED MEALS (already chosen by the user — do NOT regenerate, replace, or repeat these; plan the other slots around them so each day's meals still hit its macro targets):",
+    );
+    for (const fm of args.fixedMeals) {
+      lines.push(`- ${fm.day} ${fm.slot}: "${fm.name}" (${fm.calories} kcal, ${fm.proteinG}g protein)`);
+    }
+    lines.push("");
+  }
   if (args.daysToGenerate && args.daysToGenerate.length < 7) {
     lines.push(
-      `Produce a plan covering ONLY these days, in this order: ${args.daysToGenerate.join(", ")}. The "days" array must contain exactly ${args.daysToGenerate.length} entries with these exact day labels. Output JSON only.`,
+      `Produce a plan covering ONLY these days, in this order: ${args.daysToGenerate.join(", ")}. The "days" array must contain exactly ${args.daysToGenerate.length} entries with these exact day labels. Days not listed are handled outside this plan — do NOT include them.`,
     );
   } else {
     lines.push("Produce the full 7-day plan as JSON only.");
   }
+  const maskLines = args.skipMask
+    ? buildSlotMaskPromptLines(args.daysToGenerate ?? [], args.skipMask)
+    : [];
+  if (maskLines.length) {
+    lines.push(...maskLines);
+    lines.push(
+      "These slot instructions override the default 3-meals-per-day rule for those days.",
+    );
+  }
+  lines.push("Output JSON only.");
   return lines.join("\n");
 }
 

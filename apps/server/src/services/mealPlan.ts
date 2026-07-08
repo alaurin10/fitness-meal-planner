@@ -6,7 +6,9 @@ import {
   buildSingleMealUserPrompt,
   buildSystemPrompt,
   buildUserPrompt,
+  type FixedMealRef,
 } from "./mealPlanPrompt.js";
+import { dayHasSkippedCoreSlot, type SlotMask } from "./mealScheduleMask.js";
 import {
   mealPlanSchema,
   mealSchema,
@@ -35,6 +37,10 @@ interface GenerateMealPlanArgs {
   varietyTone?: "soft" | "strict";
   /** Sampling temperature; defaults to defaultTemperature(). */
   temperature?: number;
+  /** Slots to skip per day (partial-day masking). */
+  skipMask?: SlotMask;
+  /** User-locked meals the model plans around (batch canvas). */
+  fixedMeals?: FixedMealRef[];
 }
 
 /** Core generation: prompt → structured Gemini call → normalize → Zod validate. */
@@ -80,11 +86,16 @@ export async function generateMealPlan(args: GenerateMealPlanArgs): Promise<Meal
 
   // Prioritize the worst calorie offenders, capped to bound cost. Exactly one
   // corrective round — we do NOT re-check the corrected output to avoid loops.
+  // Days with a skipped core slot are intentionally light on macros; excluding
+  // them stops the corrector from re-adding the meals the user asked to skip.
   const fixDays = [...report.deviations]
     .filter((d) => d.needsFix)
+    .filter((d) => !(args.skipMask && dayHasSkippedCoreSlot(args.skipMask, d.day as DayLabel)))
     .sort((a, b) => Math.abs(b.calorieOffPct) - Math.abs(a.calorieOffPct))
     .slice(0, MAX_CORRECTIVE_DAYS)
     .map((d) => d.day as DayLabel);
+
+  if (fixDays.length === 0) return plan;
 
   console.warn(
     `[meals] macro check flagged ${report.daysNeedingFix.length} day(s); correcting: ${fixDays.join(", ")}`,

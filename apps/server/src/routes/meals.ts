@@ -30,6 +30,11 @@ import {
   findDependentLeftovers,
 } from "../services/leftoverLinks.js";
 import {
+  applySkipMask,
+  effectiveDaysToGenerate,
+  parseSlotMask,
+} from "../services/mealScheduleMask.js";
+import {
   dayLabelForDayKey,
   validateMealCompletion,
 } from "../services/completionValidation.js";
@@ -125,6 +130,14 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
     return;
   }
 
+  // Skip mask: an explicit one-off `skipSlots` overrides the stored recurring
+  // template; either is a partial-slot mask of what NOT to plan.
+  const mask =
+    req.body.skipSlots !== undefined
+      ? parseSlotMask(req.body.skipSlots)
+      : parseSlotMask(settings?.mealScheduleJson);
+  const genDays = effectiveDaysToGenerate(daysToInclude, mask);
+
   try {
     const schedule = await getTrainingSchedule(userId);
     // Variety: feed recent weeks' meal names in as an avoid list so new weeks
@@ -134,14 +147,27 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
       await fetchRecentPlanJsons(userId, target, variety.weeksBack),
       variety.nameCap,
     );
-    const planJson = await generateMealPlan({
-      profile,
-      schedule,
-      daysToGenerate: daysToInclude,
-      recentMealNames,
-      varietyTone: variety.promptTone,
-      temperature: variety.temperature,
-    });
+    // Fully-skipped week → no Gemini call, just an empty-days plan.
+    const planJson =
+      genDays.length === 0
+        ? {
+            summary: "Week planned around your schedule.",
+            dailyCalorieTarget: profile.caloricTarget ?? 0,
+            days: daysToInclude.map((d) => ({ day: d, meals: [] })),
+          }
+        : applySkipMask(
+            await generateMealPlan({
+              profile,
+              schedule,
+              daysToGenerate: genDays,
+              recentMealNames,
+              varietyTone: variety.promptTone,
+              temperature: variety.temperature,
+              skipMask: mask,
+            }),
+            daysToInclude,
+            mask,
+          );
 
     const result = await prisma.$transaction(async (tx) => {
       // Deactivate (not delete) existing plans for this week to preserve
@@ -567,7 +593,13 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
       await fetchRecentPlanJsons(userId, targetPlan.weekStartDate, variety.weeksBack),
       variety.nameCap,
     );
-    const freshPlanJson = await generateMealPlan({
+    // Honor the recurring schedule template for this day when regenerating.
+    const settings = await prisma.userSettings.findUnique({ where: { userId } });
+    const template = parseSlotMask(settings?.mealScheduleJson);
+    const dayMask = template[parsed.data.day]?.length
+      ? { [parsed.data.day]: template[parsed.data.day] }
+      : {};
+    const generated = await generateMealPlan({
       profile,
       schedule,
       daysToGenerate: [parsed.data.day],
@@ -575,7 +607,9 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
       recentMealNames,
       varietyTone: variety.promptTone,
       temperature: variety.temperature,
+      skipMask: dayMask,
     });
+    const freshPlanJson = applySkipMask(generated, [parsed.data.day], dayMask);
 
     const freshDay = freshPlanJson.days.find((d) => d.day === parsed.data.day);
     if (!freshDay) {

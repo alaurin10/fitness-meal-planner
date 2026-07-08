@@ -41,9 +41,14 @@ export function useGenerateMealPlan() {
   const api = useApi();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (opts?: { targetWeekStart?: string }) => {
+    mutationFn: async (opts?: {
+      targetWeekStart?: string;
+      /** One-off slot mask overriding the stored schedule template. */
+      skipSlots?: Record<string, string[]>;
+    }) => {
       const { data } = await api.post<PlanResult>("/api/meals/generate", {
         targetWeekStart: opts?.targetWeekStart,
+        skipSlots: opts?.skipSlots,
       });
       return data;
     },
