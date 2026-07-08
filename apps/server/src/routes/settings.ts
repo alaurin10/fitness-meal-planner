@@ -3,6 +3,7 @@ import { prisma } from "@platform/db";
 import { z } from "zod";
 import { ALL_DAYS } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
+import { parseSlotMask, slotMaskSchema } from "../services/mealScheduleMask.js";
 
 const router = Router();
 
@@ -10,6 +11,8 @@ const settingsSchema = z.object({
   unitSystem: z.enum(["imperial", "metric"]).optional(),
   weekStartDay: z.enum(ALL_DAYS as unknown as [string, ...string[]]).optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
+  /** Recurring skip template: slots NOT to plan, per day. */
+  mealSchedule: slotMaskSchema.optional(),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -30,6 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
       unitSystem: settings?.unitSystem ?? profile?.unitSystem ?? "imperial",
       weekStartDay: settings?.weekStartDay ?? "Mon",
       theme: settings?.theme ?? "system",
+      mealSchedule: parseSlotMask(settings?.mealScheduleJson),
     },
   });
 });
@@ -52,6 +56,9 @@ router.patch("/", requireAuth, async (req, res) => {
     ...(parsed.data.unitSystem ? { unitSystem: parsed.data.unitSystem } : {}),
     ...(parsed.data.weekStartDay ? { weekStartDay: parsed.data.weekStartDay } : {}),
     ...(parsed.data.theme ? { theme: parsed.data.theme } : {}),
+    ...(parsed.data.mealSchedule !== undefined
+      ? { mealScheduleJson: parsed.data.mealSchedule as object }
+      : {}),
   };
 
   const settings = await prisma.userSettings.upsert({
@@ -72,6 +79,7 @@ router.patch("/", requireAuth, async (req, res) => {
       unitSystem: settings.unitSystem,
       weekStartDay: settings.weekStartDay,
       theme: settings.theme,
+      mealSchedule: parseSlotMask(settings.mealScheduleJson),
     },
   });
 });

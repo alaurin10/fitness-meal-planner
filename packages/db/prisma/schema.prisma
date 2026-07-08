@@ -34,6 +34,9 @@ model UserSettings {
   unitSystem     String   @default("imperial") // "imperial" | "metric"
   weekStartDay   String   @default("Mon") // "Mon"|"Tue"|"Wed"|"Thu"|"Fri"|"Sat"|"Sun"
   theme          String   @default("system") // "light" | "dark" | "system"
+  // Recurring meal-schedule template: slots to SKIP per day, e.g.
+  // { "Sat": ["dinner"], "Sun": ["breakfast","lunch","dinner"] }
+  mealScheduleJson Json?
   updatedAt      DateTime @updatedAt
 }
 
@@ -55,6 +58,18 @@ model Profile {
   dietaryNotes        String?
   // Meal-plan style preference: "varied" | "simple" | "prep"
   mealComplexity      String   @default("varied")
+  // How often dinners should feed the next day's lunch:
+  // "none" | "occasional" | "often"
+  leftoverPreference  String   @default("occasional")
+  // How aggressively new weeks avoid repeating recent meals:
+  // "low" | "medium" | "high"
+  varietyStrength     String   @default("medium")
+  cuisineLikes        String[] @default([])
+  cuisineDislikes     String[] @default([])
+  // Max total minutes (prep + cook) for weeknight dinners; null = no limit
+  weeknightMaxMinutes Int?
+  // Allow longer, more involved cooking on weekends
+  weekendRelaxed      Boolean  @default(true)
   // Workout split style: "ppl" (Push/Pull/Legs or Upper/Lower) | "muscle_group"
   workoutStyle        String   @default("ppl")
   // Equipment available for workouts. Empty array => bodyweight only.

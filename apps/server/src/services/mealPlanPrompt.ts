@@ -74,15 +74,55 @@ function userPreferenceBlock(suggestion: string): string {
   ].join(" ");
 }
 
+// Structure-of-week styling only — leftover frequency is steered separately
+// by LEFTOVER_GUIDANCE (profile.leftoverPreference).
 const COMPLEXITY_GUIDANCE: Record<string, string> = {
   varied:
     "STYLE: Lean toward varied, creative meals — different recipes most days, with some shared ingredients to keep the grocery list manageable. The user enjoys cooking new things.",
   simple:
-    "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight. " +
-    "LEFTOVER LUNCHES (required): The user cannot cook at work, so EVERY lunch in this plan MUST be leftovers from the immediately preceding day's dinner. Mark each such lunch with `\"isLeftover\": true` and `\"leftoverOf\": { day: [PrevDay], slot: 'dinner' }`, use the same `name` and `ingredients` as that dinner, and add a `notes` field like 'Leftovers from [PrevDay] dinner.'. On the dinner being reused, set `servings: 2` and scale ingredient quantities to the 2-serving total, with a `notes` field like 'Make 2 servings — save 1 for [NextDay] lunch.'. The ONLY allowed exception is the first day of the plan: that day's lunch may be a fresh quick recipe (since there is no prior dinner in this plan to leverage). Breakfasts and dinners are otherwise fresh, simple recipes; do not repeat dinners back-to-back beyond what the leftover-lunch pattern requires.",
+    "STYLE: Keep meals simple and quick to prepare — short ingredient lists, common pantry staples, minimal active cooking time. Prefer recipes the user can throw together on a busy weeknight.",
   prep:
-    "STYLE: Prioritize meal prep and batch cooking — REUSE the same lunch and dinner recipes across at least 3-4 days of the week. Aim for ~3 distinct dinners and 2-3 distinct lunches max for the whole week, scaled up to multiple servings each. Breakfasts and snacks may also repeat. The user wants to cook a few large batches and eat the leftovers.",
+    "STYLE: Prioritize meal prep and batch cooking — REUSE the same lunch and dinner recipes across at least 3-4 days of the week. Aim for ~3 distinct dinners and 2-3 distinct lunches max for the whole week, scaled up to multiple servings each. Breakfasts and snacks may also repeat. The user wants to cook a few large batches.",
 };
+
+const LEFTOVER_MECHANICS =
+  "Mark each such lunch with `\"isLeftover\": true` and `\"leftoverOf\": { day: [PrevDay], slot: 'dinner' }`, use the same `name` and `ingredients` as that dinner, and add a `notes` field like 'Leftovers from [PrevDay] dinner.'. On the dinner being reused, set `servings: 2` and scale ingredient quantities to the 2-serving total, with a `notes` field like 'Make 2 servings — save 1 for [NextDay] lunch.'.";
+
+const LEFTOVER_GUIDANCE: Record<string, string> = {
+  none:
+    "LEFTOVERS: Do not plan any leftover meals — the user wants every meal cooked fresh. `isLeftover` must never be true.",
+  occasional:
+    `LEFTOVERS: You may plan 1-3 leftover lunches across the week where a dinner batches well (a dinner cooked the night before feeding the next day's lunch). ${LEFTOVER_MECHANICS}`,
+  often:
+    `LEFTOVER LUNCHES (required): The user cannot cook at work, so EVERY lunch in this plan MUST be leftovers from the immediately preceding day's dinner. ${LEFTOVER_MECHANICS} The ONLY allowed exception is the first day of the plan: that day's lunch may be a fresh quick recipe (since there is no prior dinner in this plan to leverage). Breakfasts and dinners are otherwise fresh recipes; do not repeat dinners back-to-back beyond what the leftover-lunch pattern requires.`,
+};
+
+function leftoverGuidance(preference: string | null | undefined): string {
+  return LEFTOVER_GUIDANCE[preference ?? ""] ?? LEFTOVER_GUIDANCE.occasional!;
+}
+
+/** CUISINE PREFERENCES + TIME BUDGET lines derived from profile prefs. */
+function preferenceLines(profile: Profile): string[] {
+  const lines: string[] = [];
+  const likes = (profile.cuisineLikes ?? []).filter(Boolean);
+  const dislikes = (profile.cuisineDislikes ?? []).filter(Boolean);
+  if (likes.length || dislikes.length) {
+    const parts: string[] = [];
+    if (likes.length) parts.push(`Favor these cuisines/styles across the week: ${likes.join(", ")}.`);
+    if (dislikes.length) parts.push(`NEVER use these cuisines/ingredients/dishes: ${dislikes.join(", ")}.`);
+    lines.push(`CUISINE PREFERENCES: ${parts.join(" ")}`);
+  }
+  if (profile.weeknightMaxMinutes) {
+    lines.push(
+      `TIME BUDGET: Weekday (Mon-Fri) dinners must keep totalMinutes (prep + cook) at or under ${profile.weeknightMaxMinutes} minutes. ${
+        profile.weekendRelaxed !== false
+          ? "Weekend meals may be more involved."
+          : "Apply the same limit on weekends."
+      }`,
+    );
+  }
+  return lines;
+}
 
 export function buildUserPrompt(args: {
   profile: Profile;
@@ -134,6 +174,12 @@ export function buildUserPrompt(args: {
     COMPLEXITY_GUIDANCE[complexity] ?? COMPLEXITY_GUIDANCE.varied!,
   );
   lines.push("");
+  lines.push(leftoverGuidance(profile.leftoverPreference));
+  lines.push("");
+  for (const line of preferenceLines(profile)) {
+    lines.push(line);
+    lines.push("");
+  }
   if (args.recentMealNames?.length) {
     lines.push(
       "VARIETY — RECENTLY SERVED (avoid repeats): The user was served these recipes in the last few weeks. Do NOT repeat them or near-identical variants (same primary protein with the same preparation) unless the user's preference text explicitly asks for one of them:",
@@ -225,6 +271,9 @@ export function buildSingleMealUserPrompt(args: {
     ),
   );
   lines.push("");
+  for (const line of preferenceLines(args.profile)) {
+    lines.push(line);
+  }
   lines.push(`Slot: ${args.slot}`);
   if (args.targetCalories) {
     lines.push(`Target calories for this meal: ~${args.targetCalories} kcal (±100).`);

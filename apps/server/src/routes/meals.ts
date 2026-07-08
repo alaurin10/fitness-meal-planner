@@ -128,9 +128,8 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
   try {
     const schedule = await getTrainingSchedule(userId);
     // Variety: feed recent weeks' meal names in as an avoid list so new weeks
-    // don't rehash the last one. Strength comes from profile prefs (Phase 3);
-    // "medium" until then.
-    const variety = varietyParams("medium");
+    // don't rehash the last one. Strength is a profile preference.
+    const variety = varietyParams(profile.varietyStrength);
     const recentMealNames = extractRecentMealNames(
       await fetchRecentPlanJsons(userId, target, variety.weeksBack),
       variety.nameCap,
@@ -563,7 +562,7 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
 
   try {
     const schedule = await getTrainingSchedule(userId);
-    const variety = varietyParams("medium");
+    const variety = varietyParams(profile.varietyStrength);
     const recentMealNames = extractRecentMealNames(
       await fetchRecentPlanJsons(userId, targetPlan.weekStartDate, variety.weeksBack),
       variety.nameCap,
