@@ -395,21 +395,12 @@ export function MealsPage() {
       <PageHero
         title="Meals"
         right={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
-            <CircleButton
-              aria-label="Plan week"
-              onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
-            >
-              <Icon name="plan" size={18} />
-            </CircleButton>
-            <WeekSelector
-              viewingWeekStart={viewingWeekStart}
-              thisWeekStart={thisWeekStart}
-              nextWeekStart={nextWeekStart}
-              onChange={setViewingWeekStart}
-            />
-          </div>
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={setViewingWeekStart}
+          />
         }
       />
 
@@ -435,9 +426,23 @@ export function MealsPage() {
       >
       <div className="px-4 pt-2">
         <Card tone="hero">
+          {/* Week-level controls live on the week card, not the masthead —
+              they act on the plan being viewed, and the tab header stays a
+              single uncrowded row. */}
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 2 }}>
+            <div className="eyebrow">{longDay(activeDay)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: -4, marginRight: -4 }}>
+              <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
+              <CircleButton
+                aria-label="Plan week"
+                onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
+              >
+                <Icon name="plan" size={18} />
+              </CircleButton>
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="eyebrow">{longDay(activeDay)}</div>
               <div className="title-lg mt-1">
                 {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>

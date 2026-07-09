@@ -80,11 +80,16 @@ export function PageHero({
         <h1
           className="display-hero text-gradient"
           style={{
-            margin: 0,
             minWidth: 0,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
+            // .display-hero's line-height is < 1, so overflow:hidden alone
+            // would slice descenders ("g", "y"). Overflow clips at the
+            // padding edge — pad the glyph overshoot back in and cancel the
+            // added height so vertical rhythm is unchanged.
+            padding: "0.1em 0.05em 0.14em 0",
+            margin: "-0.1em 0 -0.14em 0",
           }}
         >
           {title}

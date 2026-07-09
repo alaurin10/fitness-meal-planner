@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -114,13 +114,16 @@ export function RecipeEditorPage() {
   const create = useCreateRecipe();
   const update = useUpdateRecipe();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // Snapshot of the last loaded/saved state; the save bar only floats
+  // while the form differs from it.
+  const [baseline, setBaseline] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const { errors: fieldErrors, validateField, revalidateField, validateAll } =
     useFieldErrors(FIELD_RULES);
 
   useEffect(() => {
     if (!existing) return;
-    setForm({
+    const loaded: FormState = {
       name: existing.name,
       slotHint: existing.slotHint ?? "",
       category: existing.category ?? "other",
@@ -141,8 +144,16 @@ export function RecipeEditorPage() {
         existing.stepsJson.length > 0
           ? existing.stepsJson
           : EMPTY_FORM.steps,
-    });
+    };
+    setForm(loaded);
+    setBaseline(loaded);
   }, [existing]);
+
+  const saving = create.isPending || update.isPending;
+  const dirty = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(baseline),
+    [form, baseline],
+  );
 
   if (isEdit && isLoading) {
     return (
@@ -689,9 +700,15 @@ export function RecipeEditorPage() {
           </div>
         )}
 
-        {/* Sticky glass save bar — the form is long; keep save in reach. */}
+        {/* Save bar: floats sticky and in reach only while there are unsaved
+            edits (the form is long); otherwise it rests in-flow at the end so
+            it doesn't eat viewport while reading. */}
         <div
-          className="glass sticky bottom-[calc(env(safe-area-inset-bottom,8px)+78px)] md:bottom-4"
+          className={
+            dirty || saving
+              ? "glass sticky bottom-[calc(env(safe-area-inset-bottom,8px)+78px)] md:bottom-4"
+              : undefined
+          }
           style={{ borderRadius: "var(--radius-lg)", padding: 10, zIndex: 15 }}
         >
           <Button
@@ -699,14 +716,10 @@ export function RecipeEditorPage() {
             size="lg"
             className="w-full"
             onClick={onSubmit}
-            disabled={create.isPending || update.isPending}
+            disabled={saving}
           >
             <Icon name="check" size={16} />
-            {create.isPending || update.isPending
-              ? "Saving…"
-              : isEdit
-                ? "Save changes"
-                : "Create recipe"}
+            {saving ? "Saving…" : isEdit ? "Save changes" : "Create recipe"}
           </Button>
         </div>
       </div>

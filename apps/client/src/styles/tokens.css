@@ -181,7 +181,7 @@ html[data-palette="carbon"][data-theme="dark"] {
   font-family: var(--font-display);
   font-optical-sizing: auto;
   font-weight: var(--font-display-weight-hero);
-  font-size: clamp(42px, 11.5vw, 62px);
+  font-size: clamp(36px, 9.5vw, 56px);
   line-height: 0.96;
   letter-spacing: -0.035em;
   color: var(--ink);

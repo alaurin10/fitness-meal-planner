@@ -332,21 +332,12 @@ export function WorkoutsPage() {
       <PageHero
         title="Workouts"
         right={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo
-              title="About this plan"
-              sections={[
-                { text: plan.planJson.summary },
-                { label: "Progression", text: plan.planJson.progressionNotes },
-              ]}
-            />
-            <WeekSelector
-              viewingWeekStart={viewingWeekStart}
-              thisWeekStart={thisWeekStart}
-              nextWeekStart={nextWeekStart}
-              onChange={setViewingWeekStart}
-            />
-          </div>
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={setViewingWeekStart}
+          />
         }
       />
 
@@ -372,9 +363,23 @@ export function WorkoutsPage() {
       >
       <div className="px-4 pt-2">
         <Card tone="hero">
+          {/* Plan-level info lives on the week card, not the masthead — it
+              describes the plan being viewed, and the tab header stays a
+              single uncrowded row. */}
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 2 }}>
+            <div className="eyebrow">{longDay(activeDay)}</div>
+            <div style={{ marginTop: -4, marginRight: -4 }}>
+              <PlanInfo
+                title="About this plan"
+                sections={[
+                  { text: plan.planJson.summary },
+                  { label: "Progression", text: plan.planJson.progressionNotes },
+                ]}
+              />
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="eyebrow">{longDay(activeDay)}</div>
               <div className="title-lg mt-1">{dayEntry?.focus ?? "Rest"}</div>
               <div className="text-caption" style={{ marginTop: 6 }}>
                 {exercises.length
