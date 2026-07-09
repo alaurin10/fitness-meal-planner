@@ -27,11 +27,11 @@ import {
   useUpdateExerciseLoad,
   type TrainingDay,
 } from "../hooks/useWorkoutPlan";
-import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import {
-  useWorkoutSession,
-  sessionProgress,
-} from "../hooks/useWorkoutSession";
+  completionProgress,
+  findResumePosition,
+  useWorkoutCompletions,
+} from "../hooks/useWorkoutCompletions";
 import { ProgressRing } from "../components/ProgressRing";
 import {
   distanceUnitLabel,
@@ -70,7 +70,6 @@ export function WorkoutsPage() {
   );
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
   const completion = useWorkoutCompletions(plan?.id, activeDayKey);
-  const workoutSession = useWorkoutSession(plan?.id, localDayKey());
   const updateLoad = useUpdateExerciseLoad();
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
   const isDesktop = useIsDesktop();
@@ -284,18 +283,17 @@ export function WorkoutsPage() {
   const exercises = dayEntry?.exercises ?? [];
   const viewingToday = activeDay === DAYS[todayIdx];
 
-  const sessProgress = sessionProgress(workoutSession.session, exercises);
+  const sessProgress = completionProgress(completion.setsJson, exercises);
 
   if (workoutInProgress && exercises.length > 0) {
+    const resumeAt = findResumePosition(exercises, completion.setsJson);
     return (
       <WorkoutMode
         exercises={exercises}
         dayLabel={longDay(activeDay)}
         unitSystem={unitSystem}
-        initialExerciseIdx={workoutSession.session?.exerciseIdx}
-        initialSetNum={workoutSession.session?.setNum}
-        onProgress={workoutSession.saveSession}
-        onSessionClear={workoutSession.clearSession}
+        initialExerciseIdx={resumeAt?.exerciseIdx}
+        initialSetNum={resumeAt?.setNum}
         onExit={() => setWorkoutInProgress(false)}
         onSetComplete={
           viewingToday
@@ -635,7 +633,7 @@ export function WorkoutsPage() {
             onClick={() => setWorkoutInProgress(true)}
           >
             <Icon name="dumbbell" size={16} />
-            {viewingToday && workoutSession.session && !completion.isComplete
+            {viewingToday && completion.completedSetsCount > 0 && !completion.isComplete
               ? `Resume workout · ${completion.completedSetsCount} of ${sessProgress.total} sets`
               : completion.isComplete && viewingToday
                 ? "Workout complete ✓"

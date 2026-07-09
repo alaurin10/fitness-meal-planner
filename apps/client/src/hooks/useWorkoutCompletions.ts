@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 import { localDayKey } from "./useMealCompletions";
+import type { Exercise } from "./useWorkoutPlan";
 
 export { localDayKey };
 
@@ -11,6 +12,47 @@ interface CompletionRecord {
   dayKey: string;
   setsJson: Record<string, number[]>;
   completedAt: string | null;
+}
+
+/**
+ * Completed/total sets for a day, computed straight from the server-verified
+ * `setsJson` — the single source of truth. Every screen that shows a "done
+ * so far" count (Dashboard card, Workouts day summary, the guided
+ * walkthrough) should derive it from here rather than from a separately
+ * tracked local position, which can silently drift from what's actually
+ * been recorded server-side.
+ */
+export function completionProgress(
+  setsJson: Record<string, number[]>,
+  exercises: Exercise[],
+) {
+  const total = exercises.reduce((s, e) => s + e.sets, 0);
+  const completed = exercises.reduce((s, e, i) => {
+    const done = setsJson[String(i)]?.length ?? 0;
+    // Defensive cap: a stale completion count (e.g. after the plan's set
+    // count changed) should never push completed past the exercise's total.
+    return s + Math.min(done, e.sets);
+  }, 0);
+  return { completed, total, fraction: total > 0 ? completed / total : 0 };
+}
+
+/**
+ * The first not-yet-completed set, in exercise order — where the guided
+ * walkthrough should resume. Derived from real completions rather than a
+ * separately persisted "last position", so it can never point somewhere
+ * that disagrees with what's actually been marked done.
+ */
+export function findResumePosition(
+  exercises: Exercise[],
+  setsJson: Record<string, number[]>,
+): { exerciseIdx: number; setNum: number } | null {
+  for (let i = 0; i < exercises.length; i++) {
+    const done = setsJson[String(i)] ?? [];
+    for (let setNum = 1; setNum <= exercises[i]!.sets; setNum++) {
+      if (!done.includes(setNum)) return { exerciseIdx: i, setNum };
+    }
+  }
+  return null;
 }
 
 /**
