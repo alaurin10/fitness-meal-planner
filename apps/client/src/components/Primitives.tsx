@@ -77,10 +77,19 @@ export function PageHero({
           gap: 16,
         }}
       >
-        <h1 className="display-hero text-gradient" style={{ margin: 0, minWidth: 0 }}>
+        <h1
+          className="display-hero text-gradient"
+          style={{
+            margin: 0,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {title}
         </h1>
-        {right}
+        {right && <div style={{ flexShrink: 0 }}>{right}</div>}
       </div>
       {subtitle && (
         <div className="text-body" style={{ color: "var(--muted)", marginTop: 8 }}>

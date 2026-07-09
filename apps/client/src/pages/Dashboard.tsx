@@ -24,11 +24,10 @@ import {
   localDayKey,
   useMealCompletions,
 } from "../hooks/useMealCompletions";
-import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import {
-  useWorkoutSession,
-  sessionProgress,
-} from "../hooks/useWorkoutSession";
+  completionProgress,
+  useWorkoutCompletions,
+} from "../hooks/useWorkoutCompletions";
 import { AnimatedNumber } from "../components/Primitives";
 import { fireCelebration } from "../lib/confetti";
 import { success, tap } from "../lib/haptics";
@@ -112,10 +111,6 @@ export function DashboardPage() {
     workoutQuery.data?.id,
     localDayKey(),
   );
-  const workoutSession = useWorkoutSession(
-    workoutQuery.data?.id,
-    localDayKey(),
-  );
   const hydrationQuery = useHydration();
   const logHydration = useLogHydration();
   const unlogHydration = useUnlogHydration();
@@ -183,7 +178,7 @@ export function DashboardPage() {
 
   const todayWorkout = workoutPlan?.planJson.days.find((d) => d.day === todayLabel);
   const todayExercises = todayWorkout?.exercises ?? [];
-  const sessProgress = sessionProgress(workoutSession.session, todayExercises);
+  const sessProgress = completionProgress(workoutCompletion.setsJson, todayExercises);
   const hasSession = sessProgress.completed > 0 && !workoutCompletion.isComplete;
   const todayMeals = mealPlan?.planJson.days.find((d) => d.day === todayLabel);
   const mealsForToday = todayMeals?.meals ?? [];

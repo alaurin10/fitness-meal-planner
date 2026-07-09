@@ -36,7 +36,12 @@ function writeSession(key: string, session: CookingSession | null) {
   }
 }
 
-/** Resume-position persistence for guided cooking, mirroring useWorkoutSession. */
+/**
+ * Resume-position persistence for guided cooking. Unlike workout sets,
+ * cooking steps have no server-side per-step completion record, so a local
+ * "last step viewed" position is the only source of truth here — safe to
+ * treat as authoritative for resuming.
+ */
 export function useCookingSession(sessionKey: string) {
   const [session, setSession] = useState<CookingSession | null>(() => readSession(storageKey(sessionKey)));
 

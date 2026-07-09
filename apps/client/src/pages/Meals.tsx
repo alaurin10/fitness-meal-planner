@@ -20,6 +20,7 @@ import { AnimatedNumber, Chip, PageHero } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
 import { SkeletonList } from "../components/Skeleton";
+import { useToast } from "../components/Toast";
 import { WeekSelector } from "../components/WeekSelector";
 import { useSwipe } from "../hooks/useSwipe";
 import { success, tap } from "../lib/haptics";
@@ -77,6 +78,7 @@ export function MealsPage() {
   const { data: settings } = useSettings();
   const { data: profile } = useProfile();
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const toast = useToast();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
@@ -299,6 +301,47 @@ export function MealsPage() {
   function handleSwap(index: number, slotHint?: MealSlot) {
     setOpenMenu(null);
     setPicker({ kind: "replace", day: activeDay, index, slot: slotHint });
+  }
+
+  /** The meal a leftover's `leftoverOf` link points at, wherever it now sits. */
+  function sourceMealFor(link: { day: MealDay["day"]; slot: MealSlot }) {
+    const day = plan!.planJson.days.find((d) => d.day === link.day);
+    const index = day?.meals.findIndex((mm) => mm.slot === link.slot) ?? -1;
+    if (!day || index < 0) return null;
+    return { day: link.day, index, meal: day.meals[index]! };
+  }
+
+  /** True when a leftover's name no longer matches its linked source — e.g.
+   * the source dinner was replaced after this leftover was created. */
+  function isStaleLeftover(meal: Meal): boolean {
+    if (!meal.isLeftover || !meal.leftoverOf) return false;
+    const source = sourceMealFor(meal.leftoverOf);
+    return source == null || source.meal.name !== meal.name;
+  }
+
+  // Manual escape hatch for the leftover-repair dialog: lets the user pull a
+  // leftover back in sync with its source on demand, in case they missed the
+  // dialog when the source was replaced (or dismissed it and changed their
+  // mind), rather than only ever getting it as a one-shot popup.
+  function handleSyncLeftover(index: number) {
+    setOpenMenu(null);
+    const meal = meals[index];
+    const link = meal?.leftoverOf;
+    if (!link) return;
+    const source = sourceMealFor(link);
+    if (!source) {
+      toast.error("Can't find the meal these leftovers came from.");
+      return;
+    }
+    resolveLeftovers.mutate(
+      {
+        weekStart: viewingWeekStart,
+        source: { day: source.day, index: source.index },
+        cells: [{ day: activeDay, index }],
+        action: "update",
+      },
+      { onError: (e) => toast.error((e as Error).message) },
+    );
   }
 
   function handleAdd(slotHint?: MealSlot) {
@@ -559,6 +602,11 @@ export function MealsPage() {
                         <Icon name="swap" size={11} /> Leftovers
                       </Chip>
                     )}
+                    {isStaleLeftover(m) && (
+                      <Chip variant="honey">
+                        <Icon name="swap" size={11} /> Out of sync — tap ••• to update
+                      </Chip>
+                    )}
                     {total ? (
                       <Chip variant="ghost">
                         <Icon name="timer" size={11} /> {formatMinutes(total)}
@@ -625,6 +673,17 @@ export function MealsPage() {
                       label: "Swap from book",
                       onSelect: () => handleSwap(i, m.slot ?? undefined),
                     },
+                    ...(m.isLeftover && m.leftoverOf
+                      ? [
+                          {
+                            icon: "swap" as const,
+                            label: isStaleLeftover(m)
+                              ? `Update to match ${longDay(m.leftoverOf.day)}'s dinner`
+                              : "Re-sync with source meal",
+                            onSelect: () => handleSyncLeftover(i),
+                          },
+                        ]
+                      : []),
                     { icon: "x", label: "Remove", tone: "rose", onSelect: () => handleDelete(i) },
                   ]}
                 />

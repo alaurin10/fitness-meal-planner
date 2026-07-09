@@ -69,6 +69,19 @@ function Preview() {
       <div aria-hidden className="ambient-bg" />
       <div className="mx-auto max-w-[480px] min-h-screen relative pb-[100px]">
         <main className="relative overflow-x-clip">
+          {/* Regression check: a long title next to a button cluster (as on
+              Workouts/Meals) must ellipsize on narrow phones, never overlap
+              the buttons. */}
+          <PageHero
+            title="Workouts"
+            right={
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CircleButton aria-label="Info"><Icon name="note" size={18} /></CircleButton>
+                <CircleButton aria-label="Plan"><Icon name="plan" size={18} /></CircleButton>
+                <Chip>This week</Chip>
+              </div>
+            }
+          />
           <PageHero
             eyebrow="Thursday, July 3"
             title="Good morning."
