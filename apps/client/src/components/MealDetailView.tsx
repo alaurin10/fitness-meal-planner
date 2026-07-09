@@ -383,7 +383,7 @@ export function MealDetailView({
             className="glass sticky bottom-[calc(env(safe-area-inset-bottom,8px)+78px)] md:bottom-4"
             style={{
               borderRadius: "var(--radius-lg)",
-              padding: 10,
+              padding: 8,
               display: "flex",
               gap: 8,
               zIndex: 15,
@@ -391,7 +391,6 @@ export function MealDetailView({
           >
             {meal.steps.length > 0 && (
               <Button
-                size="lg"
                 variant={onToggleComplete ? "ghost" : "accent"}
                 onClick={() => setCooking(true)}
                 style={{ flex: 1 }}
@@ -402,7 +401,6 @@ export function MealDetailView({
             )}
             {onToggleComplete && (
               <Button
-                size="lg"
                 variant={isComplete ? "ghost" : "accent"}
                 onClick={onToggleComplete}
                 style={{

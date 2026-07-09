@@ -25,8 +25,8 @@ export function WeekSelector({
       <div role="tablist" aria-label="Select week" style={TOGGLE_STYLE}>
         {(
           [
-            { key: thisWeekStart, label: "This week" },
-            { key: nextWeekStart, label: "Next week" },
+            { key: thisWeekStart, label: "This wk", ariaLabel: "This week" },
+            { key: nextWeekStart, label: "Next wk", ariaLabel: "Next week" },
           ] as const
         ).map((opt) => {
           const active = viewingWeekStart === opt.key;
@@ -36,10 +36,11 @@ export function WeekSelector({
               type="button"
               role="tab"
               aria-selected={active}
+              aria-label={opt.ariaLabel}
               onClick={() => onChange(opt.key)}
               className="tappable"
               style={{
-                padding: "6px 14px",
+                padding: "6px 11px",
                 border: "none",
                 background: active ? "var(--ink)" : "transparent",
                 color: active ? "var(--paper)" : "var(--sumi)",

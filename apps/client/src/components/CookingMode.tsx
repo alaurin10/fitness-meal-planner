@@ -93,9 +93,8 @@ export function CookingMode({
     !resumeBannerDismissed && session !== null && session.stepIdx > 0 && stepIdx === session.stepIdx;
 
   return (
-    // Same immersive dark canvas as WorkoutMode — cooking is hands-busy too.
+    // Same full-screen theme-following takeover as WorkoutMode.
     <div
-      className="canvas-ink"
       style={{
         position: "fixed",
         inset: 0,

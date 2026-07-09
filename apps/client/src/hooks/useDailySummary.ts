@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
-import { localDayKey } from "./useMealCompletions";
+import { localDayKey } from "@platform/shared";
 
 export interface DailySummary {
   workout: {

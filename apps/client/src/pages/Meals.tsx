@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey, parseLocalDate } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -39,7 +39,7 @@ import {
   type AffectedLeftover,
   type PlanResult,
 } from "../hooks/useMealPlan";
-import { localDayKey, useMealCompletions } from "../hooks/useMealCompletions";
+import { useMealCompletions } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { recipeToMeal } from "../lib/recipeAdapter";
@@ -59,9 +59,9 @@ export function MealsPage() {
   const weekStartDay = useWeekStartDay();
   const DAYS = rotateDays(weekStartDay);
   const now = useMemo(() => new Date(), []);
-  const thisWeekStart = useMemo(() => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
+  const thisWeekStart = useMemo(() => localDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
   const nextWeekStart = useMemo(
-    () => sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
+    () => localDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
     [now, weekStartDay],
   );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
@@ -119,7 +119,8 @@ export function MealsPage() {
     });
   }
   const completions = useMealCompletions(plan?.id, localDayKey());
-  const viewingToday = activeDay === DAYS[todayIdx];
+  const viewingToday =
+    viewingWeekStart === thisWeekStart && activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
   // Directional slide when switching days (swipe or pill tap).
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
@@ -394,21 +395,12 @@ export function MealsPage() {
       <PageHero
         title="Meals"
         right={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
-            <CircleButton
-              aria-label="Plan week"
-              onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
-            >
-              <Icon name="plan" size={18} />
-            </CircleButton>
-            <WeekSelector
-              viewingWeekStart={viewingWeekStart}
-              thisWeekStart={thisWeekStart}
-              nextWeekStart={nextWeekStart}
-              onChange={setViewingWeekStart}
-            />
-          </div>
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={setViewingWeekStart}
+          />
         }
       />
 
@@ -434,9 +426,23 @@ export function MealsPage() {
       >
       <div className="px-4 pt-2">
         <Card tone="hero">
+          {/* Week-level controls live on the week card, not the masthead —
+              they act on the plan being viewed, and the tab header stays a
+              single uncrowded row. */}
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 2 }}>
+            <div className="eyebrow">{longDay(activeDay)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: -4, marginRight: -4 }}>
+              <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
+              <CircleButton
+                aria-label="Plan week"
+                onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
+              >
+                <Icon name="plan" size={18} />
+              </CircleButton>
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="eyebrow">{longDay(activeDay)}</div>
               <div className="title-lg mt-1">
                 {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>
@@ -597,16 +603,16 @@ export function MealsPage() {
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     {mealComplete && <Chip>Eaten</Chip>}
                     <Chip variant="moss">{m.proteinG}g protein</Chip>
-                    {m.isLeftover && (
-                      <Chip variant="ghost">
-                        <Icon name="swap" size={11} /> Leftovers
-                      </Chip>
-                    )}
-                    {isStaleLeftover(m) && (
-                      <Chip variant="honey">
-                        <Icon name="swap" size={11} /> Out of sync — tap ••• to update
-                      </Chip>
-                    )}
+                    {m.isLeftover &&
+                      (isStaleLeftover(m) ? (
+                        <Chip variant="honey">
+                          <Icon name="swap" size={11} /> Out of sync
+                        </Chip>
+                      ) : (
+                        <Chip variant="ghost">
+                          <Icon name="swap" size={11} /> Leftovers
+                        </Chip>
+                      ))}
                     {total ? (
                       <Chip variant="ghost">
                         <Icon name="timer" size={11} /> {formatMinutes(total)}

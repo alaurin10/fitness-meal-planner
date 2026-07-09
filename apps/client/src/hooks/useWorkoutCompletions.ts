@@ -1,10 +1,7 @@
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
-import { localDayKey } from "./useMealCompletions";
 import type { Exercise } from "./useWorkoutPlan";
-
-export { localDayKey };
 
 interface CompletionRecord {
   id: string;
@@ -167,11 +164,6 @@ export function useWorkoutCompletions(
 
   const isComplete = query.data?.completedAt != null;
 
-  const completedSetsCount = Object.values(setsJson).reduce(
-    (s, arr) => s + arr.length,
-    0,
-  );
-
   const markComplete = useCallback(() => {
     // no-op for compatibility — completion is auto-determined server-side
   }, []);
@@ -189,6 +181,5 @@ export function useWorkoutCompletions(
     unmarkSetComplete,
     isSetComplete,
     setsJson,
-    completedSetsCount,
   };
 }

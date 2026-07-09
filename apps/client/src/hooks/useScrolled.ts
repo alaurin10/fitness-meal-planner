@@ -2,12 +2,11 @@ import { useLayoutEffect, useState } from "react";
 
 /**
  * Returns `true` once the page is scrolled past `threshold` — used for
- * "elevate the sticky header" styling, where useScrollDirection's
- * direction-based collapse logic is the wrong signal.
+ * "elevate the sticky header" styling.
  *
- * Same conventions as useScrollDirection: rAF-throttled passive listener,
- * and an immediate sync before first paint (Layout remounts per route, so
- * the header must not flash flat and then elevate mid-scroll).
+ * rAF-throttled passive listener, with an immediate sync before first
+ * paint (Layout remounts per route, so the header must not flash flat
+ * and then elevate mid-scroll).
  */
 export function useScrolled(threshold = 2): boolean {
   const [scrolled, setScrolled] = useState(false);

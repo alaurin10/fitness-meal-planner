@@ -6,10 +6,8 @@ import { Layout } from "../components/Layout";
 import { MealDetailView } from "../components/MealDetailView";
 import { SkeletonList } from "../components/Skeleton";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
-import {
-  localDayKey,
-  useMealCompletions,
-} from "../hooks/useMealCompletions";
+import { localDayKey } from "@platform/shared";
+import { useMealCompletions } from "../hooks/useMealCompletions";
 import { useSaveMealAsRecipe } from "../hooks/useRecipes";
 import type { Meal, MealDay } from "../lib/types";
 

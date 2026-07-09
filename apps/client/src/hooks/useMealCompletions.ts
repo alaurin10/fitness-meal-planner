@@ -2,17 +2,6 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 
-/**
- * Local-date string in YYYY-MM-DD form. Uses the device's local time so
- * "today" always matches what the user perceives as today.
- */
-export function localDayKey(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = (date.getMonth() + 1).toString().padStart(2, "0");
-  const d = date.getDate().toString().padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 interface CompletionRecord {
   id: string;
   planId: string;

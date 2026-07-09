@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate, type DayLabel } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey, parseLocalDate, type DayLabel } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { DaySelector } from "../components/DaySelector";
@@ -18,7 +18,6 @@ import { useSwipe } from "../hooks/useSwipe";
 import { success, tap } from "../lib/haptics";
 import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useActivities";
 import { useIsDesktop } from "../hooks/useIsDesktop";
-import { localDayKey } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import {
@@ -49,9 +48,9 @@ export function WorkoutsPage() {
   const weekStartDay = useWeekStartDay();
   const DAYS = rotateDays(weekStartDay);
   const now = useMemo(() => new Date(), []);
-  const thisWeekStart = useMemo(() => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
+  const thisWeekStart = useMemo(() => localDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
   const nextWeekStart = useMemo(
-    () => sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
+    () => localDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
     [now, weekStartDay],
   );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
@@ -65,9 +64,13 @@ export function WorkoutsPage() {
     DAYS[todayIdx] ?? "Mon",
   );
   const activeDayIdx = DAYS.indexOf(activeDay);
-  const activeDayKey = localDayKey(
-    new Date(Date.now() + (activeDayIdx - todayIdx) * 86400 * 1000),
-  );
+  // Calendar date of the selected day within the *viewed* week, so
+  // completions land on next week's dates when that tab is active.
+  const activeDayKey = useMemo(() => {
+    const d = new Date(viewingWeekStartDate);
+    d.setDate(d.getDate() + activeDayIdx);
+    return localDayKey(d);
+  }, [viewingWeekStartDate, activeDayIdx]);
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
   const completion = useWorkoutCompletions(plan?.id, activeDayKey);
   const updateLoad = useUpdateExerciseLoad();
@@ -281,7 +284,8 @@ export function WorkoutsPage() {
 
   const dayEntry = plan.planJson.days.find((d) => d.day === activeDay);
   const exercises = dayEntry?.exercises ?? [];
-  const viewingToday = activeDay === DAYS[todayIdx];
+  const viewingToday =
+    viewingWeekStart === thisWeekStart && activeDay === DAYS[todayIdx];
 
   const sessProgress = completionProgress(completion.setsJson, exercises);
 
@@ -328,21 +332,12 @@ export function WorkoutsPage() {
       <PageHero
         title="Workouts"
         right={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo
-              title="About this plan"
-              sections={[
-                { text: plan.planJson.summary },
-                { label: "Progression", text: plan.planJson.progressionNotes },
-              ]}
-            />
-            <WeekSelector
-              viewingWeekStart={viewingWeekStart}
-              thisWeekStart={thisWeekStart}
-              nextWeekStart={nextWeekStart}
-              onChange={setViewingWeekStart}
-            />
-          </div>
+          <WeekSelector
+            viewingWeekStart={viewingWeekStart}
+            thisWeekStart={thisWeekStart}
+            nextWeekStart={nextWeekStart}
+            onChange={setViewingWeekStart}
+          />
         }
       />
 
@@ -368,9 +363,23 @@ export function WorkoutsPage() {
       >
       <div className="px-4 pt-2">
         <Card tone="hero">
+          {/* Plan-level info lives on the week card, not the masthead — it
+              describes the plan being viewed, and the tab header stays a
+              single uncrowded row. */}
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 2 }}>
+            <div className="eyebrow">{longDay(activeDay)}</div>
+            <div style={{ marginTop: -4, marginRight: -4 }}>
+              <PlanInfo
+                title="About this plan"
+                sections={[
+                  { text: plan.planJson.summary },
+                  { label: "Progression", text: plan.planJson.progressionNotes },
+                ]}
+              />
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="eyebrow">{longDay(activeDay)}</div>
               <div className="title-lg mt-1">{dayEntry?.focus ?? "Rest"}</div>
               <div className="text-caption" style={{ marginTop: 6 }}>
                 {exercises.length
@@ -633,13 +642,13 @@ export function WorkoutsPage() {
             onClick={() => setWorkoutInProgress(true)}
           >
             <Icon name="dumbbell" size={16} />
-            {viewingToday && completion.completedSetsCount > 0 && !completion.isComplete
-              ? `Resume workout · ${completion.completedSetsCount} of ${sessProgress.total} sets`
+            {viewingToday && sessProgress.completed > 0 && !completion.isComplete
+              ? `Resume workout · ${sessProgress.completed} of ${sessProgress.total} sets`
               : completion.isComplete && viewingToday
                 ? "Workout complete ✓"
                 : "Start workout"}
           </Button>
-          {viewingToday && completion.completedSetsCount > 0 && !completion.isComplete && (
+          {viewingToday && sessProgress.completed > 0 && !completion.isComplete && (
             <div
               style={{
                 height: 4,
@@ -651,7 +660,7 @@ export function WorkoutsPage() {
               <div
                 style={{
                   height: "100%",
-                  width: `${sessProgress.total > 0 ? (completion.completedSetsCount / sessProgress.total) * 100 : 0}%`,
+                  width: `${sessProgress.total > 0 ? (sessProgress.completed / sessProgress.total) * 100 : 0}%`,
                   background: "var(--accent)",
                   borderRadius: 2,
                   transition: "width 400ms ease",
