@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { localDayKey } from "@platform/shared";
 import { useApi } from "../lib/api";
 import type {
   GroceryList,
@@ -50,6 +51,7 @@ export function useGenerateMealPlan() {
       const { data } = await api.post<PlanResult>("/api/meals/generate", {
         targetWeekStart: opts?.targetWeekStart,
         skipSlots: opts?.skipSlots,
+        clientToday: localDayKey(),
       });
       return data;
     },
@@ -76,7 +78,10 @@ export function usePlanWeek() {
       cells: PlanWeekCellInput[];
       suggestion?: string;
     }) => {
-      const { data } = await api.post<PlanResult>("/api/meals/plan-week", args);
+      const { data } = await api.post<PlanResult>("/api/meals/plan-week", {
+        ...args,
+        clientToday: localDayKey(),
+      });
       return data;
     },
     onSuccess: (data, variables) => {
@@ -96,6 +101,7 @@ export function useCreateEmptyPlan() {
     mutationFn: async (opts?: { targetWeekStart?: string }) => {
       const { data } = await api.post<PlanResult>("/api/meals/empty", {
         targetWeekStart: opts?.targetWeekStart,
+        clientToday: localDayKey(),
       });
       return data;
     },

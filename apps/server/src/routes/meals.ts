@@ -70,6 +70,22 @@ async function getUserWeekStartDay(userId: string): Promise<WeekStartDay> {
   return (settings?.weekStartDay ?? "Mon") as WeekStartDay;
 }
 
+/**
+ * "Today" for week/window math (which days a generated plan should cover)
+ * must reflect the user's calendar day, not the server process's timezone —
+ * most deployments run the Node process in UTC. Near midnight UTC that's a
+ * multi-hour window where the server's "today" is already tomorrow relative
+ * to a US-timezone user, which would silently exclude their actual today
+ * from the generated plan's day window (surfacing later as "Day not found
+ * in plan" when they try to edit today's meals). The client sends its own
+ * local calendar date; fall back to server time only if it's absent.
+ */
+function resolveClientNow(clientToday: unknown): Date {
+  return typeof clientToday === "string" && /^\d{4}-\d{2}-\d{2}$/.test(clientToday)
+    ? parseLocalDate(clientToday)
+    : new Date();
+}
+
 const mealCompletionSchema = z.object({
   planId: z.string().min(1),
   dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -116,7 +132,7 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
 
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
-  const now = new Date();
+  const now = resolveClientNow(req.body.clientToday);
   const thisWeek = startOfWeek(now, weekStartDay);
 
   const targetStr = typeof req.body.targetWeekStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.targetWeekStart)
@@ -243,7 +259,7 @@ router.post("/empty", requireAuth, async (req, res) => {
 
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
-  const now = new Date();
+  const now = resolveClientNow(req.body.clientToday);
   const thisWeek = startOfWeek(now, weekStartDay);
 
   const targetStr = typeof req.body.targetWeekStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.targetWeekStart)
@@ -302,6 +318,7 @@ const planWeekSchema = z.object({
   targetWeekStart: weekStartField,
   cells: planWeekCellsSchema,
   suggestion: z.string().max(500).optional(),
+  clientToday: weekStartField,
 });
 
 // Build a whole week in one shot: place recipe/keep cells directly and
@@ -321,7 +338,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
 
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
-  const now = new Date();
+  const now = resolveClientNow(parsed.data.clientToday);
   const thisWeek = startOfWeek(now, weekStartDay);
   const target = parsed.data.targetWeekStart
     ? parseLocalDate(parsed.data.targetWeekStart)
