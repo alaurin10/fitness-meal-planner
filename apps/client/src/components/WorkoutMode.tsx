@@ -124,10 +124,9 @@ export function WorkoutMode({
       : "Bodyweight";
 
   return (
-    // canvas-ink forces the palette's dark tokens: the session takes over
-    // the screen as a focused dark room regardless of the app theme.
+    // Full-screen takeover in the app's own theme — the semantic tokens
+    // resolve to whatever light/dark palette the user has chosen.
     <div
-      className="canvas-ink"
       style={{
         position: "fixed",
         inset: 0,
