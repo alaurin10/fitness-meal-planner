@@ -62,6 +62,7 @@ export function RecipeViewPage() {
       <MealDetailView
         meal={meal}
         slotLabel={slotLabel}
+        sessionKey={`recipe:${recipe.id}`}
         topAction={
           <div
             style={{

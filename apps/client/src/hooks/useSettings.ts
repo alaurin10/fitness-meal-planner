@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../lib/api";
 import type { WeekStartDay } from "@platform/shared";
+import type { MealDay, MealSlot } from "../lib/types";
+
+/** Recurring meal-schedule template: slots to SKIP per day. */
+export type MealScheduleMask = Partial<Record<MealDay["day"], MealSlot[]>>;
 
 export interface AppSettings {
   unitSystem: "imperial" | "metric";
   weekStartDay?: WeekStartDay;
   theme?: "light" | "dark" | "system";
+  mealSchedule?: MealScheduleMask;
 }
 
 export function useSettings() {

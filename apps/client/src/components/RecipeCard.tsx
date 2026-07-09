@@ -12,7 +12,9 @@ export function RecipeCard({
   recipe: RecipeRecord;
   onSelect: () => void;
 }) {
-  const total = recipe.totalMinutes ?? null;
+  const total =
+    recipe.totalMinutes ??
+    ((recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0) || null);
   return (
     <Card
       flush

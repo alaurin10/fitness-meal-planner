@@ -1,7 +1,7 @@
 // Dev-only design-system preview (served by `vite dev` at /preview.html).
 // Renders the redesigned primitives without Clerk/API so the four
 // palette×theme combos can be screenshotted. Not part of the app build.
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import "./index.css";
@@ -14,8 +14,12 @@ import { EmptyState } from "./components/EmptyState";
 import { Heatmap } from "./components/Heatmap";
 import { Icon } from "./components/Icon";
 import { Illustration } from "./components/Illustration";
+import { LeftoverRepairDialog } from "./components/LeftoverRepairDialog";
+import { CellActionSheet } from "./components/planWeek/CellActionSheet";
+import { WeekGrid, type WeekGridCellView } from "./components/planWeek/WeekGrid";
 import { ProgressRing } from "./components/ProgressRing";
 import { Chip, PageHero, Ring, TimeSparkline } from "./components/Primitives";
+import type { MealDay, MealSlot } from "./lib/types";
 import { WeeklyBars } from "./components/WeeklyBars";
 
 function daysAgo(n: number) {
@@ -45,7 +49,21 @@ const heatData = Array.from({ length: 60 }, (_, i) => {
   return { date: key, level: ((i * 7) % 4) as 0 | 1 | 2 | 3 };
 });
 
+const WEEK_GRID_DAYS: MealDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEK_GRID_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner"];
+const WEEK_GRID_DEMO: Partial<Record<string, WeekGridCellView>> = {
+  "Mon:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
+  "Mon:lunch": { label: "Yogurt bowl", tone: "keep", icon: "check" },
+  "Mon:dinner": { label: "Miso salmon", tone: "recipe", icon: "fork" },
+  "Tue:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
+  "Tue:lunch": { label: "Skipped", tone: "skip", icon: "x" },
+  "Tue:dinner": { label: "Skipped", tone: "skip", icon: "x" },
+};
+
 function Preview() {
+  const [cellSheetOpen, setCellSheetOpen] = useState(false);
+  const [leftoverOpen, setLeftoverOpen] = useState(false);
+
   return (
     <>
       <div aria-hidden className="ambient-bg" />
@@ -63,25 +81,58 @@ function Preview() {
 
           <div className="px-4 flex flex-col gap-3 stagger-in">
             <Card tone="glass" className="texture-grain">
-              <div className="eyebrow" style={{ marginBottom: 12 }}>Today's progress</div>
-              <div style={{ display: "flex", justifyContent: "space-around" }}>
-                <Ring value={0.75} size={64} stroke={5.5} color="var(--moss)" />
-                <Ring value={1} size={64} stroke={5.5} gradient />
-                <Ring value={0.4} size={64} stroke={5.5} color="var(--honey)" />
-                <ProgressRing value={0.6} size={64} strokeWidth={5.5} gradient />
+              <div className="eyebrow" style={{ marginBottom: 14 }}>Today's progress</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                <Ring value={0.68} size={108} stroke={10} gradient>
+                  <span className="display-stat" style={{ fontSize: 27 }}>
+                    68<span style={{ fontSize: 14, fontWeight: 400 }}>%</span>
+                  </span>
+                </Ring>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 9 }}>
+                  {[
+                    ["Workout", "3/6", "var(--moss)", 0.5],
+                    ["Calories", "1,430 / 2,200", "var(--accent)", 0.65],
+                    ["Protein", "96 / 160g", "var(--honey)", 0.6],
+                    ["Water", "5 / 8", "var(--accent)", 0.62],
+                  ].map(([label, value, color, frac]) => (
+                    <div key={label as string} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span
+                        style={{
+                          width: 13,
+                          height: 13,
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          background: `conic-gradient(${color} ${Math.round((frac as number) * 360)}deg, color-mix(in srgb, var(--muted) 20%, transparent) 0deg)`,
+                        }}
+                      />
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
+                        {label}
+                      </span>
+                      <span className="font-display" style={{ fontSize: 13.5, color: "var(--sumi)" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </Card>
 
-            <Card tone="hero" raised>
+            <Card tone="accent" raised>
               <div className="eyebrow">Today's workout</div>
               <div className="title-lg" style={{ marginTop: 4 }}>Upper push</div>
               <div className="flex gap-2 mt-3">
                 <Chip>6 exercises</Chip>
-                <Chip variant="honey">Session</Chip>
-                <Chip variant="moss">45 min</Chip>
+                <Chip>Session</Chip>
+                <Chip>45 min</Chip>
               </div>
               <Button className="w-full mt-4" size="lg">
                 Start workout <Icon name="chevron" size={16} />
+              </Button>
+            </Card>
+
+            <Card tone="hero" raised>
+              <div className="eyebrow">Hero tone</div>
+              <div className="title-lg" style={{ marginTop: 4 }}>Accent-washed card</div>
+              <Button variant="accent" className="w-full mt-4">
+                Gradient accent button
               </Button>
             </Card>
 
@@ -137,10 +188,57 @@ function Preview() {
               <Illustration name="workout-done" size={100} />
               <Illustration name="welcome" size={100} />
             </div>
+
+            <Card>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Week planning canvas</div>
+              <WeekGrid
+                days={WEEK_GRID_DAYS}
+                slots={WEEK_GRID_SLOTS}
+                todayDay="Wed"
+                getCell={(day, slot) =>
+                  WEEK_GRID_DEMO[`${day}:${slot}`] ?? { label: "Generate", tone: "generate", icon: "sparkle" }
+                }
+                onCellTap={() => {}}
+              />
+            </Card>
+
+            <Card>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Plan-week dialogs</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button variant="ghost" onClick={() => setCellSheetOpen(true)}>
+                  Cell actions
+                </Button>
+                <Button variant="ghost" onClick={() => setLeftoverOpen(true)}>
+                  Leftover repair
+                </Button>
+              </div>
+            </Card>
           </div>
         </main>
         <BottomNav />
       </div>
+
+      <CellActionSheet
+        open={cellSheetOpen}
+        day="Wed"
+        slot="dinner"
+        hasExistingMeal
+        onGenerate={() => setCellSheetOpen(false)}
+        onPickFromBook={() => setCellSheetOpen(false)}
+        onKeep={() => setCellSheetOpen(false)}
+        onSkip={() => setCellSheetOpen(false)}
+        onClose={() => setCellSheetOpen(false)}
+      />
+
+      <LeftoverRepairDialog
+        open={leftoverOpen}
+        sourceName="Miso salmon bowl"
+        newSourceName="Chicken tikka"
+        affected={[{ day: "Thu", index: 1, name: "Miso salmon bowl (leftovers)", sourceName: "Miso salmon bowl" }]}
+        onUpdate={() => setLeftoverOpen(false)}
+        onRegenerate={() => setLeftoverOpen(false)}
+        onClose={() => setLeftoverOpen(false)}
+      />
     </>
   );
 }

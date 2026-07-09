@@ -28,7 +28,7 @@ export function EmptyState({
       {illustration ? (
         <Illustration
           name={illustration}
-          size={150}
+          size={176}
           className="fade-up"
           style={{ margin: "4px auto 0" }}
         />

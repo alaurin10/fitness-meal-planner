@@ -39,6 +39,14 @@ export const stepSchema = z.object({
   durationMinutes: z.number().int().nonnegative().optional(),
 });
 
+export const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** Structural link from a leftover meal to the meal it reuses. */
+export const leftoverOfSchema = z.object({
+  day: z.enum(DAY_LABELS),
+  slot: z.enum(MEAL_SLOTS),
+});
+
 export const mealSchema = z.object({
   name: z.string().min(1),
   slot: z.enum(MEAL_SLOTS).optional(),
@@ -55,10 +63,11 @@ export const mealSchema = z.object({
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
   isLeftover: z.boolean().optional(),
+  leftoverOf: leftoverOfSchema.optional(),
 });
 
 export const daySchema = z.object({
-  day: z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]),
+  day: z.enum(DAY_LABELS),
   meals: z.array(mealSchema).min(1),
 });
 
@@ -70,6 +79,7 @@ export const mealPlanSchema = z.object({
 
 export type MealPlanJson = z.infer<typeof mealPlanSchema>;
 export type MealJson = z.infer<typeof mealSchema>;
+export type LeftoverOf = z.infer<typeof leftoverOfSchema>;
 export type IngredientJson = z.infer<typeof ingredientSchema>;
 export type QuantityJson = z.infer<typeof quantitySchema>;
 export type StepJson = z.infer<typeof stepSchema>;

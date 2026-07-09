@@ -193,7 +193,7 @@ export function ProgressPage() {
       {/* ── Streaks: overall as the statement, categories as cells ───── */}
       {streaksQuery.data && (
         <div className="px-4 pt-1 fade-up">
-          <Card tone="hero" className="texture-grain">
+          <Card tone="accent" className="texture-grain">
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
               <div style={{ textAlign: "center", flexShrink: 0 }}>
                 <div
@@ -202,11 +202,11 @@ export function ProgressPage() {
                     alignItems: "baseline",
                     justifyContent: "center",
                     gap: 4,
-                    color: "var(--accent)",
+                    color: "var(--on-accent)",
                   }}
                 >
-                  <Icon name="flame" size={26} style={{ alignSelf: "center" }} />
-                  <span className="display-stat">
+                  <Icon name="flame" size={28} style={{ alignSelf: "center" }} />
+                  <span className="display-stat" style={{ fontSize: 46 }}>
                     <AnimatedNumber value={streaksQuery.data.overall.current} />
                   </span>
                 </div>
@@ -237,7 +237,7 @@ export function ProgressPage() {
       {/* ── This Week ────────────────────────────────────────────────── */}
       {weekStats && weekDays && (
         <div className="px-4 pt-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>This week</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>This week</div>
           <Card>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
               <StatCell label="Workouts" value={`${weekStats.workoutsDone}/${weekStats.workoutsTotal}`} color="var(--moss)" />
@@ -265,7 +265,7 @@ export function ProgressPage() {
       {/* ── Training load ────────────────────────────────────────────── */}
       {loadStats && (
         <div className="px-4 pt-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Training load</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Training load</div>
           <Card>
             <div className="flex items-end justify-between mb-2">
               <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -315,7 +315,7 @@ export function ProgressPage() {
       {/* ── 12-week History Heatmap ──────────────────────────────────── */}
       {heatmapData.length > 0 && (
         <div className="px-4 pt-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Activity history</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Activity history</div>
           <Card>
             <Heatmap data={heatmapData} weeks={12} color="var(--moss)" weekStartDay={weekStartDay} />
             <div style={{ display: "flex", gap: 4, marginTop: 10, alignItems: "center", fontSize: 10, color: "var(--muted)" }}>
@@ -346,7 +346,7 @@ export function ProgressPage() {
 
       {/* ── Weight ───────────────────────────────────────────────────── */}
       <div className="px-4 pt-4">
-        <div className="eyebrow" style={{ marginBottom: 10 }}>Weight</div>
+        <div className="section-title" style={{ marginBottom: 10 }}>Weight</div>
         <Card>
           <div className="flex items-end justify-between mb-2">
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -479,7 +479,7 @@ export function ProgressPage() {
       )}
       {logs && logs.length > 0 && (
         <div className="px-4 pt-4 pb-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Recent entries</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Recent entries</div>
           <Card flush className="stagger-in">
             {logs.slice(0, 5).map((l, i, arr) => {
               // A log is either a body-weight entry (weightLbs) or an exercise
@@ -576,26 +576,39 @@ function StatCell({ label, value, color }: { label: string; value: string; color
   );
 }
 
+// Frosted cells that sit on the accent streak band.
 function StreakCell({
   label,
   current,
   best,
-  color,
 }: {
   label: string;
   current: number;
   best: number;
-  color: string;
+  color?: string;
 }) {
   return (
-    <div className="streak-card" style={{ padding: "10px 6px" }}>
-      <div className="font-display" style={{ fontSize: 22, color, lineHeight: 1 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+        padding: "12px 6px",
+        borderRadius: "var(--radius-sm)",
+        background: "color-mix(in srgb, var(--on-accent) 14%, transparent)",
+        textAlign: "center",
+      }}
+    >
+      <div className="font-display" style={{ fontSize: 24, color: "var(--on-accent)", lineHeight: 1 }}>
         {current}
       </div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink)", marginTop: 3 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--on-accent)", marginTop: 3 }}>
         {label}
       </div>
-      <div style={{ fontSize: 9.5, color: "var(--muted)" }}>Best: {best}</div>
+      <div style={{ fontSize: 9.5, color: "color-mix(in srgb, var(--on-accent) 70%, transparent)" }}>
+        Best: {best}
+      </div>
     </div>
   );
 }

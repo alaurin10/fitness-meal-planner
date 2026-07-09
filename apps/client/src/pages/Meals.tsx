@@ -15,6 +15,7 @@ import { PlanInfo } from "../components/PlanInfo";
 import { PopMenu } from "../components/PopMenu";
 import { CircleButton } from "../components/CircleButton";
 import { Illustration, mealIllustration } from "../components/Illustration";
+import { LeftoverRepairDialog } from "../components/LeftoverRepairDialog";
 import { AnimatedNumber, Chip, PageHero } from "../components/Primitives";
 import { RecipePickerModal } from "../components/RecipePickerModal";
 import { RegenerateHintModal } from "../components/RegenerateHintModal";
@@ -33,6 +34,9 @@ import {
   useRegenerateDay,
   useRegenerateSlot,
   useReplaceSlot,
+  useResolveLeftovers,
+  type AffectedLeftover,
+  type PlanResult,
 } from "../hooks/useMealPlan";
 import { localDayKey, useMealCompletions } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
@@ -83,6 +87,35 @@ export function MealsPage() {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [picker, setPicker] = useState<PendingPicker | null>(null);
   const [hintPrompt, setHintPrompt] = useState<PendingHint | null>(null);
+  const resolveLeftovers = useResolveLeftovers();
+  const [leftoverRepair, setLeftoverRepair] = useState<{
+    source: { day: MealDay["day"]; index: number };
+    sourceName: string;
+    newSourceName?: string;
+    affected: AffectedLeftover[];
+  } | null>(null);
+
+  // After a mutation replaced a meal, ask what to do with any leftovers that
+  // depended on it. `sourceIndexHint` locates the successor meal when the
+  // whole day was regenerated (indices may have changed).
+  function maybeOpenLeftoverRepair(data: PlanResult, sourceDay: MealDay["day"], sourceIndexHint?: number) {
+    const affected = data.affectedLeftovers;
+    if (!affected?.length) return;
+    const newDay = data.plan.planJson.days.find((d) => d.day === sourceDay);
+    if (!newDay) return;
+    let index = sourceIndexHint ?? -1;
+    if (index < 0 || index >= newDay.meals.length) {
+      const slot = affected[0]?.sourceSlot;
+      index = slot ? newDay.meals.findIndex((m) => m.slot === slot) : -1;
+    }
+    if (index < 0) return; // successor not resolvable — leave the plan be
+    setLeftoverRepair({
+      source: { day: sourceDay, index },
+      sourceName: affected[0]!.sourceName,
+      newSourceName: newDay.meals[index]?.name,
+      affected,
+    });
+  }
   const completions = useMealCompletions(plan?.id, localDayKey());
   const viewingToday = activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
@@ -138,17 +171,25 @@ export function MealsPage() {
             <EmptyState
               illustration="meal-breakfast"
               title="No active plan"
-              body="Generate a week of meals matched to your targets, or start from a blank slate."
+              body="Build a week by mixing AI-generated meals with picks from your recipe book, or generate the whole week at once."
             >
               <Button
                 className="w-full mt-5"
-                onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+                onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
               >
-                <Icon name="sparkle" size={16} />
-                Generate {viewingWeekStart === thisWeekStart ? "this week" : "next week"}
+                <Icon name="plan" size={16} />
+                Plan {viewingWeekStart === thisWeekStart ? "this week" : "next week"}
               </Button>
               <Button
                 variant="ghost"
+                className="w-full mt-2"
+                onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+              >
+                <Icon name="sparkle" size={16} />
+                Generate the whole week
+              </Button>
+              <Button
+                variant="plain"
                 className="w-full mt-2"
                 onClick={() => createEmpty.mutate({ targetWeekStart: viewingWeekStart })}
                 disabled={createEmpty.isPending}
@@ -186,21 +227,20 @@ export function MealsPage() {
     deleteSlot.isPending;
 
   function handleRegenerateDay(suggestion?: string) {
-    regenDay.mutate({
-      day: activeDay,
-      weekStart: viewingWeekStart,
-      suggestion,
-    });
+    const day = activeDay;
+    regenDay.mutate(
+      { day, weekStart: viewingWeekStart, suggestion },
+      { onSuccess: (data) => maybeOpenLeftoverRepair(data, day) },
+    );
   }
 
   function handleRegenerate(index: number, suggestion?: string) {
     setOpenMenu(null);
-    regenSlot.mutate({
-      day: activeDay,
-      index,
-      weekStart: viewingWeekStart,
-      suggestion,
-    });
+    const day = activeDay;
+    regenSlot.mutate(
+      { day, index, weekStart: viewingWeekStart, suggestion },
+      { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+    );
   }
 
   function handleOpenSlotHint(index: number) {
@@ -221,18 +261,26 @@ export function MealsPage() {
   function handleHintSubmit(suggestion: string) {
     if (!hintPrompt) return;
     if (hintPrompt.kind === "slot") {
-      regenSlot.mutate({
-        day: hintPrompt.day,
-        index: hintPrompt.index,
-        weekStart: viewingWeekStart,
-        suggestion: suggestion || undefined,
-      });
+      const { day, index } = hintPrompt;
+      regenSlot.mutate(
+        {
+          day,
+          index,
+          weekStart: viewingWeekStart,
+          suggestion: suggestion || undefined,
+        },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+      );
     } else {
-      regenDay.mutate({
-        day: hintPrompt.day,
-        weekStart: viewingWeekStart,
-        suggestion: suggestion || undefined,
-      });
+      const { day } = hintPrompt;
+      regenDay.mutate(
+        {
+          day,
+          weekStart: viewingWeekStart,
+          suggestion: suggestion || undefined,
+        },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day) },
+      );
     }
   }
 
@@ -262,12 +310,11 @@ export function MealsPage() {
     const meal: Meal = recipeToMeal(recipe);
     if (picker.slot) meal.slot = picker.slot;
     if (picker.kind === "replace") {
-      replaceSlot.mutate({
-        day: picker.day,
-        index: picker.index,
-        meal,
-        weekStart: viewingWeekStart,
-      });
+      const { day, index } = picker;
+      replaceSlot.mutate(
+        { day, index, meal, weekStart: viewingWeekStart },
+        { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
+      );
     } else {
       addSlot.mutate({ day: picker.day, meal, weekStart: viewingWeekStart });
     }
@@ -306,6 +353,12 @@ export function MealsPage() {
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
+            <CircleButton
+              aria-label="Plan week"
+              onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
+            >
+              <Icon name="plan" size={18} />
+            </CircleButton>
             <WeekSelector
               viewingWeekStart={viewingWeekStart}
               thisWeekStart={thisWeekStart}
@@ -341,7 +394,7 @@ export function MealsPage() {
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="eyebrow">{longDay(activeDay)}</div>
-              <div className="title-md mt-1">
+              <div className="title-lg mt-1">
                 {isDayRegenerating ? "Regenerating…" : meals.length ? `${meals.length} meals` : "Nothing planned"}
               </div>
               <div
@@ -580,6 +633,20 @@ export function MealsPage() {
           );
         })}
 
+        {/* Slots the recurring schedule template skips this week. Informational,
+            with a one-tap escape hatch to plan the meal anyway. */}
+        {!isDayRegenerating &&
+          (settings?.mealSchedule?.[activeDay] ?? [])
+            .filter((slot) => !meals.some((m) => m.slot === slot))
+            .map((slot) => (
+              <SkippedSlotRow
+                key={`skip-${slot}`}
+                slot={slot}
+                onPlan={() => handleAdd(slot)}
+                disabled={anyMutation}
+              />
+            ))}
+
         <button
           type="button"
           onClick={() => handleAdd(nextSlotForDay)}
@@ -673,6 +740,38 @@ export function MealsPage() {
         onPick={handlePick}
         onClose={() => setPicker(null)}
       />
+      <LeftoverRepairDialog
+        open={leftoverRepair !== null}
+        sourceName={leftoverRepair?.sourceName ?? ""}
+        newSourceName={leftoverRepair?.newSourceName}
+        affected={leftoverRepair?.affected ?? []}
+        busy={resolveLeftovers.isPending}
+        onUpdate={() => {
+          if (!leftoverRepair) return;
+          resolveLeftovers.mutate(
+            {
+              weekStart: viewingWeekStart,
+              source: leftoverRepair.source,
+              cells: leftoverRepair.affected.map((a) => ({ day: a.day, index: a.index })),
+              action: "update",
+            },
+            { onSettled: () => setLeftoverRepair(null) },
+          );
+        }}
+        onRegenerate={() => {
+          if (!leftoverRepair) return;
+          resolveLeftovers.mutate(
+            {
+              weekStart: viewingWeekStart,
+              source: leftoverRepair.source,
+              cells: leftoverRepair.affected.map((a) => ({ day: a.day, index: a.index })),
+              action: "regenerate",
+            },
+            { onSettled: () => setLeftoverRepair(null) },
+          );
+        }}
+        onClose={() => setLeftoverRepair(null)}
+      />
       <RegenerateHintModal
         open={hintPrompt !== null}
         title={
@@ -687,6 +786,54 @@ export function MealsPage() {
       />
       {confirmDialog}
     </Layout>
+  );
+}
+
+function SkippedSlotRow({
+  slot,
+  onPlan,
+  disabled,
+}: {
+  slot: MealSlot;
+  onPlan: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "12px 16px",
+        border: "1.5px dashed var(--hair)",
+        borderRadius: "var(--radius)",
+        color: "var(--muted)",
+      }}
+    >
+      <Icon name="x" size={15} />
+      <div style={{ flex: 1 }}>
+        <span style={{ fontWeight: 500, textTransform: "capitalize", color: "var(--sumi)" }}>
+          {slot}
+        </span>{" "}
+        · skipped this week
+      </div>
+      <button
+        type="button"
+        onClick={onPlan}
+        disabled={disabled}
+        className="tappable"
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "var(--accent)",
+          fontWeight: 600,
+          fontSize: 12.5,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        Plan anyway
+      </button>
+    </div>
   );
 }
 

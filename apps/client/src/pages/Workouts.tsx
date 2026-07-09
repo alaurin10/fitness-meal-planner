@@ -153,7 +153,7 @@ export function WorkoutsPage() {
         </div>
 
         <div className="px-4 pt-6">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Log an activity</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Log an activity</div>
           {!showActivityForm ? (
             <Button
               variant="ghost"
@@ -183,7 +183,7 @@ export function WorkoutsPage() {
 
         {activitiesQuery.data && activitiesQuery.data.length > 0 && (
           <div className="px-4 pt-4">
-            <div className="eyebrow" style={{ marginBottom: 10 }}>Recent activities</div>
+            <div className="section-title" style={{ marginBottom: 10 }}>Recent activities</div>
             <Card flush>
               {activitiesQuery.data.slice(0, 20).map((a, i, arr) => (
                 <div
@@ -373,7 +373,7 @@ export function WorkoutsPage() {
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className="eyebrow">{longDay(activeDay)}</div>
-              <div className="title-md mt-1">{dayEntry?.focus ?? "Rest"}</div>
+              <div className="title-lg mt-1">{dayEntry?.focus ?? "Rest"}</div>
               <div className="text-caption" style={{ marginTop: 6 }}>
                 {exercises.length
                   ? `${exercises.length} exercises planned.`
@@ -688,7 +688,7 @@ export function WorkoutsPage() {
       </div>
 
       <div className="px-4 pt-6">
-        <div className="eyebrow" style={{ marginBottom: 10 }}>Log an activity</div>
+        <div className="section-title" style={{ marginBottom: 10 }}>Log an activity</div>
         {!showActivityForm ? (
           <Button
             variant="ghost"
@@ -718,7 +718,7 @@ export function WorkoutsPage() {
 
       {activitiesQuery.data && activitiesQuery.data.length > 0 && (
         <div className="px-4 pt-4">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Recent activities</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Recent activities</div>
           <Card flush>
             {activitiesQuery.data.slice(0, 20).map((a, i, arr) => (
               <div

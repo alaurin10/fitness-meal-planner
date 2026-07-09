@@ -4,6 +4,8 @@ import { useApi } from "../lib/api";
 import type { DayLabel } from "@platform/shared";
 
 export type MealComplexity = "varied" | "simple" | "prep";
+export type LeftoverPreference = "none" | "occasional" | "often";
+export type VarietyStrength = "low" | "medium" | "high";
 
 export const EQUIPMENT_OPTIONS = [
   "barbell",
@@ -37,6 +39,12 @@ export interface Profile {
   proteinTargetG: number | null;
   dietaryNotes: string | null;
   mealComplexity: MealComplexity;
+  leftoverPreference: LeftoverPreference;
+  varietyStrength: VarietyStrength;
+  cuisineLikes: string[];
+  cuisineDislikes: string[];
+  weeknightMaxMinutes: number | null;
+  weekendRelaxed: boolean;
   workoutStyle: WorkoutStyle;
   equipment: EquipmentId[];
   hydrationGoal: number;
@@ -57,6 +65,12 @@ export interface ProfileInput {
   proteinTargetG?: number | null;
   dietaryNotes?: string | null;
   mealComplexity: MealComplexity;
+  leftoverPreference?: LeftoverPreference;
+  varietyStrength?: VarietyStrength;
+  cuisineLikes?: string[];
+  cuisineDislikes?: string[];
+  weeknightMaxMinutes?: number | null;
+  weekendRelaxed?: boolean;
   workoutStyle: WorkoutStyle;
   equipment: EquipmentId[];
   hydrationGoal?: number;

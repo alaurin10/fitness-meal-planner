@@ -131,8 +131,19 @@ export interface GeminiCallOptions {
   /** Native Gemini response schema (see geminiSchemas.ts). */
   responseSchema?: unknown;
   maxOutputTokens: number;
+  /** Sampling temperature; omitted = model default. */
+  temperature?: number;
   /** For log correlation only. */
   attempt?: number;
+}
+
+/**
+ * Generation temperature: GEMINI_TEMPERATURE env override, else the caller's
+ * fallback. Higher values push Gemini toward more varied meal plans.
+ */
+export function defaultTemperature(fallback = 0.9): number {
+  const v = Number(process.env.GEMINI_TEMPERATURE);
+  return Number.isFinite(v) && v > 0 && v <= 2 ? v : fallback;
 }
 
 /**
@@ -155,6 +166,7 @@ export async function callGemini(opts: GeminiCallOptions): Promise<unknown> {
         maxOutputTokens: opts.maxOutputTokens,
         responseMimeType: "application/json",
         ...(opts.responseSchema ? { responseSchema: opts.responseSchema as never } : {}),
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
         systemInstruction: opts.systemInstruction,
         abortSignal: controller.signal,
       },

@@ -218,79 +218,106 @@ export function DashboardPage() {
         }
       />
 
-      {/* Today's progress rings — the floating glass moment */}
-      {summary && (
-        <div className="px-4 pt-1 pb-2 fade-up">
-          <Card tone="glass" className="texture-grain">
-            {allCategoriesDone && (
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-                <Illustration name="all-done" size={140} className="fade-up" />
+      {/* Today's progress — one big completion arc, category rows beside it */}
+      {summary && (() => {
+        const workoutFrac = summary.workout.isRestDay
+          ? 1
+          : summary.workout.total > 0
+            ? summary.workout.completed / summary.workout.total
+            : 0;
+        const calFrac = summary.targets.caloricTarget
+          ? Math.min(summary.meals.calories / summary.targets.caloricTarget, 1)
+          : 0;
+        const proteinFrac = summary.targets.proteinTargetG
+          ? Math.min(summary.meals.protein / summary.targets.proteinTargetG, 1)
+          : 0;
+        const hydraFrac = summary.hydration.goal > 0
+          ? Math.min(summary.hydration.cups / summary.hydration.goal, 1)
+          : 0;
+        const overall = (workoutFrac + calFrac + proteinFrac + hydraFrac) / 4;
+        return (
+          <div className="px-4 pt-1 pb-2 fade-up">
+            <Card tone="glass" className="texture-grain">
+              <div className="eyebrow" style={{ marginBottom: 14 }}>
+                {allCategoriesDone ? "Everything done today" : "Today's progress"}
               </div>
-            )}
-            <div className="eyebrow" style={{ marginBottom: 12 }}>
-              {allCategoriesDone ? "Everything done today" : "Today's progress"}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start" }}>
-              <ProgressStat
-                label="Workout"
-                value={summary.workout.isRestDay
-                  ? "Rest"
-                  : summary.workout.done
-                    ? "Done"
-                    : `${summary.workout.completed}/${summary.workout.total}`}
-                fraction={summary.workout.isRestDay ? 1 : summary.workout.total > 0
-                  ? summary.workout.completed / summary.workout.total : 0}
-                color="var(--moss)"
-                done={summary.workout.done || summary.workout.isRestDay}
-              />
-              <ProgressStat
-                label="Calories"
-                value={summary.meals.calories > 0 ? String(summary.meals.calories) : "0"}
-                sublabel={summary.targets.caloricTarget ? `/ ${summary.targets.caloricTarget}` : undefined}
-                fraction={summary.targets.caloricTarget
-                  ? Math.min(summary.meals.calories / summary.targets.caloricTarget, 1) : 0}
-                color="var(--accent)"
-                done={summary.meals.done}
-              />
-              <ProgressStat
-                label="Protein"
-                value={summary.meals.protein > 0 ? `${summary.meals.protein}g` : "0g"}
-                sublabel={summary.targets.proteinTargetG ? `/ ${summary.targets.proteinTargetG}g` : undefined}
-                fraction={summary.targets.proteinTargetG
-                  ? Math.min(summary.meals.protein / summary.targets.proteinTargetG, 1) : 0}
-                color="var(--honey)"
-                done={false}
-              />
-              <ProgressStat
-                label="Hydration"
-                value={`${summary.hydration.cups}`}
-                sublabel={`/ ${summary.hydration.goal}`}
-                fraction={summary.hydration.goal > 0
-                  ? Math.min(summary.hydration.cups / summary.hydration.goal, 1) : 0}
-                color={summary.hydration.cups >= summary.hydration.goal ? "var(--moss)" : "var(--accent)"}
-                done={summary.hydration.cups >= summary.hydration.goal}
-              />
-            </div>
-          </Card>
-        </div>
-      )}
+              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                {allCategoriesDone ? (
+                  <Illustration name="all-done" size={120} className="fade-up" style={{ flexShrink: 0 }} />
+                ) : (
+                  <Ring value={overall} size={108} stroke={10} gradient>
+                    <span className="display-stat" style={{ fontSize: 27 }}>
+                      {Math.round(overall * 100)}
+                      <span style={{ fontSize: 14, fontWeight: 400 }}>%</span>
+                    </span>
+                  </Ring>
+                )}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 9 }}>
+                  <StatRow
+                    label="Workout"
+                    value={summary.workout.isRestDay
+                      ? "Rest"
+                      : summary.workout.done
+                        ? "Done"
+                        : `${summary.workout.completed}/${summary.workout.total}`}
+                    fraction={workoutFrac}
+                    color="var(--moss)"
+                    done={summary.workout.done || summary.workout.isRestDay}
+                  />
+                  <StatRow
+                    label="Calories"
+                    value={summary.targets.caloricTarget
+                      ? `${summary.meals.calories} / ${summary.targets.caloricTarget}`
+                      : String(summary.meals.calories)}
+                    fraction={calFrac}
+                    color="var(--accent)"
+                    done={summary.meals.done}
+                  />
+                  <StatRow
+                    label="Protein"
+                    value={summary.targets.proteinTargetG
+                      ? `${summary.meals.protein} / ${summary.targets.proteinTargetG}g`
+                      : `${summary.meals.protein}g`}
+                    fraction={proteinFrac}
+                    color="var(--honey)"
+                    done={false}
+                  />
+                  <StatRow
+                    label="Water"
+                    value={`${summary.hydration.cups} / ${summary.hydration.goal}`}
+                    fraction={hydraFrac}
+                    color={hydraFrac >= 1 ? "var(--moss)" : "var(--accent)"}
+                    done={hydraFrac >= 1}
+                  />
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
 
-      {/* Today's workout */}
+      {/* Today's workout — a full accent statement block when there's a session */}
       <div className="px-4 pt-1 flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4 stagger-in">
         <Card
-          tone="gradient"
+          tone={todayWorkout ? "accent" : "gradient"}
           raised
           style={{ order: mealCardFirst ? 2 : 1 }}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="eyebrow">Today's workout</div>
             {hasSession ? (
-              <ProgressRing value={sessProgress.fraction} size={36} strokeWidth={3.5}>
+              <ProgressRing
+                value={sessProgress.fraction}
+                size={36}
+                strokeWidth={3.5}
+                fillColor="var(--on-accent)"
+                trackColor="color-mix(in srgb, var(--on-accent) 25%, transparent)"
+              >
                 <span
                   style={{
                     fontSize: 9,
                     fontWeight: 600,
-                    color: "var(--accent)",
+                    color: "var(--on-accent)",
                     fontFamily: "var(--font-body)",
                   }}
                 >
@@ -303,8 +330,8 @@ export function DashboardPage() {
                   width: 36,
                   height: 36,
                   borderRadius: "50%",
-                  background: "var(--accent)",
-                  color: "var(--paper)",
+                  background: "var(--on-accent)",
+                  color: "var(--accent)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -313,7 +340,11 @@ export function DashboardPage() {
                 <Icon name="check" size={18} stroke={2.5} />
               </div>
             ) : (
-              <Icon name="dumbbell" size={20} style={{ color: "var(--accent)" }} />
+              <Icon
+                name="dumbbell"
+                size={22}
+                style={{ color: todayWorkout ? "var(--on-accent)" : "var(--accent)" }}
+              />
             )}
           </div>
           {todayWorkout ? (
@@ -507,58 +538,55 @@ export function DashboardPage() {
   );
 }
 
-function ProgressStat({
+function StatRow({
   label,
   value,
-  sublabel,
   fraction,
   color,
   done,
 }: {
   label: string;
   value: string;
-  sublabel?: string;
   fraction: number;
   color: string;
   done: boolean;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <Ring
-        value={fraction}
-        size={64}
-        stroke={5.5}
-        color={color}
-        gradient={done}
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {done ? (
+        <span style={{ color, display: "inline-flex", flexShrink: 0, animation: "checkPop 260ms ease" }}>
+          <Icon name="check" size={13} stroke={3} />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          style={{
+            width: 13,
+            height: 13,
+            borderRadius: "50%",
+            flexShrink: 0,
+            background: `conic-gradient(${color} ${Math.round(fraction * 360)}deg, color-mix(in srgb, var(--muted) 20%, transparent) 0deg)`,
+          }}
+        />
+      )}
+      <span
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          color: "var(--ink)",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          flex: 1,
+        }}
       >
-        {done ? (
-          <div style={{ color, animation: "checkPop 260ms ease" }}>
-            <Icon name="check" size={20} stroke={2.5} />
-          </div>
-        ) : (
-          <span
-            className="font-display"
-            style={{
-              fontSize: 13,
-              color: "var(--ink)",
-              letterSpacing: "-0.01em",
-              lineHeight: 1,
-            }}
-          >
-            {value}
-          </span>
-        )}
-      </Ring>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-          {label}
-        </div>
-        {sublabel && !done && (
-          <div style={{ fontSize: 9.5, color: "var(--muted)", marginTop: 1 }}>
-            {sublabel}
-          </div>
-        )}
-      </div>
+        {label}
+      </span>
+      <span
+        className="font-display"
+        style={{ fontSize: 13.5, color: done ? color : "var(--sumi)", letterSpacing: "-0.01em" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -577,9 +605,27 @@ function HydrationCard({
   loading: boolean;
 }) {
   const reached = cups >= goal;
+  const level = goal > 0 ? Math.min(cups / goal, 1) : 0;
   return (
     <div className="px-4 pt-3 fade-up">
-      <Card>
+      <Card flush style={{ overflow: "hidden" }}>
+        {/* Water level rises with each logged cup */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: `${level * 100}%`,
+            background: reached
+              ? "color-mix(in srgb, var(--moss) 14%, transparent)"
+              : "color-mix(in srgb, var(--accent) 11%, transparent)",
+            transition: "height 600ms cubic-bezier(0.2, 0.8, 0.2, 1), background 300ms ease",
+            pointerEvents: "none",
+          }}
+        />
+        <div style={{ position: "relative", padding: "var(--pad-card)" }}>
         <div className="flex items-center justify-between mb-3">
           <div className="eyebrow">Hydration</div>
           <Icon name="water" size={20} style={{ color: "var(--accent)" }} />
@@ -635,6 +681,7 @@ function HydrationCard({
               </CircleButton>
             </div>
           )}
+        </div>
         </div>
       </Card>
     </div>

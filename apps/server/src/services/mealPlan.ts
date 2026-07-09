@@ -1,12 +1,14 @@
 import type { Profile } from "@platform/db";
 import type { DayLabel } from "@platform/shared";
-import { callGemini, generateWithRetry, GenerationSkipError } from "./gemini.js";
+import { callGemini, defaultTemperature, generateWithRetry, GenerationSkipError } from "./gemini.js";
 import {
   buildSingleMealSystemPrompt,
   buildSingleMealUserPrompt,
   buildSystemPrompt,
   buildUserPrompt,
+  type FixedMealRef,
 } from "./mealPlanPrompt.js";
+import { dayHasSkippedCoreSlot, type SlotMask } from "./mealScheduleMask.js";
 import {
   mealPlanSchema,
   mealSchema,
@@ -30,6 +32,15 @@ interface GenerateMealPlanArgs {
   userSuggestion?: string;
   /** System-generated corrective guidance — kept separate from user text. */
   macroFeedback?: string;
+  /** Recent meal names the model must not repeat (variety). */
+  recentMealNames?: string[];
+  varietyTone?: "soft" | "strict";
+  /** Sampling temperature; defaults to defaultTemperature(). */
+  temperature?: number;
+  /** Slots to skip per day (partial-day masking). */
+  skipMask?: SlotMask;
+  /** User-locked meals the model plans around (batch canvas). */
+  fixedMeals?: FixedMealRef[];
 }
 
 /** Core generation: prompt → structured Gemini call → normalize → Zod validate. */
@@ -42,6 +53,7 @@ async function generateMealPlanRaw(args: GenerateMealPlanArgs): Promise<MealPlan
       responseSchema: mealPlanResponseSchema,
       systemInstruction: buildSystemPrompt(),
       contents: buildUserPrompt(args),
+      temperature: args.temperature ?? defaultTemperature(),
     });
 
     const validated = mealPlanSchema.safeParse(normalizeMealPlan(parsed));
@@ -74,11 +86,16 @@ export async function generateMealPlan(args: GenerateMealPlanArgs): Promise<Meal
 
   // Prioritize the worst calorie offenders, capped to bound cost. Exactly one
   // corrective round — we do NOT re-check the corrected output to avoid loops.
+  // Days with a skipped core slot are intentionally light on macros; excluding
+  // them stops the corrector from re-adding the meals the user asked to skip.
   const fixDays = [...report.deviations]
     .filter((d) => d.needsFix)
+    .filter((d) => !(args.skipMask && dayHasSkippedCoreSlot(args.skipMask, d.day as DayLabel)))
     .sort((a, b) => Math.abs(b.calorieOffPct) - Math.abs(a.calorieOffPct))
     .slice(0, MAX_CORRECTIVE_DAYS)
     .map((d) => d.day as DayLabel);
+
+  if (fixDays.length === 0) return plan;
 
   console.warn(
     `[meals] macro check flagged ${report.daysNeedingFix.length} day(s); correcting: ${fixDays.join(", ")}`,
@@ -113,6 +130,7 @@ export async function generateSingleMeal(args: {
   targetProteinG?: number;
   avoidNames?: string[];
   userSuggestion?: string;
+  temperature?: number;
 }): Promise<MealJson> {
   return generateWithRetry(async (model, attempt) => {
     const parsed = await callGemini({
@@ -122,6 +140,7 @@ export async function generateSingleMeal(args: {
       responseSchema: mealResponseSchema,
       systemInstruction: buildSingleMealSystemPrompt(),
       contents: buildSingleMealUserPrompt(args),
+      temperature: args.temperature ?? defaultTemperature(),
     });
 
     const validated = mealSchema.safeParse(parsed);

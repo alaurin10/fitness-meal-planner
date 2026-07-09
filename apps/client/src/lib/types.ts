@@ -101,6 +101,8 @@ export interface Meal {
   tags?: string[];
   notes?: string;
   isLeftover?: boolean;
+  /** Structural link to the meal these leftovers reuse. */
+  leftoverOf?: { day: MealDay["day"]; slot: MealSlot };
 }
 
 export interface MealDay {

@@ -10,6 +10,7 @@ import {
 import { useSettings } from "../../hooks/useSettings";
 import type { UnitSystem } from "../../lib/units";
 import { isProfileComplete, profileToForm, shouldUseSuggested } from "./helpers";
+import { MealPrefsSection } from "./sections/MealPrefsSection";
 import { NumbersSection } from "./sections/NumbersSection";
 import { NutritionSection } from "./sections/NutritionSection";
 import { TargetsSection } from "./sections/TargetsSection";
@@ -107,6 +108,9 @@ export function ProfileTab() {
       </div>
       <div className="pt-5">
         <NutritionSection profile={profile} onSave={saveSection} saving={save.isPending} />
+      </div>
+      <div className="pt-5">
+        <MealPrefsSection profile={profile} onSave={saveSection} saving={save.isPending} />
       </div>
     </div>
   );

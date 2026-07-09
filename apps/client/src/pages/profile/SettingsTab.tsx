@@ -1,9 +1,13 @@
-import { ALL_DAYS, type WeekStartDay } from "@platform/shared";
+import { ALL_DAYS, dayLabelFromDate, rotateDays, type WeekStartDay } from "@platform/shared";
 import { Card } from "../../components/Card";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { useToast } from "../../components/Toast";
-import { useSaveSettings, useSettings } from "../../hooks/useSettings";
+import { WeekGrid, type WeekGridCellView } from "../../components/planWeek/WeekGrid";
+import { useSaveSettings, useSettings, type MealScheduleMask } from "../../hooks/useSettings";
 import { useTheme, type ThemePreference } from "../../lib/theme";
+import type { MealDay, MealSlot } from "../../lib/types";
+
+const SCHEDULE_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
 const THEME_OPTIONS = [
   { value: "light", label: "Light" },
@@ -67,6 +71,29 @@ export function SettingsTab() {
 
   const unitSystem = settingsQuery.data?.unitSystem ?? "imperial";
   const weekStartDay = settingsQuery.data?.weekStartDay ?? "Mon";
+  const schedule = settingsQuery.data?.mealSchedule ?? {};
+  const scheduleDays = rotateDays(weekStartDay);
+  const today = dayLabelFromDate(new Date());
+
+  function toggleScheduleSlot(day: MealDay["day"], slot: MealSlot) {
+    const daySlots = schedule[day] ?? [];
+    const nextDaySlots = daySlots.includes(slot)
+      ? daySlots.filter((s) => s !== slot)
+      : [...daySlots, slot];
+    const nextSchedule: MealScheduleMask = { ...schedule, [day]: nextDaySlots };
+    if (nextDaySlots.length === 0) delete nextSchedule[day];
+    save.mutate(
+      { mealSchedule: nextSchedule },
+      { onError: (e) => toast.error((e as Error).message) },
+    );
+  }
+
+  function scheduleCell(day: MealDay["day"], slot: MealSlot): WeekGridCellView {
+    const skipped = schedule[day]?.includes(slot) ?? false;
+    return skipped
+      ? { label: "Skipped", tone: "skip", icon: "x" }
+      : { label: "Cook", tone: "generate", icon: "check" };
+  }
 
   const changeTheme = (pref: ThemePreference) => {
     theme.setPreference(pref, { animate: true });
@@ -215,6 +242,30 @@ export function SettingsTab() {
               </button>
             );
           })}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="eyebrow">Meal schedule</div>
+        <div
+          className="font-display"
+          style={{ fontSize: 24, color: "var(--ink)", marginTop: 6 }}
+        >
+          Which meals to cook
+        </div>
+        <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
+          Tap a slot to skip it every week — handy for a standing commitment, like eating out
+          Friday dinners. New weeks respect this automatically; you can still override any single
+          week from the planning canvas.
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <WeekGrid
+            days={scheduleDays}
+            slots={SCHEDULE_SLOTS}
+            todayDay={today}
+            getCell={scheduleCell}
+            onCellTap={toggleScheduleSlot}
+          />
         </div>
       </Card>
     </div>

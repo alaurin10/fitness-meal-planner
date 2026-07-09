@@ -12,13 +12,16 @@ const items: Array<{ to: string; label: string; icon: IconName; end?: boolean }>
   { to: "/progress", label: "Progress", icon: "progress" },
 ];
 
-const NAV_TRANSITION =
-  "width 240ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-const ITEM_TRANSITION =
-  "gap 220ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease";
-const LABEL_TRANSITION =
-  "max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease";
+const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+const NAV_TRANSITION = `padding 240ms ${EASE}`;
+const ITEM_TRANSITION = `background 220ms ${EASE}, padding 220ms ${EASE}, color 180ms ease`;
+const LABEL_TRANSITION = `max-width 240ms ${EASE}, opacity 160ms ease, margin 240ms ${EASE}`;
 
+/**
+ * Floating glass pill nav. The active tab expands into a solid accent
+ * pill with its label beside the icon; the rest stay icon-only. On
+ * scroll-down the whole bar compacts and labels tuck away.
+ */
 export function BottomNav() {
   const collapsed = useScrollDirection();
   // The bar remounts on every route change. Animations are held off until the
@@ -50,37 +53,40 @@ export function BottomNav() {
         left: 0,
         right: 0,
         marginInline: "auto",
-        width: collapsed
-          ? "min(300px, calc(100vw - 110px))"
-          : "min(400px, calc(100vw - 40px))",
-        borderRadius: "var(--radius-lg)",
-        paddingTop: collapsed ? 5 : 8,
-        paddingBottom: collapsed ? 5 : 8,
-        paddingInline: collapsed ? 4 : 6,
+        width: "fit-content",
+        maxWidth: "calc(100vw - 24px)",
+        borderRadius: 999,
+        padding: collapsed ? 4 : 6,
         transition: animate ? NAV_TRANSITION : "none",
       }}
     >
-      <ul className="grid grid-cols-6 gap-0.5">
+      <ul style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {items.map((item) => (
-          <li key={item.to}>
+          <li key={item.to} style={{ listStyle: "none" }}>
             <NavLink
               to={item.to}
               end={item.end}
               viewTransition
               aria-label={item.label}
-              className="tappable block"
+              className="tappable"
               style={({ isActive }) => ({
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
-                gap: collapsed ? 0 : 4,
-                padding: collapsed ? "6px 0" : "7px 0",
-                borderRadius: "var(--radius-sm)",
-                background: isActive ? "var(--wash-accent-strong)" : "transparent",
-                color: isActive ? "var(--accent)" : "var(--muted)",
-                fontSize: 10,
-                fontWeight: 500,
-                letterSpacing: "0.04em",
+                justifyContent: "center",
+                gap: 0,
+                padding: collapsed ? "8px 9px" : isActive ? "10px 14px" : "10px 11px",
+                borderRadius: 999,
+                background: isActive
+                  ? "linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--honey)))"
+                  : "transparent",
+                color: isActive ? "var(--on-accent)" : "var(--muted)",
+                boxShadow: isActive
+                  ? "0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent)"
+                  : "none",
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.01em",
+                textDecoration: "none",
                 transition: animate ? ITEM_TRANSITION : "none",
               })}
             >
@@ -90,17 +96,23 @@ export function BottomNav() {
                       exactly once each time a tab becomes active. */}
                   <span
                     className={isActive ? "nav-icon-pop" : undefined}
-                    style={{ display: "inline-flex" }}
+                    style={{ display: "inline-flex", flexShrink: 0 }}
                   >
-                    <Icon name={item.icon} size={22} stroke={isActive ? 2 : 1.6} />
+                    <Icon
+                      name={item.icon}
+                      size={collapsed ? 20 : 22}
+                      stroke={isActive ? 2 : 1.6}
+                    />
                   </span>
+                  {/* Label rides inside the active pill only */}
                   <span
                     aria-hidden
                     style={{
-                      maxHeight: collapsed ? 0 : 16,
-                      opacity: collapsed ? 0 : 1,
+                      maxWidth: isActive && !collapsed ? 92 : 0,
+                      opacity: isActive && !collapsed ? 1 : 0,
+                      marginLeft: isActive && !collapsed ? 7 : 0,
                       overflow: "hidden",
-                      lineHeight: "16px",
+                      whiteSpace: "nowrap",
                       transition: animate ? LABEL_TRANSITION : "none",
                     }}
                   >

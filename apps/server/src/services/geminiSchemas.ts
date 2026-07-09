@@ -62,6 +62,14 @@ export const mealResponseSchema: Schema = {
     tags: { type: Type.ARRAY, items: { type: Type.STRING } },
     notes: { type: Type.STRING },
     isLeftover: { type: Type.BOOLEAN },
+    leftoverOf: {
+      type: Type.OBJECT,
+      properties: {
+        day: { type: Type.STRING, enum: DAYS },
+        slot: { type: Type.STRING, enum: [...MEAL_SLOTS] },
+      },
+      required: ["day", "slot"],
+    },
   },
   required: ["name", "slot", "servings", "calories", "proteinG", "ingredients", "steps"],
   propertyOrdering: [
@@ -80,6 +88,7 @@ export const mealResponseSchema: Schema = {
     "tags",
     "notes",
     "isLeftover",
+    "leftoverOf",
   ],
 };
 
