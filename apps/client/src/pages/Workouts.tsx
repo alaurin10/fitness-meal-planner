@@ -8,7 +8,6 @@ import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
-import { PlanInfo } from "../components/PlanInfo";
 import { Illustration } from "../components/Illustration";
 import { PageHero } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
@@ -329,13 +328,6 @@ export function WorkoutsPage() {
         title="Workouts"
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo
-              title="About this plan"
-              sections={[
-                { text: plan.planJson.summary },
-                { label: "Progression", text: plan.planJson.progressionNotes },
-              ]}
-            />
             <WeekSelector
               viewingWeekStart={viewingWeekStart}
               thisWeekStart={thisWeekStart}

@@ -11,7 +11,6 @@ import { ErrorState } from "../components/ErrorState";
 import { GeneratingProgress } from "../components/GeneratingProgress";
 import { Icon } from "../components/Icon";
 import { Layout } from "../components/Layout";
-import { PlanInfo } from "../components/PlanInfo";
 import { PopMenu } from "../components/PopMenu";
 import { CircleButton } from "../components/CircleButton";
 import { Illustration, mealIllustration } from "../components/Illustration";
@@ -395,7 +394,6 @@ export function MealsPage() {
         title="Meals"
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
             <CircleButton
               aria-label="Plan week"
               onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}

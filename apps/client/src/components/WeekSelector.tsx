@@ -15,6 +15,8 @@ const TOGGLE_STYLE = {
   whiteSpace: "nowrap",
 } as const;
 
+/** Compact — page headers are tight on space, and "This"/"Next" read fine
+ * next to a week-scoped page title without spelling out "week" twice. */
 export function WeekSelector({
   viewingWeekStart,
   thisWeekStart,
@@ -25,8 +27,8 @@ export function WeekSelector({
       <div role="tablist" aria-label="Select week" style={TOGGLE_STYLE}>
         {(
           [
-            { key: thisWeekStart, label: "This week" },
-            { key: nextWeekStart, label: "Next week" },
+            { key: thisWeekStart, label: "This" },
+            { key: nextWeekStart, label: "Next" },
           ] as const
         ).map((opt) => {
           const active = viewingWeekStart === opt.key;
@@ -39,13 +41,13 @@ export function WeekSelector({
               onClick={() => onChange(opt.key)}
               className="tappable"
               style={{
-                padding: "6px 14px",
+                padding: "6px 12px",
                 border: "none",
                 background: active ? "var(--ink)" : "transparent",
                 color: active ? "var(--paper)" : "var(--sumi)",
                 borderRadius: 999,
                 fontFamily: "var(--font-body)",
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: 500,
                 cursor: "pointer",
                 transition: "background 180ms, color 180ms",

@@ -20,6 +20,7 @@ import { WeekGrid, type WeekGridCellView } from "./components/planWeek/WeekGrid"
 import { ProgressRing } from "./components/ProgressRing";
 import { Chip, PageHero, Ring, TimeSparkline } from "./components/Primitives";
 import type { MealDay, MealSlot } from "./lib/types";
+import { WeekSelector } from "./components/WeekSelector";
 import { WeeklyBars } from "./components/WeeklyBars";
 
 function daysAgo(n: number) {
@@ -69,16 +70,23 @@ function Preview() {
       <div aria-hidden className="ambient-bg" />
       <div className="mx-auto max-w-[480px] min-h-screen relative pb-[100px]">
         <main className="relative overflow-x-clip">
-          {/* Regression check: a long title next to a button cluster (as on
-              Workouts/Meals) must ellipsize on narrow phones, never overlap
-              the buttons. */}
+          {/* Regression check: the longest real page title ("Groceries",
+              which also exercises the "g" descender) next to the actual
+              header button cluster. The title must render in full — never
+              ellipsized or overlapped — even on narrow phones; if the
+              buttons don't fit alongside it, they should wrap to their own
+              line below instead. */}
           <PageHero
-            title="Workouts"
+            title="Groceries"
             right={
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <CircleButton aria-label="Info"><Icon name="note" size={18} /></CircleButton>
                 <CircleButton aria-label="Plan"><Icon name="plan" size={18} /></CircleButton>
-                <Chip>This week</Chip>
+                <WeekSelector
+                  viewingWeekStart="2026-07-06"
+                  thisWeekStart="2026-07-06"
+                  nextWeekStart="2026-07-13"
+                  onChange={() => {}}
+                />
               </div>
             }
           />

@@ -73,7 +73,8 @@ export function PageHero({
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          flexWrap: "wrap",
+          rowGap: 8,
           gap: 16,
         }}
       >
@@ -81,15 +82,20 @@ export function PageHero({
           className="display-hero text-gradient"
           style={{
             margin: 0,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            // Never shrinks to make room for `right` — if the two don't fit
+            // on one line, `right` wraps to its own line below instead of
+            // the title losing width. The title is never truncated: if it's
+            // too wide for its own row even on its own (e.g. a long "Good
+            // afternoon." greeting on a narrow phone), it wraps onto a
+            // second line rather than hiding text behind an ellipsis.
+            flexShrink: 0,
+            maxWidth: "100%",
+            overflowWrap: "break-word",
           }}
         >
           {title}
         </h1>
-        {right && <div style={{ flexShrink: 0 }}>{right}</div>}
+        {right && <div style={{ flexShrink: 0, marginLeft: "auto" }}>{right}</div>}
       </div>
       {subtitle && (
         <div className="text-body" style={{ color: "var(--muted)", marginTop: 8 }}>
