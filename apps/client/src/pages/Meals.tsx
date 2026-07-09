@@ -171,17 +171,25 @@ export function MealsPage() {
             <EmptyState
               illustration="meal-breakfast"
               title="No active plan"
-              body="Generate a week of meals matched to your targets, or start from a blank slate."
+              body="Build a week by mixing AI-generated meals with picks from your recipe book, or generate the whole week at once."
             >
               <Button
                 className="w-full mt-5"
-                onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+                onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
               >
-                <Icon name="sparkle" size={16} />
-                Generate {viewingWeekStart === thisWeekStart ? "this week" : "next week"}
+                <Icon name="plan" size={16} />
+                Plan {viewingWeekStart === thisWeekStart ? "this week" : "next week"}
               </Button>
               <Button
                 variant="ghost"
+                className="w-full mt-2"
+                onClick={() => generate.mutate({ targetWeekStart: viewingWeekStart })}
+              >
+                <Icon name="sparkle" size={16} />
+                Generate the whole week
+              </Button>
+              <Button
+                variant="plain"
                 className="w-full mt-2"
                 onClick={() => createEmpty.mutate({ targetWeekStart: viewingWeekStart })}
                 disabled={createEmpty.isPending}
@@ -345,6 +353,12 @@ export function MealsPage() {
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <PlanInfo title="About this plan" sections={[{ text: plan.planJson.summary }]} />
+            <CircleButton
+              aria-label="Plan week"
+              onClick={() => navigate(`/meals/plan/${viewingWeekStart}`)}
+            >
+              <Icon name="plan" size={18} />
+            </CircleButton>
             <WeekSelector
               viewingWeekStart={viewingWeekStart}
               thisWeekStart={thisWeekStart}

@@ -4,6 +4,7 @@ import type {
   GroceryList,
   Meal,
   MealDay,
+  MealSlot,
   WeeklyMealPlanRecord,
 } from "../lib/types";
 
@@ -53,6 +54,35 @@ export function useGenerateMealPlan() {
       return data;
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meals"] });
+      qc.invalidateQueries({ queryKey: ["groceries"] });
+    },
+  });
+}
+
+export interface PlanWeekCellInput {
+  day: MealDay["day"];
+  slot: MealSlot;
+  mode: "generate" | "recipe" | "keep" | "skip";
+  recipeId?: string;
+}
+
+export function usePlanWeek() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      targetWeekStart?: string;
+      cells: PlanWeekCellInput[];
+      suggestion?: string;
+    }) => {
+      const { data } = await api.post<PlanResult>("/api/meals/plan-week", args);
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      if (variables.targetWeekStart) {
+        qc.setQueryData(["meals", "current", variables.targetWeekStart], data.plan);
+      }
       qc.invalidateQueries({ queryKey: ["meals"] });
       qc.invalidateQueries({ queryKey: ["groceries"] });
     },

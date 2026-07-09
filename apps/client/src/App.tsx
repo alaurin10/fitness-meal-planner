@@ -13,6 +13,7 @@ import { SignUpPage } from "./pages/SignUp";
 const DashboardPage = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.DashboardPage })));
 const WorkoutsPage = lazy(() => import("./pages/Workouts").then((m) => ({ default: m.WorkoutsPage })));
 const MealsPage = lazy(() => import("./pages/Meals").then((m) => ({ default: m.MealsPage })));
+const PlanWeekPage = lazy(() => import("./pages/PlanWeek").then((m) => ({ default: m.PlanWeekPage })));
 const RecipeDetailPage = lazy(() => import("./pages/RecipeDetail").then((m) => ({ default: m.RecipeDetailPage })));
 const RecipesPage = lazy(() => import("./pages/Recipes").then((m) => ({ default: m.RecipesPage })));
 const RecipeEditorPage = lazy(() => import("./pages/RecipeEditor").then((m) => ({ default: m.RecipeEditorPage })));
@@ -45,6 +46,8 @@ export default function App() {
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/workouts" element={<WorkoutsPage />} />
                   <Route path="/meals" element={<MealsPage />} />
+                  <Route path="/meals/plan" element={<PlanWeekPage />} />
+                  <Route path="/meals/plan/:weekStart" element={<PlanWeekPage />} />
                   <Route path="/meals/:weekStart/:day/:index" element={<RecipeDetailPage />} />
                   <Route path="/recipes" element={<RecipesPage />} />
                   <Route path="/recipes/new" element={<RecipeEditorPage />} />
