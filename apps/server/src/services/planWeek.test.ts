@@ -77,4 +77,24 @@ describe("assemblePlan", () => {
     expect(out.days[0]!.meals.map((m) => m.name)).toEqual(["AI breakfast", "Book dinner"]);
     expect(out.days[1]!.meals).toEqual([]);
   });
+
+  it("drops a generated meal that collides with a fixed slot", () => {
+    const fixed: FixedMeal[] = [
+      { day: "Mon", slot: "dinner", meal: meal("Book dinner", "dinner") },
+    ];
+    // The model ignored the LOCKED block and re-emitted a Mon dinner.
+    const generated: MealPlanJson = {
+      summary: "g",
+      dailyCalorieTarget: 2000,
+      days: [
+        {
+          day: "Mon",
+          meals: [meal("AI breakfast", "breakfast"), meal("AI dinner", "dinner")],
+        },
+      ],
+    };
+    const out = assemblePlan(["Mon"], fixed, generated, "Your week", 2000);
+    // Only the fixed dinner survives — no duplicate dinner slot.
+    expect(out.days[0]!.meals.map((m) => m.name)).toEqual(["AI breakfast", "Book dinner"]);
+  });
 });

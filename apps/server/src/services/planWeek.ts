@@ -74,6 +74,12 @@ export interface FixedMeal {
  * Merge fixed (recipe/keep) meals with AI-generated days into one plan JSON.
  * Days follow `windowDays` order; within a day, meals are sorted by canonical
  * slot order so completion indices and detail-view links stay stable.
+ *
+ * Fixed meals win their slot: any generated meal that collides with a fixed
+ * (day, slot) is dropped. The generator is told about locked slots only via
+ * the prompt's LOCKED MEALS block (their slot isn't in the skip mask), so a
+ * model that ignores the instruction and re-emits a locked slot would
+ * otherwise produce a duplicate meal on that day.
  */
 export function assemblePlan(
   windowDays: DayLabel[],
@@ -94,9 +100,13 @@ export function assemblePlan(
   }
 
   const days = windowDays.map((day) => {
+    const fixedForDay = fixedByDay.get(day) ?? [];
+    const fixedSlots = new Set(fixedForDay.map((f) => f.slot));
     const meals: MealJson[] = [
-      ...(fixedByDay.get(day) ?? []).map((f) => ({ ...f.meal, slot: f.slot })),
-      ...(genByDay.get(day) ?? []),
+      ...fixedForDay.map((f) => ({ ...f.meal, slot: f.slot })),
+      ...(genByDay.get(day) ?? []).filter(
+        (m) => !m.slot || !fixedSlots.has(m.slot as MealSlot),
+      ),
     ];
     meals.sort(
       (a, b) =>
