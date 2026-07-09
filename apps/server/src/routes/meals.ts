@@ -35,6 +35,15 @@ import {
   parseSlotMask,
 } from "../services/mealScheduleMask.js";
 import {
+  assemblePlan,
+  cellsToSkipMask,
+  generateDays,
+  planWeekCellsSchema,
+  type FixedMeal,
+  type PlanCell,
+} from "../services/planWeek.js";
+import { recipeToMealJson } from "../services/recipeToMeal.js";
+import {
   dayLabelForDayKey,
   validateMealCompletion,
 } from "../services/completionValidation.js";
@@ -169,62 +178,60 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
             mask,
           );
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Deactivate (not delete) existing plans for this week to preserve
-      // completions. updateMany keyed on (userId, weekStartDate) keeps the
-      // read-modify-write inside this transaction. Two truly concurrent
-      // generates can still both commit isActive: true, but readers order
-      // by createdAt desc so the outcome stays deterministic — acceptable
-      // for a single-user app.
-      await tx.weeklyMealPlan.updateMany({
-        where: { userId, weekStartDate: target, isActive: true },
-        data: { isActive: false },
-      });
-
-      // Deactivate older plans only when the new plan is for the current week
-      if (isCurrentWeek) {
-        await tx.weeklyMealPlan.updateMany({
-          where: { userId, weekStartDate: { lt: target }, isActive: true },
-          data: { isActive: false },
-        });
-      }
-
-      const plan = await tx.weeklyMealPlan.create({
-        data: {
-          userId,
-          weekStartDate: target,
-          planJson,
-          isActive: true,
-        },
-      });
-
-      // Cap storage at the current + next week. Plans (and their grocery
-      // lists) for any prior week are pruned; MealCompletion rows survive
-      // because the FK was detached from WeeklyMealPlan. Only prune when
-      // generating the current week — generating next week must never
-      // touch this-week data.
-      if (isCurrentWeek) {
-        await tx.weeklyMealPlan.deleteMany({
-          where: { userId, weekStartDate: { lt: thisWeek } },
-        });
-        await tx.groceryList.deleteMany({
-          where: { userId, weekStartDate: { lt: thisWeek } },
-        });
-      }
-
-      return { plan };
-    });
+    const plan = await persistWeekPlan({ userId, target, thisWeek, isCurrentWeek, planJson });
 
     // Rebuild grocery list for just the targeted week
     const groceryList = await rebuildGroceries(userId, target);
 
-    res.json({ plan: result.plan, groceryList });
+    res.json({ plan, groceryList });
   } catch (err) {
     const message = getGeminiErrorMessage(err);
     console.error("[meals] generate failed:", message);
     res.status(503).json({ error: "Failed to generate plan", detail: message });
   }
 });
+
+/**
+ * Deactivate the week's existing plans, store the new one, and prune prior
+ * weeks (current-week only). Shared by /generate and /plan-week — both fully
+ * replace a week's plan, so completions for that week reset naturally.
+ */
+async function persistWeekPlan(args: {
+  userId: string;
+  target: Date;
+  thisWeek: Date;
+  isCurrentWeek: boolean;
+  planJson: MealPlanJson;
+}) {
+  const { userId, target, thisWeek, isCurrentWeek, planJson } = args;
+  return prisma.$transaction(async (tx) => {
+    // Deactivate (not delete) existing plans for this week to preserve
+    // completions. Readers order by createdAt desc so the newest wins.
+    await tx.weeklyMealPlan.updateMany({
+      where: { userId, weekStartDate: target, isActive: true },
+      data: { isActive: false },
+    });
+    if (isCurrentWeek) {
+      await tx.weeklyMealPlan.updateMany({
+        where: { userId, weekStartDate: { lt: target }, isActive: true },
+        data: { isActive: false },
+      });
+    }
+    const plan = await tx.weeklyMealPlan.create({
+      data: { userId, weekStartDate: target, planJson: planJson as unknown as object, isActive: true },
+    });
+    // Cap storage at current + next week (current-week generation only).
+    if (isCurrentWeek) {
+      await tx.weeklyMealPlan.deleteMany({
+        where: { userId, weekStartDate: { lt: thisWeek } },
+      });
+      await tx.groceryList.deleteMany({
+        where: { userId, weekStartDate: { lt: thisWeek } },
+      });
+    }
+    return plan;
+  });
+}
 
 router.post("/empty", requireAuth, async (req, res) => {
   const userId = currentUserId(req);
@@ -290,6 +297,144 @@ const weekStartField = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .optional();
+
+const planWeekSchema = z.object({
+  targetWeekStart: weekStartField,
+  cells: planWeekCellsSchema,
+  suggestion: z.string().max(500).optional(),
+});
+
+// Build a whole week in one shot: place recipe/keep cells directly and
+// AI-generate the "generate" cells around them in a single Gemini call.
+router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
+  const userId = currentUserId(req);
+  const parsed = planWeekSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const profile = await prisma.profile.findUnique({ where: { userId } });
+  if (!profile) {
+    res.status(400).json({ error: "Create a profile first" });
+    return;
+  }
+
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
+  const now = new Date();
+  const thisWeek = startOfWeek(now, weekStartDay);
+  const target = parsed.data.targetWeekStart
+    ? parseLocalDate(parsed.data.targetWeekStart)
+    : thisWeek;
+
+  if (target.getTime() < thisWeek.getTime()) {
+    res.status(400).json({ error: "Cannot build a past week." });
+    return;
+  }
+  if (target.getTime() > addWeeks(thisWeek, 1).getTime()) {
+    res.status(400).json({ error: "Future planning capped at +1 week." });
+    return;
+  }
+
+  const { daysToInclude, isCurrentWeek } = computePlanWindow(target, now, weekStartDay);
+  if (daysToInclude.length === 0) {
+    res.status(400).json({ error: "No remaining days this week." });
+    return;
+  }
+
+  // Only cells whose day is inside the plan window (past days of the current
+  // week are dropped, matching /generate's behavior).
+  const windowSet = new Set(daysToInclude);
+  const cells = (parsed.data.cells as PlanCell[]).filter((c) => windowSet.has(c.day));
+
+  try {
+    // Resolve recipe + keep cells into concrete meals (no Gemini needed).
+    const recipeIds = [
+      ...new Set(cells.filter((c) => c.mode === "recipe" && c.recipeId).map((c) => c.recipeId!)),
+    ];
+    const recipes = recipeIds.length
+      ? await prisma.recipe.findMany({ where: { userId, id: { in: recipeIds } } })
+      : [];
+    const recipeById = new Map(recipes.map((r) => [r.id, r]));
+    const missing = recipeIds.filter((id) => !recipeById.has(id));
+    if (missing.length) {
+      res.status(400).json({ error: `Unknown recipe(s): ${missing.join(", ")}` });
+      return;
+    }
+
+    const currentPlan = await findMealPlanForWeek(userId, target);
+    const currentJson = currentPlan ? normalizeMealPlan(currentPlan.planJson) : null;
+
+    const fixed: FixedMeal[] = [];
+    for (const cell of cells) {
+      if (cell.mode === "recipe") {
+        fixed.push({
+          day: cell.day,
+          slot: cell.slot,
+          meal: recipeToMealJson(recipeById.get(cell.recipeId!)!, cell.slot),
+        });
+      } else if (cell.mode === "keep") {
+        const existing = currentJson?.days
+          .find((d) => d.day === cell.day)
+          ?.meals.find((m) => m.slot === cell.slot);
+        if (existing) fixed.push({ day: cell.day, slot: cell.slot, meal: existing });
+      }
+    }
+
+    const genDays = generateDays(cells).filter((d) => windowSet.has(d));
+    const mask = cellsToSkipMask(cells, daysToInclude);
+
+    let generated: MealPlanJson | null = null;
+    if (genDays.length) {
+      const schedule = await getTrainingSchedule(userId);
+      const variety = varietyParams(profile.varietyStrength);
+      const recentMealNames = extractRecentMealNames(
+        await fetchRecentPlanJsons(userId, target, variety.weeksBack),
+        variety.nameCap,
+      );
+      const fixedMeals = fixed.map((f) => ({
+        day: f.day,
+        slot: f.slot,
+        name: f.meal.name,
+        calories: f.meal.calories,
+        proteinG: f.meal.proteinG,
+      }));
+      generated = await generateMealPlan({
+        profile,
+        schedule,
+        daysToGenerate: genDays,
+        userSuggestion: parsed.data.suggestion,
+        recentMealNames,
+        varietyTone: variety.promptTone,
+        temperature: variety.temperature,
+        skipMask: mask,
+        fixedMeals,
+      });
+      generated = applySkipMask(generated, genDays, mask);
+    }
+
+    const planJson = normalizeMealPlan(
+      assemblePlan(
+        daysToInclude,
+        fixed,
+        generated,
+        "Your planned week.",
+        generated?.dailyCalorieTarget || profile.caloricTarget || 0,
+      ),
+    );
+
+    const plan = await persistWeekPlan({ userId, target, thisWeek, isCurrentWeek, planJson });
+    const groceryList = await rebuildGroceries(userId, target);
+    res.json({
+      plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
+      groceryList,
+    });
+  } catch (err) {
+    const message = getGeminiErrorMessage(err);
+    console.error("[meals] plan-week failed:", message);
+    res.status(503).json({ error: "Failed to build week", detail: message });
+  }
+});
 
 const slotLocSchema = z.object({
   day: z.enum(DAYS),
