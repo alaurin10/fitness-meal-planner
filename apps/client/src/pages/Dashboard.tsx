@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef } from "react";
 import {
-  localDayKey as sharedLocalDayKey,
+  localDayKey,
   startOfWeek as sharedStartOfWeek,
 } from "@platform/shared";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
@@ -20,10 +20,7 @@ import { useCurrentMealPlan } from "../hooks/useMealPlan";
 import { useHydration, useLogHydration, useUnlogHydration } from "../hooks/useHydration";
 import { useDailySummary } from "../hooks/useDailySummary";
 import { useStreaks } from "../hooks/useStreaks";
-import {
-  localDayKey,
-  useMealCompletions,
-} from "../hooks/useMealCompletions";
+import { useMealCompletions } from "../hooks/useMealCompletions";
 import {
   completionProgress,
   useWorkoutCompletions,
@@ -96,7 +93,7 @@ function findNextMeal(meals: Meal[], completed: Set<number>): NextMeal | null {
 export function DashboardPage() {
   const weekStartDay = useWeekStartDay();
   const thisWeekStartIso = useMemo(
-    () => sharedLocalDayKey(sharedStartOfWeek(new Date(), weekStartDay)),
+    () => localDayKey(sharedStartOfWeek(new Date(), weekStartDay)),
     [weekStartDay],
   );
   const profileQuery = useProfile();

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey as sharedLocalDayKey, parseLocalDate } from "@platform/shared";
+import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey, parseLocalDate } from "@platform/shared";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -39,7 +39,7 @@ import {
   type AffectedLeftover,
   type PlanResult,
 } from "../hooks/useMealPlan";
-import { localDayKey, useMealCompletions } from "../hooks/useMealCompletions";
+import { useMealCompletions } from "../hooks/useMealCompletions";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { recipeToMeal } from "../lib/recipeAdapter";
@@ -59,9 +59,9 @@ export function MealsPage() {
   const weekStartDay = useWeekStartDay();
   const DAYS = rotateDays(weekStartDay);
   const now = useMemo(() => new Date(), []);
-  const thisWeekStart = useMemo(() => sharedLocalDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
+  const thisWeekStart = useMemo(() => localDayKey(sharedStartOfWeek(now, weekStartDay)), [now, weekStartDay]);
   const nextWeekStart = useMemo(
-    () => sharedLocalDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
+    () => localDayKey(addWeeks(sharedStartOfWeek(now, weekStartDay), 1)),
     [now, weekStartDay],
   );
   const [viewingWeekStart, setViewingWeekStart] = useState(thisWeekStart);
@@ -119,7 +119,8 @@ export function MealsPage() {
     });
   }
   const completions = useMealCompletions(plan?.id, localDayKey());
-  const viewingToday = activeDay === DAYS[todayIdx];
+  const viewingToday =
+    viewingWeekStart === thisWeekStart && activeDay === DAYS[todayIdx];
   const prevDayCompleteRef = useRef(false);
   // Directional slide when switching days (swipe or pill tap).
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
@@ -597,16 +598,16 @@ export function MealsPage() {
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     {mealComplete && <Chip>Eaten</Chip>}
                     <Chip variant="moss">{m.proteinG}g protein</Chip>
-                    {m.isLeftover && (
-                      <Chip variant="ghost">
-                        <Icon name="swap" size={11} /> Leftovers
-                      </Chip>
-                    )}
-                    {isStaleLeftover(m) && (
-                      <Chip variant="honey">
-                        <Icon name="swap" size={11} /> Out of sync — tap ••• to update
-                      </Chip>
-                    )}
+                    {m.isLeftover &&
+                      (isStaleLeftover(m) ? (
+                        <Chip variant="honey">
+                          <Icon name="swap" size={11} /> Out of sync
+                        </Chip>
+                      ) : (
+                        <Chip variant="ghost">
+                          <Icon name="swap" size={11} /> Leftovers
+                        </Chip>
+                      ))}
                     {total ? (
                       <Chip variant="ghost">
                         <Icon name="timer" size={11} /> {formatMinutes(total)}
