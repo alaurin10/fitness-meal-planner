@@ -71,6 +71,7 @@ export function RecipeDetailPage() {
       <MealDetailView
         meal={meal}
         slotLabel={slotLabel}
+        sessionKey={`plan:${plan.id}:${day}:${idx}`}
         isComplete={completions.isComplete(idx)}
         onToggleComplete={() => completions.toggle(idx)}
         topAction={
