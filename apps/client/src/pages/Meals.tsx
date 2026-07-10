@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { rotateDays, dayIdxFromDate, startOfWeek as sharedStartOfWeek, addWeeks, localDayKey, parseLocalDate } from "@platform/shared";
+import { AddMealSheet } from "../components/AddMealSheet";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -88,6 +89,7 @@ export function MealsPage() {
   );
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [picker, setPicker] = useState<PendingPicker | null>(null);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [hintPrompt, setHintPrompt] = useState<PendingHint | null>(null);
   const resolveLeftovers = useResolveLeftovers();
   const [leftoverRepair, setLeftoverRepair] = useState<{
@@ -347,6 +349,17 @@ export function MealsPage() {
 
   function handleAdd(slotHint?: MealSlot) {
     setPicker({ kind: "add", day: activeDay, slot: slotHint });
+  }
+
+  // Add a brand-new AI meal at the chosen slot by regenerating one past the
+  // end of the day (the server appends when index >= meals.length).
+  function handleAddGenerate(slot: MealSlot) {
+    regenSlot.mutate({
+      day: activeDay,
+      index: meals.length,
+      slot,
+      weekStart: viewingWeekStart,
+    });
   }
 
   function handlePick(recipe: RecipeRecord) {
@@ -714,7 +727,7 @@ export function MealsPage() {
 
         <button
           type="button"
-          onClick={() => handleAdd(nextSlotForDay)}
+          onClick={() => setAddSheetOpen(true)}
           disabled={anyMutation}
           className="tappable"
           style={{
@@ -734,7 +747,7 @@ export function MealsPage() {
           }}
         >
           <Icon name="plus" size={14} />
-          Add a meal{nextSlotForDay ? ` (${capitalize(nextSlotForDay)})` : ""}
+          Add a meal
         </button>
       </div>
 
@@ -799,6 +812,19 @@ export function MealsPage() {
       </div>
       </div>
 
+      <AddMealSheet
+        open={addSheetOpen}
+        defaultSlot={nextSlotForDay}
+        onGenerate={(slot) => {
+          setAddSheetOpen(false);
+          handleAddGenerate(slot);
+        }}
+        onPickFromBook={(slot) => {
+          setAddSheetOpen(false);
+          handleAdd(slot);
+        }}
+        onClose={() => setAddSheetOpen(false)}
+      />
       <RecipePickerModal
         open={picker !== null}
         slot={picker?.slot}
@@ -908,10 +934,6 @@ function nextSuggestedSlot(meals: Meal[]): MealSlot | undefined {
     if (!meals.some((m) => m.slot === slot)) return slot;
   }
   return "snack";
-}
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function longDay(d: MealDay["day"]) {

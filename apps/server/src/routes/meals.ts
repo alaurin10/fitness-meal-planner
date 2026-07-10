@@ -474,6 +474,10 @@ const slotRegenSchema = z.object({
   index: z.number().int().nonnegative(),
   weekStart: weekStartField,
   suggestion: z.string().max(500).optional(),
+  // Explicit slot for the generated meal. Used when adding a brand-new meal
+  // (index past the end): the caller picks the slot instead of it being
+  // inferred from position. Omitted for in-place regeneration.
+  slot: z.enum(MEAL_SLOTS).optional(),
 });
 
 // Replace a meal at (day, index) with the provided meal payload. Used for
@@ -645,7 +649,7 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
     return;
   }
   const existing = dayEntry.meals[parsed.data.index];
-  const slot = pickSlot(existing, parsed.data.index);
+  const slot = parsed.data.slot ?? pickSlot(existing, parsed.data.index);
 
   // Estimate per-meal targets from the day's other meals so the new meal
   // helps hit the day's totals without ballooning calories.
