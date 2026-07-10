@@ -147,6 +147,9 @@ export function buildUserPrompt(args: {
   /** Slots to skip per day (partial days). Fully-skipped days should be
    * excluded from `daysToGenerate` by the caller. */
   skipMask?: SlotMask;
+  /** Days the user asked to include a snack — the model must add a
+   * slot:'snack' meal on these, overriding the default 3-meals rule. */
+  snackDays?: DayLabel[];
   /** Meals already chosen by the user — do not regenerate or repeat them. */
   fixedMeals?: FixedMealRef[];
 }): string {
@@ -244,6 +247,11 @@ export function buildUserPrompt(args: {
     lines.push(...maskLines);
     lines.push(
       "These slot instructions override the default 3-meals-per-day rule for those days.",
+    );
+  }
+  if (args.snackDays?.length) {
+    lines.push(
+      `For these days the user WANTS a snack — you MUST include one extra meal with slot:'snack' on each, in addition to the day's other meals: ${args.snackDays.join(", ")}.`,
     );
   }
   lines.push("Output JSON only.");

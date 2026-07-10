@@ -51,14 +51,16 @@ const heatData = Array.from({ length: 60 }, (_, i) => {
 });
 
 const WEEK_GRID_DAYS: MealDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const WEEK_GRID_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner"];
+const WEEK_GRID_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 const WEEK_GRID_DEMO: Partial<Record<string, WeekGridCellView>> = {
   "Mon:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Mon:lunch": { label: "Yogurt bowl", tone: "keep", icon: "check" },
   "Mon:dinner": { label: "Miso salmon", tone: "recipe", icon: "fork" },
+  "Mon:snack": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Tue:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Tue:lunch": { label: "Skipped", tone: "skip", icon: "x" },
   "Tue:dinner": { label: "Skipped", tone: "skip", icon: "x" },
+  "Tue:snack": { label: "Skipped", tone: "skip", icon: "x" },
 };
 
 function Preview() {
