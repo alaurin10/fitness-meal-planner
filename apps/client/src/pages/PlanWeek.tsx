@@ -3,8 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -199,11 +201,12 @@ export function PlanWeekPage() {
       getCell={getCell}
       onCellTap={handleCellTap}
       dndEnabled={isDesktop}
+      activeDrag={draggingRecipe !== null}
     />
   );
 
   return (
-    <Layout>
+    <Layout wide>
       <PageHero
         title="Plan the week"
         subtitle="Tap a slot to generate, pick from your book, or skip it. Drag on desktop works too."
@@ -225,13 +228,20 @@ export function PlanWeekPage() {
           {isDesktop ? (
             <DndContext
               sensors={sensors}
+              // Track the pointer, not the drag overlay's rectangle — the cell
+              // under the cursor is always the drop target, so hit detection
+              // lines up with what the user is pointing at.
+              collisionDetection={pointerWithin}
+              // Re-measure cells continuously; the grid restyles during a drag
+              // (drop-zone outlines, hover scale), so cached rects go stale.
+              measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               onDragStart={(e) => setDraggingRecipe((e.active.data.current?.recipe as RecipeRecord) ?? null)}
               onDragEnd={onDragEnd}
               onDragCancel={() => setDraggingRecipe(null)}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 24, alignItems: "start" }}>
                 <div>{grid}</div>
-                <div style={{ position: "sticky", top: 16, height: "calc(100vh - 140px)" }}>
+                <div style={{ position: "sticky", top: 16, height: "calc(100vh - 132px)" }}>
                   <RecipeTray
                     slot={pendingCell?.slot}
                     onPick={(recipe) => {
@@ -240,9 +250,17 @@ export function PlanWeekPage() {
                   />
                 </div>
               </div>
-              <DragOverlay>
+              <DragOverlay dropAnimation={null}>
                 {draggingRecipe && (
-                  <div className="chip" style={{ boxShadow: "var(--shadow-md)" }}>
+                  <div
+                    className="chip"
+                    style={{
+                      boxShadow: "var(--shadow-lg)",
+                      background: "var(--accent)",
+                      color: "var(--on-accent)",
+                      cursor: "grabbing",
+                    }}
+                  >
                     <Icon name="fork" size={12} />
                     {draggingRecipe.name}
                   </div>

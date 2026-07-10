@@ -13,9 +13,11 @@ import { Wordmark } from "./Primitives";
 
 interface Props {
   children: ReactNode;
+  /** Wider main column for dense desktop tools (e.g. the week planner). */
+  wide?: boolean;
 }
 
-export function Layout({ children }: Props) {
+export function Layout({ children, wide = false }: Props) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
@@ -119,7 +121,13 @@ export function Layout({ children }: Props) {
         </header>
         {/* overflow-x-clip keeps the page-hero glow's horizontal bleed from
             creating a sideways scroll without clipping vertical shadows. */}
-        <main className="relative overflow-x-clip md:max-w-[960px] md:mx-auto">{children}</main>
+        <main
+          className={`relative overflow-x-clip md:mx-auto ${
+            wide ? "md:max-w-[1200px]" : "md:max-w-[960px]"
+          }`}
+        >
+          {children}
+        </main>
         <BottomNav />
       </div>
     </>
