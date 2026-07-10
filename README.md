@@ -132,6 +132,24 @@ All optional except `GEMINI_API_KEY`; sensible defaults are baked in.
 
 ---
 
+## Garmin integration (optional)
+
+Link a Garmin account from **Profile → Settings → Connections** to sync watch data into the app and push workouts back to the watch:
+
+- **Daily wellness** — steps, total/active calories burned, resting heart rate, and sleep land in `DailyWellness` and appear on the Dashboard ("From your watch") and Progress week stats.
+- **Activity import** — recorded activities (runs, rides, gym sessions) flow into the Activity Log with a Garmin badge, deduped by Garmin activity id.
+- **Weight sync** — Garmin weigh-ins import into Progress (and recompute suggested calorie/protein targets); weights logged in the app push back to Garmin.
+- **Send week to watch** — the Workouts page can convert the AI-generated week into Garmin structured strength workouts scheduled on the Garmin calendar.
+
+How it works, and the caveats to know:
+
+- Garmin's official Connect Developer Program is currently **closed to new applicants**, so this uses the **unofficial Garmin Connect API** via the [`garmin-connect`](https://github.com/Pythe1337N/garmin-connect) library. Endpoints may change without notice; all Garmin HTTP is isolated in `apps/server/src/services/garmin/client.ts`.
+- You sign in once with your Garmin username/password; the server stores only the resulting OAuth tokens, encrypted with AES-256-GCM (`GARMIN_TOKEN_ENC_KEY`, generate with `openssl rand -base64 32`). The password is never persisted or logged. Garmin accounts with MFA enabled are not supported.
+- Sync is pull-based: automatic on app load when data is >6 h stale, or via **Sync now**, with a 15-minute server-side cooldown and a 30-day backfill cap.
+- The integration is fully optional — without a linked account (or without `GARMIN_TOKEN_ENC_KEY`) the app behaves exactly as before; the only visible addition is the Connections card in Settings.
+
+---
+
 ## iOS Shortcut (optional)
 
 The app has a fully functional in-app grocery list, so this is only needed if you want groceries to also land in iOS Reminders.

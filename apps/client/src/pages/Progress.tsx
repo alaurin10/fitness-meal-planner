@@ -81,6 +81,7 @@ export function ProgressPage() {
     let workoutsDone = 0, workoutsTotal = 0, totalSets = 0;
     let totalCal = 0, totalProtein = 0, calDays = 0;
     let hydrationFractionSum = 0, hydrationDays = 0;
+    let totalSteps = 0, stepDays = 0, totalActiveKcal = 0, activeKcalDays = 0;
 
     for (let i = 0; i <= todayIdx; i++) {
       const d = new Date(weekStart);
@@ -103,6 +104,14 @@ export function ProgressPage() {
         hydrationDays++;
         hydrationFractionSum += Math.min(rec.hydration.cups / rec.hydration.goal, 1);
       }
+      if (rec.garmin?.steps != null) {
+        totalSteps += rec.garmin.steps;
+        stepDays++;
+      }
+      if (rec.garmin?.activeKilocalories != null) {
+        totalActiveKcal += rec.garmin.activeKilocalories;
+        activeKcalDays++;
+      }
     }
 
     return {
@@ -112,6 +121,9 @@ export function ProgressPage() {
       avgCalories: calDays > 0 ? Math.round(totalCal / calDays) : 0,
       avgProtein: calDays > 0 ? Math.round(totalProtein / calDays) : 0,
       hydrationRate: hydrationDays > 0 ? Math.round((hydrationFractionSum / hydrationDays) * 100) : 0,
+      // Garmin-only stats; zero days means no connection (tiles hidden).
+      avgSteps: stepDays > 0 ? Math.round(totalSteps / stepDays) : null,
+      avgActiveKcal: activeKcalDays > 0 ? Math.round(totalActiveKcal / activeKcalDays) : null,
     };
   }, [historyQuery.data]);
 
@@ -245,6 +257,12 @@ export function ProgressPage() {
               <StatCell label="Avg protein" value={`${weekStats.avgProtein}g`} color="var(--honey)" />
               <StatCell label="Sets" value={weekStats.totalSets.toString()} color="var(--moss)" />
               <StatCell label="Hydration" value={`${weekStats.hydrationRate}%`} color="var(--accent)" />
+              {weekStats.avgSteps != null && (
+                <StatCell label="Avg steps" value={weekStats.avgSteps.toLocaleString()} color="var(--honey)" />
+              )}
+              {weekStats.avgActiveKcal != null && (
+                <StatCell label="Avg burn" value={`${weekStats.avgActiveKcal.toLocaleString()} kcal`} color="var(--accent)" />
+              )}
             </div>
             <WeeklyBars days={weekDays} height={132} />
             <div style={{ display: "flex", gap: 12, marginTop: 10, fontSize: 10, color: "var(--muted)" }}>

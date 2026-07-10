@@ -18,6 +18,7 @@
     "@platform/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "garmin-connect": "^1.6.2",
     "jsonrepair": "^3.14.0",
     "zod": "^3.23.8"
   },
