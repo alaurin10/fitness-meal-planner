@@ -5,6 +5,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import "./index.css";
+import { AddMealSheet } from "./components/AddMealSheet";
 import { BottomNav } from "./components/BottomNav";
 import { Button } from "./components/Button";
 import { Card } from "./components/Card";
@@ -63,6 +64,7 @@ const WEEK_GRID_DEMO: Partial<Record<string, WeekGridCellView>> = {
 function Preview() {
   const [cellSheetOpen, setCellSheetOpen] = useState(false);
   const [leftoverOpen, setLeftoverOpen] = useState(false);
+  const [addMealOpen, setAddMealOpen] = useState(false);
 
   return (
     <>
@@ -224,6 +226,9 @@ function Preview() {
                 <Button variant="ghost" onClick={() => setLeftoverOpen(true)}>
                   Leftover repair
                 </Button>
+                <Button variant="ghost" onClick={() => setAddMealOpen(true)}>
+                  Add meal
+                </Button>
               </div>
             </Card>
           </div>
@@ -251,6 +256,14 @@ function Preview() {
         onUpdate={() => setLeftoverOpen(false)}
         onRegenerate={() => setLeftoverOpen(false)}
         onClose={() => setLeftoverOpen(false)}
+      />
+
+      <AddMealSheet
+        open={addMealOpen}
+        defaultSlot="snack"
+        onGenerate={() => setAddMealOpen(false)}
+        onPickFromBook={() => setAddMealOpen(false)}
+        onClose={() => setAddMealOpen(false)}
       />
     </>
   );
