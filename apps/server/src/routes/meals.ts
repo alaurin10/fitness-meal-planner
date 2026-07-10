@@ -38,6 +38,7 @@ import {
   assemblePlan,
   cellsToSkipMask,
   generateDays,
+  snackGenerateDays,
   planWeekCellsSchema,
   type FixedMeal,
   type PlanCell,
@@ -400,6 +401,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
 
     const genDays = generateDays(cells).filter((d) => windowSet.has(d));
     const mask = cellsToSkipMask(cells, daysToInclude);
+    const snackDays = snackGenerateDays(cells).filter((d) => windowSet.has(d));
 
     let generated: MealPlanJson | null = null;
     if (genDays.length) {
@@ -425,6 +427,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
         varietyTone: variety.promptTone,
         temperature: variety.temperature,
         skipMask: mask,
+        snackDays,
         fixedMeals,
       });
       generated = applySkipMask(generated, genDays, mask);

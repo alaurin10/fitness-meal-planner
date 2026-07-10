@@ -33,7 +33,6 @@ import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
 
-const CORE_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner"];
 const ALL_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
 type CellAssign =
@@ -192,15 +191,10 @@ export function PlanWeekPage() {
   const grid = (
     <WeekGrid
       days={DAYS}
-      slots={CORE_SLOTS.concat(
-        // Only show the snack row once something's actually assigned there,
-        // to keep the grid compact by default.
-        Object.entries(cells ?? {}).some(
-          ([k, v]) => k.endsWith(":snack") && v && v.mode !== "skip",
-        )
-          ? ["snack"]
-          : [],
-      )}
+      // Always show all slots — including snack — so a snack is there to
+      // program per day. Snacks default to "skip" (empty), so it reads as an
+      // opt-in row the user taps to generate, pick, or keep.
+      slots={ALL_SLOTS}
       todayDay={todayDay}
       weekStartDate={targetDate}
       disabledDays={disabledDays}

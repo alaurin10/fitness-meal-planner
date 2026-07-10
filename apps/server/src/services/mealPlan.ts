@@ -39,6 +39,9 @@ interface GenerateMealPlanArgs {
   temperature?: number;
   /** Slots to skip per day (partial-day masking). */
   skipMask?: SlotMask;
+  /** Days the user asked to include a snack — the model must add a
+   * slot:'snack' meal on these, overriding the default 3-meals rule. */
+  snackDays?: DayLabel[];
   /** User-locked meals the model plans around (batch canvas). */
   fixedMeals?: FixedMealRef[];
 }
