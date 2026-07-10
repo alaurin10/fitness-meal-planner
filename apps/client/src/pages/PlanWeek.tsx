@@ -82,7 +82,8 @@ export function PlanWeekPage() {
   const [pickerFor, setPickerFor] = useState<{ day: MealDay["day"]; slot: MealSlot } | null>(null);
 
   // Initialize once the plan finishes loading: existing meals become "keep"
-  // cells, template-skipped slots default to skip, everything else generates.
+  // cells, template-skipped slots default to skip, everything else
+  // (including snack, absent a persisted skip) defaults to generate.
   const initialized = cells !== null;
   if (!initialized && !planLoading) {
     const next: Partial<Record<CellKey, CellAssign>> = {};
@@ -92,9 +93,7 @@ export function PlanWeekPage() {
         const meal = existingDay?.meals.find((m) => m.slot === slot);
         if (meal) {
           next[key(day, slot)] = { mode: "keep", meal };
-        } else if (slot !== "snack" && template[day]?.includes(slot)) {
-          next[key(day, slot)] = { mode: "skip" };
-        } else if (slot === "snack") {
+        } else if (template[day]?.includes(slot)) {
           next[key(day, slot)] = { mode: "skip" };
         } else {
           next[key(day, slot)] = { mode: "generate" };
@@ -192,8 +191,7 @@ export function PlanWeekPage() {
     <WeekGrid
       days={DAYS}
       // Always show all slots — including snack — so a snack is there to
-      // program per day. Snacks default to "skip" (empty), so it reads as an
-      // opt-in row the user taps to generate, pick, or keep.
+      // program per day (defaults to generate, like the other slots).
       slots={ALL_SLOTS}
       todayDay={todayDay}
       weekStartDate={targetDate}
