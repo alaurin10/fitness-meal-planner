@@ -67,8 +67,10 @@ function Preview() {
   return (
     <>
       <div aria-hidden className="ambient-bg" />
-      <div className="mx-auto max-w-[480px] min-h-screen relative pb-[100px]">
-        <main className="relative overflow-x-clip">
+      {/* Mirrors the Layout shell: flex column at min-h-dvh so the in-flow
+          sticky BottomNav pins to the viewport bottom here too. */}
+      <div className="mx-auto max-w-[480px] min-h-dvh relative flex flex-col">
+        <main className="relative flex-1 w-full overflow-x-clip pb-4">
           {/* Regression check: a long title next to a button cluster (as on
               Workouts/Meals) must ellipsize on narrow phones, never overlap
               the buttons. */}

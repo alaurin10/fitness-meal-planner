@@ -67,7 +67,9 @@ export function Layout({ children }: Props) {
           something to refract; blur over a flat background is invisible. */}
       <div aria-hidden className="ambient-bg" />
       <SideNav />
-      <div className="mx-auto max-w-[480px] min-h-screen relative pb-[84px] md:max-w-none md:ml-[220px] md:pb-6">
+      {/* Flex column at min-h-dvh so the in-flow sticky BottomNav sits at the
+          viewport bottom even on short pages (dvh dodges the iOS 100vh gap). */}
+      <div className="mx-auto max-w-[480px] min-h-dvh relative flex flex-col md:max-w-none md:ml-[220px]">
         <header
           className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 md:hidden"
           style={{
@@ -119,7 +121,7 @@ export function Layout({ children }: Props) {
         </header>
         {/* overflow-x-clip keeps the page-hero glow's horizontal bleed from
             creating a sideways scroll without clipping vertical shadows. */}
-        <main className="relative overflow-x-clip md:max-w-[960px] md:mx-auto">{children}</main>
+        <main className="relative flex-1 w-full overflow-x-clip pb-4 md:max-w-[960px] md:mx-auto md:pb-6">{children}</main>
         <BottomNav />
       </div>
     </>

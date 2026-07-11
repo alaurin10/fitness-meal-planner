@@ -309,15 +309,6 @@ html[data-palette="carbon"][data-theme="dark"] {
 @supports not (backdrop-filter: blur(1px)) {
   .glass, .glass-strong { background: var(--paper); }
 }
-/* Opaque cousin of .glass for position:fixed chrome (the bottom nav):
-   backdrop-filter on a fixed element makes iOS Safari occasionally detach
-   it and let it drift during momentum scrolling, so fixed chrome gets a
-   solid surface with the same border and lit-edge treatment. */
-.bar-solid {
-  background: var(--paper);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
-}
 .card-glass {
   border-radius: var(--radius-lg);
 }
