@@ -4,7 +4,18 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
+import {
+  DndContext,
+  DragOverlay,
+  MeasuringStrategy,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import "./index.css";
+import { AddMealSheet } from "./components/AddMealSheet";
 import { BottomNav } from "./components/BottomNav";
 import { Button } from "./components/Button";
 import { Card } from "./components/Card";
@@ -50,19 +61,106 @@ const heatData = Array.from({ length: 60 }, (_, i) => {
 });
 
 const WEEK_GRID_DAYS: MealDay["day"][] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const WEEK_GRID_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner"];
+const WEEK_GRID_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 const WEEK_GRID_DEMO: Partial<Record<string, WeekGridCellView>> = {
   "Mon:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Mon:lunch": { label: "Yogurt bowl", tone: "keep", icon: "check" },
   "Mon:dinner": { label: "Miso salmon", tone: "recipe", icon: "fork" },
+  "Mon:snack": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Tue:breakfast": { label: "Generate", tone: "generate", icon: "sparkle" },
   "Tue:lunch": { label: "Skipped", tone: "skip", icon: "x" },
   "Tue:dinner": { label: "Skipped", tone: "skip", icon: "x" },
+  "Tue:snack": { label: "Skipped", tone: "skip", icon: "x" },
 };
+
+function DemoDraggable({ id, label }: { id: string; label: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `recipe:${id}`,
+    data: { recipe: { id, name: label } },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{ opacity: isDragging ? 0.35 : 1, cursor: "grab", touchAction: "none" }}
+    >
+      <div className="chip" style={{ width: "100%", justifyContent: "flex-start" }}>
+        <Icon name="fork" size={12} /> {label}
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors PlanWeek's desktop drag-and-drop wiring so the grid layout and
+ * drop-target alignment can be screenshotted and drag-tested in isolation. */
+function PlanWeekDesktopDemo() {
+  const [cells, setCells] = useState<Record<string, WeekGridCellView>>({
+    "Tue:lunch": { label: "Skipped", tone: "skip", icon: "x" },
+    "Wed:dinner": { label: "Miso salmon", tone: "recipe", icon: "fork" },
+    "Thu:breakfast": { label: "Yogurt bowl", tone: "keep", icon: "check" },
+  });
+  const [drag, setDrag] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+  const getCell = (day: MealDay["day"], slot: MealSlot): WeekGridCellView =>
+    cells[`${day}:${slot}`] ?? { label: "Generate", tone: "generate", icon: "sparkle" };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      onDragStart={(e) => setDrag((e.active.data.current?.recipe as { name: string })?.name ?? null)}
+      onDragEnd={(e) => {
+        setDrag(null);
+        const over = e.over?.id;
+        const name = (e.active.data.current?.recipe as { name: string })?.name;
+        if (typeof over === "string" && name) {
+          setCells((c) => ({ ...c, [over]: { label: name, tone: "recipe", icon: "fork" } }));
+        }
+      }}
+      onDragCancel={() => setDrag(null)}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 24, alignItems: "start" }}>
+        <WeekGrid
+          days={WEEK_GRID_DAYS}
+          slots={WEEK_GRID_SLOTS}
+          todayDay="Wed"
+          weekStartDate={new Date(2026, 6, 6)}
+          getCell={getCell}
+          onCellTap={() => {}}
+          dndEnabled
+          activeDrag={drag !== null}
+        />
+        <Card style={{ padding: 16 }}>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Recipe book</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {["Miso salmon", "Chicken tikka", "Greek yogurt bowl", "Protein smoothie", "Overnight oats"].map(
+              (r, i) => <DemoDraggable key={i} id={String(i)} label={r} />,
+            )}
+          </div>
+        </Card>
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {drag && (
+          <div
+            className="chip"
+            style={{ background: "var(--accent)", color: "var(--on-accent)", boxShadow: "var(--shadow-lg)" }}
+          >
+            <Icon name="fork" size={12} /> {drag}
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
 
 function Preview() {
   const [cellSheetOpen, setCellSheetOpen] = useState(false);
   const [leftoverOpen, setLeftoverOpen] = useState(false);
+  const [addMealOpen, setAddMealOpen] = useState(false);
 
   return (
     <>
@@ -226,11 +324,23 @@ function Preview() {
                 <Button variant="ghost" onClick={() => setLeftoverOpen(true)}>
                   Leftover repair
                 </Button>
+                <Button variant="ghost" onClick={() => setAddMealOpen(true)}>
+                  Add meal
+                </Button>
               </div>
             </Card>
           </div>
         </main>
         <BottomNav />
+      </div>
+
+      <div
+        id="planweek-desktop-demo"
+        className="hidden md:block"
+        style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 120px" }}
+      >
+        <div className="eyebrow" style={{ marginBottom: 12 }}>Week planner — desktop drag &amp; drop</div>
+        <PlanWeekDesktopDemo />
       </div>
 
       <CellActionSheet
@@ -253,6 +363,14 @@ function Preview() {
         onUpdate={() => setLeftoverOpen(false)}
         onRegenerate={() => setLeftoverOpen(false)}
         onClose={() => setLeftoverOpen(false)}
+      />
+
+      <AddMealSheet
+        open={addMealOpen}
+        defaultSlot="snack"
+        onGenerate={() => setAddMealOpen(false)}
+        onPickFromBook={() => setAddMealOpen(false)}
+        onClose={() => setAddMealOpen(false)}
       />
     </>
   );

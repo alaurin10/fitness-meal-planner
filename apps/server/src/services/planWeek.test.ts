@@ -3,6 +3,7 @@ import {
   assemblePlan,
   cellsToSkipMask,
   generateDays,
+  snackGenerateDays,
   type FixedMeal,
   type PlanCell,
 } from "./planWeek.js";
@@ -55,6 +56,27 @@ describe("generateDays", () => {
       { day: "Mon", slot: "dinner", mode: "generate" },
     ];
     expect(generateDays(cells)).toEqual(["Mon", "Wed"]);
+  });
+});
+
+describe("snackGenerateDays", () => {
+  it("returns only days with a generate snack cell, in week order", () => {
+    const cells: PlanCell[] = [
+      { day: "Wed", slot: "snack", mode: "generate" },
+      { day: "Mon", slot: "snack", mode: "generate" },
+      { day: "Mon", slot: "dinner", mode: "generate" },
+    ];
+    expect(snackGenerateDays(cells)).toEqual(["Mon", "Wed"]);
+  });
+
+  it("ignores snack cells that are skipped, kept, or from a book recipe", () => {
+    const cells: PlanCell[] = [
+      { day: "Mon", slot: "snack", mode: "skip" },
+      { day: "Tue", slot: "snack", mode: "recipe", recipeId: "r" },
+      { day: "Wed", slot: "snack", mode: "keep" },
+      { day: "Thu", slot: "dinner", mode: "generate" },
+    ];
+    expect(snackGenerateDays(cells)).toEqual([]);
   });
 });
 

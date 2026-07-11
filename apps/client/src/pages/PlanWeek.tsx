@@ -3,8 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -33,7 +35,6 @@ import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
 
-const CORE_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner"];
 const ALL_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
 type CellAssign =
@@ -83,7 +84,8 @@ export function PlanWeekPage() {
   const [pickerFor, setPickerFor] = useState<{ day: MealDay["day"]; slot: MealSlot } | null>(null);
 
   // Initialize once the plan finishes loading: existing meals become "keep"
-  // cells, template-skipped slots default to skip, everything else generates.
+  // cells, template-skipped slots default to skip, everything else
+  // (including snack, absent a persisted skip) defaults to generate.
   const initialized = cells !== null;
   if (!initialized && !planLoading) {
     const next: Partial<Record<CellKey, CellAssign>> = {};
@@ -93,9 +95,7 @@ export function PlanWeekPage() {
         const meal = existingDay?.meals.find((m) => m.slot === slot);
         if (meal) {
           next[key(day, slot)] = { mode: "keep", meal };
-        } else if (slot !== "snack" && template[day]?.includes(slot)) {
-          next[key(day, slot)] = { mode: "skip" };
-        } else if (slot === "snack") {
+        } else if (template[day]?.includes(slot)) {
           next[key(day, slot)] = { mode: "skip" };
         } else {
           next[key(day, slot)] = { mode: "generate" };
@@ -192,26 +192,21 @@ export function PlanWeekPage() {
   const grid = (
     <WeekGrid
       days={DAYS}
-      slots={CORE_SLOTS.concat(
-        // Only show the snack row once something's actually assigned there,
-        // to keep the grid compact by default.
-        Object.entries(cells ?? {}).some(
-          ([k, v]) => k.endsWith(":snack") && v && v.mode !== "skip",
-        )
-          ? ["snack"]
-          : [],
-      )}
+      // Always show all slots — including snack — so a snack is there to
+      // program per day (defaults to generate, like the other slots).
+      slots={ALL_SLOTS}
       todayDay={todayDay}
       weekStartDate={targetDate}
       disabledDays={disabledDays}
       getCell={getCell}
       onCellTap={handleCellTap}
       dndEnabled={isDesktop}
+      activeDrag={draggingRecipe !== null}
     />
   );
 
   return (
-    <Layout>
+    <Layout wide>
       <PageHero
         title="Plan the week"
         subtitle="Tap a slot to generate, pick from your book, or skip it. Drag on desktop works too."
@@ -233,13 +228,20 @@ export function PlanWeekPage() {
           {isDesktop ? (
             <DndContext
               sensors={sensors}
+              // Track the pointer, not the drag overlay's rectangle — the cell
+              // under the cursor is always the drop target, so hit detection
+              // lines up with what the user is pointing at.
+              collisionDetection={pointerWithin}
+              // Re-measure cells continuously; the grid restyles during a drag
+              // (drop-zone outlines, hover scale), so cached rects go stale.
+              measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               onDragStart={(e) => setDraggingRecipe((e.active.data.current?.recipe as RecipeRecord) ?? null)}
               onDragEnd={onDragEnd}
               onDragCancel={() => setDraggingRecipe(null)}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 24, alignItems: "start" }}>
                 <div>{grid}</div>
-                <div style={{ position: "sticky", top: 16, height: "calc(100vh - 140px)" }}>
+                <div style={{ position: "sticky", top: 16, height: "calc(100vh - 132px)" }}>
                   <RecipeTray
                     slot={pendingCell?.slot}
                     onPick={(recipe) => {
@@ -248,9 +250,17 @@ export function PlanWeekPage() {
                   />
                 </div>
               </div>
-              <DragOverlay>
+              <DragOverlay dropAnimation={null}>
                 {draggingRecipe && (
-                  <div className="chip" style={{ boxShadow: "var(--shadow-md)" }}>
+                  <div
+                    className="chip"
+                    style={{
+                      boxShadow: "var(--shadow-lg)",
+                      background: "var(--accent)",
+                      color: "var(--on-accent)",
+                      cursor: "grabbing",
+                    }}
+                  >
                     <Icon name="fork" size={12} />
                     {draggingRecipe.name}
                   </div>

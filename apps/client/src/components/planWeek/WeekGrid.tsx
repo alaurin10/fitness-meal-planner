@@ -41,6 +41,9 @@ interface WeekGridProps {
   /** Enable drop targets for the desktop drag-from-tray shortcut. Must be
    * rendered inside a DndContext when true. */
   dndEnabled?: boolean;
+  /** A tray recipe is currently being dragged — surfaces every editable cell
+   * as a drop zone so it's obvious where a recipe can land. */
+  activeDrag?: boolean;
 }
 
 /**
@@ -58,6 +61,7 @@ export function WeekGrid({
   getCell,
   onCellTap,
   dndEnabled = false,
+  activeDrag = false,
 }: WeekGridProps) {
   const isDesktop = useIsDesktop();
   if (isDesktop) {
@@ -66,10 +70,12 @@ export function WeekGrid({
         days={days}
         slots={slots}
         todayDay={todayDay}
+        weekStartDate={weekStartDate}
         disabledDays={disabledDays}
         getCell={getCell}
         onCellTap={onCellTap}
         dndEnabled={dndEnabled}
+        activeDrag={activeDrag}
       />
     );
   }
@@ -87,29 +93,65 @@ export function WeekGrid({
   );
 }
 
-function CellContent({ cell }: { cell: WeekGridCellView }) {
-  const style = TONE_STYLE[cell.tone];
+function GridCellButton({
+  id,
+  cell,
+  disabled,
+  onTap,
+  dndEnabled,
+  activeDrag,
+}: {
+  id: string;
+  cell: WeekGridCellView;
+  disabled?: boolean;
+  onTap: () => void;
+  dndEnabled: boolean;
+  activeDrag: boolean;
+}) {
+  // Hooks must run unconditionally, so useDroppable is always called; its
+  // `disabled` option (not React conditional rendering) turns it off when
+  // dnd isn't in play, which keeps this a single component either way.
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: !dndEnabled || disabled });
+  const tone = TONE_STYLE[cell.tone];
+  const droppableIdle = dndEnabled && !disabled && activeDrag && !isOver;
   return (
-    <div
+    <button
+      ref={dndEnabled ? setNodeRef : undefined}
+      type="button"
+      className="tappable"
+      disabled={disabled}
+      onClick={onTap}
       style={{
-        ...style,
+        // Tone lives on the button itself so the drop highlight lands exactly
+        // on the meal cell — the droppable node and the visible cell are one.
+        ...tone,
         borderRadius: "var(--radius-sm)",
-        padding: "8px 6px",
-        minHeight: 58,
+        padding: "10px 8px",
+        minHeight: 76,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 4,
+        gap: 6,
         textAlign: "center",
         width: "100%",
-        height: "100%",
+        opacity: disabled ? 0.4 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+        // Aligned, inset feedback — no offset outline that would spill over
+        // neighbouring cells and read as misaligned.
+        boxShadow: isOver ? "inset 0 0 0 2px var(--accent)" : "none",
+        outline: droppableIdle
+          ? "1.5px dashed color-mix(in srgb, var(--accent) 45%, transparent)"
+          : "none",
+        outlineOffset: -3,
+        transform: isOver ? "scale(1.03)" : "none",
+        transition: "box-shadow 120ms ease, transform 120ms ease, outline-color 120ms ease",
       }}
     >
-      {cell.icon && <Icon name={cell.icon} size={14} />}
+      {cell.icon && <Icon name={cell.icon} size={16} />}
       <span
         style={{
-          fontSize: 10.5,
+          fontSize: 11.5,
           fontWeight: 500,
           lineHeight: 1.2,
           overflow: "hidden",
@@ -121,47 +163,6 @@ function CellContent({ cell }: { cell: WeekGridCellView }) {
       >
         {cell.label}
       </span>
-    </div>
-  );
-}
-
-function GridCellButton({
-  id,
-  cell,
-  disabled,
-  onTap,
-  dndEnabled,
-}: {
-  id: string;
-  cell: WeekGridCellView;
-  disabled?: boolean;
-  onTap: () => void;
-  dndEnabled: boolean;
-}) {
-  // Hooks must run unconditionally, so useDroppable is always called; its
-  // `disabled` option (not React conditional rendering) turns it off when
-  // dnd isn't in play, which keeps this a single component either way.
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: !dndEnabled || disabled });
-  return (
-    <button
-      ref={dndEnabled ? setNodeRef : undefined}
-      type="button"
-      className="tappable"
-      disabled={disabled}
-      onClick={onTap}
-      style={{
-        background: "none",
-        border: "none",
-        padding: 0,
-        opacity: disabled ? 0.4 : 1,
-        width: "100%",
-        cursor: disabled ? "not-allowed" : "pointer",
-        outline: isOver ? "2px solid var(--accent)" : "none",
-        outlineOffset: 2,
-        borderRadius: "var(--radius-sm)",
-      }}
-    >
-      <CellContent cell={cell} />
     </button>
   );
 }
@@ -170,61 +171,85 @@ function DesktopGrid({
   days,
   slots,
   todayDay,
+  weekStartDate,
   disabledDays,
   getCell,
   onCellTap,
   dndEnabled,
-}: Omit<WeekGridProps, "weekStartDate"> & { dndEnabled: boolean }) {
+  activeDrag = false,
+}: WeekGridProps & { dndEnabled: boolean }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `76px repeat(${days.length}, minmax(0, 1fr))`,
-        gap: 6,
-      }}
-    >
-      <div />
-      {days.map((day) => (
-        <div
-          key={`h-${day}`}
-          style={{
-            textAlign: "center",
-            fontSize: 11,
-            fontWeight: 600,
-            color: day === todayDay ? "var(--accent)" : "var(--muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            padding: "4px 0",
-          }}
-        >
-          {day}
-        </div>
-      ))}
-      {slots.map((slot) => (
-        <FragmentRow key={slot}>
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--muted)",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            {SLOT_LABEL[slot]}
-          </div>
-          {days.map((day) => (
-            <GridCellButton
-              key={`${day}:${slot}`}
-              id={`${day}:${slot}`}
-              cell={getCell(day, slot)}
-              disabled={disabledDays?.has(day)}
-              onTap={() => onCellTap(day, slot)}
-              dndEnabled={dndEnabled}
-            />
-          ))}
-        </FragmentRow>
-      ))}
-    </div>
+    <Card style={{ padding: 18 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `92px repeat(${days.length}, minmax(0, 1fr))`,
+          gap: 8,
+        }}
+      >
+        <div />
+        {days.map((day, i) => {
+          const dayDate = weekStartDate ? new Date(weekStartDate) : undefined;
+          if (dayDate) dayDate.setDate(dayDate.getDate() + i);
+          const isToday = day === todayDay;
+          return (
+            <div key={`h-${day}`} style={{ textAlign: "center", padding: "0 0 8px" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: isToday ? "var(--accent)" : "var(--muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {day}
+              </div>
+              {dayDate && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    marginTop: 2,
+                    fontWeight: isToday ? 600 : 400,
+                    color: isToday ? "var(--ink)" : "var(--muted)",
+                  }}
+                >
+                  {dayDate.getDate()}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {slots.map((slot) => (
+          <FragmentRow key={slot}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--sumi)",
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              {SLOT_LABEL[slot]}
+            </div>
+            {days.map((day) => (
+              <GridCellButton
+                key={`${day}:${slot}`}
+                id={`${day}:${slot}`}
+                cell={getCell(day, slot)}
+                disabled={disabledDays?.has(day)}
+                onTap={() => onCellTap(day, slot)}
+                dndEnabled={dndEnabled}
+                activeDrag={activeDrag}
+              />
+            ))}
+          </FragmentRow>
+        ))}
+      </div>
+    </Card>
   );
 }
 

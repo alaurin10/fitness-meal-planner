@@ -121,6 +121,23 @@ describe("buildUserPrompt variety block", () => {
   });
 });
 
+describe("buildUserPrompt snack days", () => {
+  it("instructs a slot:'snack' meal on the requested days", () => {
+    const out = buildUserPrompt({
+      profile: profile(),
+      schedule,
+      snackDays: ["Mon", "Thu"],
+    });
+    expect(out).toContain("slot:'snack'");
+    expect(out).toContain("Mon, Thu");
+  });
+
+  it("omits the snack instruction when no snack days are requested", () => {
+    const out = buildUserPrompt({ profile: profile(), schedule });
+    expect(out).not.toContain("the user WANTS a snack");
+  });
+});
+
 describe("buildSingleMealUserPrompt", () => {
   it("keeps strict wording for the replaced meal and lists week avoids", () => {
     const out = buildSingleMealUserPrompt({

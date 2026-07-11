@@ -64,6 +64,16 @@ export function generateDays(cells: PlanCell[]): DayLabel[] {
   return ALL_DAYS.filter((d) => days.has(d as DayLabel)) as DayLabel[];
 }
 
+/** Days the user asked the AI to generate a snack for. Snacks aren't part of
+ * the core skip mask, so the generator must be told about them explicitly. */
+export function snackGenerateDays(cells: PlanCell[]): DayLabel[] {
+  const days = new Set<DayLabel>();
+  for (const cell of cells) {
+    if (cell.slot === "snack" && cell.mode === "generate") days.add(cell.day);
+  }
+  return ALL_DAYS.filter((d) => days.has(d as DayLabel)) as DayLabel[];
+}
+
 export interface FixedMeal {
   day: DayLabel;
   slot: MealSlot;

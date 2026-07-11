@@ -121,6 +121,9 @@ export function useRegenerateSlot() {
       index: number;
       weekStart?: string;
       suggestion?: string;
+      /** Explicit slot for the new meal — set when adding a meal (index past
+       * the end of the day) so the user's chosen slot is honored. */
+      slot?: MealSlot;
     }) => {
       const { data } = await api.post<PlanResult>(
         "/api/meals/slot/regenerate",

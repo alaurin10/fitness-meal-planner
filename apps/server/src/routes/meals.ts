@@ -38,6 +38,7 @@ import {
   assemblePlan,
   cellsToSkipMask,
   generateDays,
+  snackGenerateDays,
   planWeekCellsSchema,
   type FixedMeal,
   type PlanCell,
@@ -400,6 +401,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
 
     const genDays = generateDays(cells).filter((d) => windowSet.has(d));
     const mask = cellsToSkipMask(cells, daysToInclude);
+    const snackDays = snackGenerateDays(cells).filter((d) => windowSet.has(d));
 
     let generated: MealPlanJson | null = null;
     if (genDays.length) {
@@ -425,6 +427,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
         varietyTone: variety.promptTone,
         temperature: variety.temperature,
         skipMask: mask,
+        snackDays,
         fixedMeals,
       });
       generated = applySkipMask(generated, genDays, mask);
@@ -474,6 +477,10 @@ const slotRegenSchema = z.object({
   index: z.number().int().nonnegative(),
   weekStart: weekStartField,
   suggestion: z.string().max(500).optional(),
+  // Explicit slot for the generated meal. Used when adding a brand-new meal
+  // (index past the end): the caller picks the slot instead of it being
+  // inferred from position. Omitted for in-place regeneration.
+  slot: z.enum(MEAL_SLOTS).optional(),
 });
 
 // Replace a meal at (day, index) with the provided meal payload. Used for
@@ -645,7 +652,7 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
     return;
   }
   const existing = dayEntry.meals[parsed.data.index];
-  const slot = pickSlot(existing, parsed.data.index);
+  const slot = parsed.data.slot ?? pickSlot(existing, parsed.data.index);
 
   // Estimate per-meal targets from the day's other meals so the new meal
   // helps hit the day's totals without ballooning calories.
