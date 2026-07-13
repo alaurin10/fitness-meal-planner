@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
-import { getGarminSession, linkGarminAccount } from "../services/garmin/client.js";
+import { completeLinkWithMfa, getGarminSession, startLink } from "../services/garmin/client.js";
 import { GarminConfigError } from "../services/garmin/crypto.js";
 import { GarminAuthError, GarminUnavailableError } from "../services/garmin/types.js";
 import { syncUser } from "../services/garmin/sync.js";
@@ -14,7 +14,27 @@ const router = Router();
 // Garmin's SSO locks accounts after repeated failed logins — keep connect
 // attempts rare. Sync has its own 15-min cooldown; this is just a backstop.
 const connectLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5, name: "Garmin connect" });
+const mfaLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, name: "Garmin MFA" });
 const syncLimiter = rateLimit({ windowMs: 60 * 1000, max: 6, name: "Garmin sync" });
+
+// Kick the initial 30-day backfill in the background. Running it inline would hold
+// the HTTP request open for minutes (sequential Garmin calls) and surface as a
+// client-side "Network Error"; the Settings card polls status while data fills in.
+// Sync failures don't undo the link — lastSyncStatus/lastSyncError reflect them.
+function kickInitialSync(userId: string): void {
+  void (async () => {
+    try {
+      const session = await getGarminSession(userId);
+      if (!session) return;
+      await syncUser(userId, session.api, { force: true });
+      await session.persistTokens();
+    } catch (err) {
+      console.warn(
+        `[garmin] initial sync failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  })();
+}
 
 function respondGarminError(res: Response, err: unknown): boolean {
   if (err instanceof GarminConfigError) {
@@ -46,34 +66,39 @@ router.post("/connect", requireAuth, connectLimiter, async (req, res, next) => {
   }
 
   try {
-    const { garminUserId } = await linkGarminAccount(
+    const { mfaRequired, garminUserId } = await startLink(
       userId,
       parsed.data.username,
       parsed.data.password,
     );
 
-    // Respond as soon as the account is linked. The initial 30-day backfill can
-    // take minutes (sequential Garmin calls), so running it inline holds the
-    // HTTP request open long enough for the browser/proxy to reset it —
-    // surfacing as a client-side "Network Error". Run it in the background
-    // instead; the Settings card polls status and the data fills in shortly.
-    res.json({ connected: true, garminUserId });
+    // Two-step verification: don't sync yet — wait for the code at /connect/mfa.
+    if (mfaRequired) {
+      res.json({ mfaRequired: true });
+      return;
+    }
 
-    void (async () => {
-      try {
-        const session = await getGarminSession(userId);
-        if (!session) return;
-        await syncUser(userId, session.api, { force: true });
-        await session.persistTokens();
-      } catch (err) {
-        // Sync failures don't undo the link — the user can retry from Settings,
-        // and lastSyncStatus/lastSyncError reflect the failure. Swallow here so
-        // a rejection can't crash the process after the response is sent.
-        console.warn(
-          `[garmin] initial sync failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    })();
+    res.json({ connected: true, garminUserId });
+    kickInitialSync(userId);
+  } catch (err) {
+    if (!respondGarminError(res, err)) next(err);
+  }
+});
+
+const mfaSchema = z.object({ code: z.string().trim().regex(/^\d{4,10}$/) });
+
+router.post("/connect/mfa", requireAuth, mfaLimiter, async (req, res, next) => {
+  const userId = currentUserId(req);
+  const parsed = mfaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter the numeric verification code Garmin sent you" });
+    return;
+  }
+
+  try {
+    const { garminUserId } = await completeLinkWithMfa(userId, parsed.data.code);
+    res.json({ connected: true, garminUserId });
+    kickInitialSync(userId);
   } catch (err) {
     if (!respondGarminError(res, err)) next(err);
   }

@@ -2,6 +2,8 @@ import { GarminConnect } from "garmin-connect";
 import { prisma } from "@platform/db";
 import { encryptJson, decryptJson } from "./crypto.js";
 import { buildWorkoutServicePayload } from "./workoutPush.js";
+import { startGarminLogin, resumeGarminLogin } from "./login.js";
+import { putPending, takePending } from "./pendingLogins.js";
 import {
   GarminAuthError,
   GarminUnavailableError,
@@ -10,53 +12,38 @@ import {
   type GarminDailySummary,
   type GarminWeighIn,
   type GarminWorkoutPayload,
+  type StoredTokens,
 } from "./types.js";
 
 // The ONLY file that talks to the unofficial garmin-connect library / Garmin
 // HTTP endpoints. Everything else consumes the GarminApi interface, so an
-// upstream API change is contained here.
+// upstream API change is contained here. Credential sign-in (incl. MFA) lives in
+// login.ts, which produces the same token shape this file stores and loads.
 
 const GC_API = "https://connectapi.garmin.com";
-
-type StoredTokens = {
-  oauth1: Parameters<GarminConnect["loadToken"]>[0];
-  oauth2: Parameters<GarminConnect["loadToken"]>[1];
-};
 
 function asNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-/**
- * Log in with raw credentials, persist ONLY the exported OAuth tokens
- * (encrypted) and never the password, and return the linked identity.
- */
-export async function linkGarminAccount(
-  userId: string,
-  username: string,
-  password: string,
-): Promise<{ garminUserId: string | null }> {
-  const gc = new GarminConnect({ username, password });
+/** Best-effort Garmin displayName (used in API paths); null is fine, resolved lazily on sync. */
+async function resolveDisplayName(tokens: StoredTokens): Promise<string | null> {
   try {
-    await gc.login();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // The library throws generic errors; a failed SSO handshake here is almost
-    // always bad credentials or an MFA challenge we can't answer.
-    throw new GarminAuthError(
-      `Garmin sign-in failed (check credentials; MFA-enabled accounts are not supported): ${msg}`,
-    );
-  }
-
-  const tokens = gc.exportToken();
-  let garminUserId: string | null = null;
-  try {
+    const gc = new GarminConnect();
+    gc.loadToken(tokens.oauth1, tokens.oauth2);
     const profile = await gc.getUserProfile();
-    garminUserId = profile.displayName ?? null;
+    return profile.displayName ?? null;
   } catch {
-    // Non-fatal: displayName can be fetched lazily on first sync.
+    return null;
   }
+}
 
+/** Persist ONLY the OAuth tokens (encrypted) and the linked identity — never the password. */
+async function persistLinkedTokens(
+  userId: string,
+  tokens: StoredTokens,
+  garminUserId: string | null,
+): Promise<void> {
   const encryptedTokens = encryptJson(tokens satisfies StoredTokens);
   await prisma.user.upsert({ where: { id: userId }, update: {}, create: { id: userId } });
   await prisma.garminConnection.upsert({
@@ -64,6 +51,46 @@ export async function linkGarminAccount(
     update: { encryptedTokens, garminUserId, lastSyncStatus: "never", lastSyncError: null },
     create: { userId, encryptedTokens, garminUserId },
   });
+}
+
+/**
+ * Step 1 of linking: sign in with credentials. If the account requires two-step
+ * verification, stash the pending SSO session and report `mfaRequired: true` —
+ * the caller then collects a code and calls `completeLinkWithMfa`. Otherwise the
+ * account is linked immediately.
+ */
+export async function startLink(
+  userId: string,
+  username: string,
+  password: string,
+): Promise<{ mfaRequired: boolean; garminUserId?: string | null }> {
+  const result = await startGarminLogin(username, password);
+  if (result.status === "mfa_required") {
+    putPending(userId, result.pending);
+    return { mfaRequired: true };
+  }
+  const garminUserId = await resolveDisplayName(result.tokens);
+  await persistLinkedTokens(userId, result.tokens, garminUserId);
+  return { mfaRequired: false, garminUserId };
+}
+
+/**
+ * Step 2 of linking: finish a pending MFA login with the user's code.
+ * Throws GarminAuthError if there is no pending attempt (expired/never started).
+ */
+export async function completeLinkWithMfa(
+  userId: string,
+  code: string,
+): Promise<{ garminUserId: string | null }> {
+  const pending = takePending(userId);
+  if (!pending) {
+    throw new GarminAuthError(
+      "Your sign-in session expired — start connecting your Garmin account again",
+    );
+  }
+  const { tokens } = await resumeGarminLogin(pending, code);
+  const garminUserId = await resolveDisplayName(tokens);
+  await persistLinkedTokens(userId, tokens, garminUserId);
   return { garminUserId };
 }
 

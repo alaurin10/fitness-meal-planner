@@ -2,6 +2,16 @@
 // workoutPush.ts depend only on this interface so tests can mock it and an
 // unofficial-API change stays confined to client.ts.
 
+import type { GarminConnect } from "garmin-connect";
+
+// The OAuth token pair we persist (encrypted) and hand to `GarminConnect.loadToken`.
+// Derived straight from the library's own signature so the shapes can never drift.
+// login.ts produces this shape; client.ts stores it and loads it back.
+export type StoredTokens = {
+  oauth1: Parameters<GarminConnect["loadToken"]>[0];
+  oauth2: Parameters<GarminConnect["loadToken"]>[1];
+};
+
 export interface GarminDailySummary {
   steps: number | null;
   totalKilocalories: number | null;

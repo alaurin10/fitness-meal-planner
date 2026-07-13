@@ -143,8 +143,9 @@ Link a Garmin account from **Profile → Settings → Connections** to sync watc
 
 How it works, and the caveats to know:
 
-- Garmin's official Connect Developer Program is currently **closed to new applicants**, so this uses the **unofficial Garmin Connect API** via the [`garmin-connect`](https://github.com/Pythe1337N/garmin-connect) library. Endpoints may change without notice; all Garmin HTTP is isolated in `apps/server/src/services/garmin/client.ts`.
-- You sign in once with your Garmin username/password; the server stores only the resulting OAuth tokens, encrypted with AES-256-GCM (`GARMIN_TOKEN_ENC_KEY`, generate with `openssl rand -base64 32`). The password is never persisted or logged. Garmin accounts with MFA enabled are not supported.
+- Garmin's official Connect Developer Program is currently **closed to new applicants**, so this uses the **unofficial Garmin Connect API** via the [`garmin-connect`](https://github.com/Pythe1337N/garmin-connect) library for data access. Endpoints may change without notice; all Garmin HTTP is isolated in `apps/server/src/services/garmin/client.ts`.
+- You sign in once with your Garmin username/password; the server stores only the resulting OAuth tokens, encrypted with AES-256-GCM (`GARMIN_TOKEN_ENC_KEY`, generate with `openssl rand -base64 32`). The password is never persisted or logged.
+- **Two-factor authentication is supported.** Because `garmin-connect` cannot answer an MFA challenge, the SSO sign-in (incl. the two-step-verification code) is handled by a self-contained module (`apps/server/src/services/garmin/login.ts`) that produces `garmin-connect`-compatible tokens. When an account has 2FA on, connecting is a two-step flow: submit credentials, then enter the code Garmin sends. The in-progress sign-in is held in memory for ~5 minutes (single-instance assumption — see `pendingLogins.ts`).
 - Sync is pull-based: automatic on app load when data is >6 h stale, or via **Sync now**, with a 15-minute server-side cooldown and a 30-day backfill cap.
 - The integration is fully optional — without a linked account (or without `GARMIN_TOKEN_ENC_KEY`) the app behaves exactly as before; the only visible addition is the Connections card in Settings.
 
