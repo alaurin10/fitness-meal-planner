@@ -51,15 +51,12 @@ export function GarminConnectionCard() {
     connect.mutate(
       { username: username.trim(), password },
       {
-        onSuccess: (data) => {
+        onSuccess: () => {
           setUsername("");
           setPassword("");
-          const n = data.sync;
-          toast.success(
-            n && !n.skipped
-              ? `Garmin connected — imported ${n.activitiesImported} activities and ${n.wellnessDays} days of health data.`
-              : "Garmin connected.",
-          );
+          // The initial backfill runs in the background; the status chip below
+          // reflects its progress and the data fills in over the next moment.
+          toast.success("Garmin connected — syncing your data now.");
         },
         onError: (err) => {
           const axiosMsg = (err as { response?: { data?: { error?: string } } }).response?.data

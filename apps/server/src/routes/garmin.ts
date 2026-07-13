@@ -52,22 +52,28 @@ router.post("/connect", requireAuth, connectLimiter, async (req, res, next) => {
       parsed.data.password,
     );
 
-    // Initial backfill so the account lights up with data right away. Sync
-    // failures don't undo the link — the user can retry from Settings.
-    let sync = null;
-    const session = await getGarminSession(userId);
-    if (session) {
+    // Respond as soon as the account is linked. The initial 30-day backfill can
+    // take minutes (sequential Garmin calls), so running it inline holds the
+    // HTTP request open long enough for the browser/proxy to reset it —
+    // surfacing as a client-side "Network Error". Run it in the background
+    // instead; the Settings card polls status and the data fills in shortly.
+    res.json({ connected: true, garminUserId });
+
+    void (async () => {
       try {
-        sync = await syncUser(userId, session.api, { force: true });
+        const session = await getGarminSession(userId);
+        if (!session) return;
+        await syncUser(userId, session.api, { force: true });
         await session.persistTokens();
       } catch (err) {
+        // Sync failures don't undo the link — the user can retry from Settings,
+        // and lastSyncStatus/lastSyncError reflect the failure. Swallow here so
+        // a rejection can't crash the process after the response is sent.
         console.warn(
           `[garmin] initial sync failed: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
-    }
-
-    res.json({ connected: true, garminUserId, sync });
+    })();
   } catch (err) {
     if (!respondGarminError(res, err)) next(err);
   }
