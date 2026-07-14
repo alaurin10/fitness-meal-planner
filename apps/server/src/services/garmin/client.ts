@@ -26,6 +26,37 @@ function asNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+interface RawWeightMetric {
+  samplePk?: number;
+  weight?: number;
+  calendarDate?: string;
+}
+
+/**
+ * Smart scales often send a preliminary reading followed a few seconds later by
+ * the final, settled one (once the body-composition impedance measurement
+ * completes) — both land in the same day's metrics. `samplePk` is a millisecond
+ * epoch timestamp, so keep only the latest sample per calendar day; Garmin's own
+ * "current weight" (surfaced via previousDateWeight/nextDateWeight on this same
+ * endpoint) tracks the latest sample too, confirming it's the authoritative one.
+ */
+export function pickLatestWeighInPerDay(metrics: RawWeightMetric[]): GarminWeighIn[] {
+  const latestByDay = new Map<string, { samplePk: number; weight: number }>();
+  for (const m of metrics) {
+    const weight = asNumber(m.weight);
+    if (m.samplePk == null || weight == null || !m.calendarDate) continue;
+    const existing = latestByDay.get(m.calendarDate);
+    if (!existing || m.samplePk > existing.samplePk) {
+      latestByDay.set(m.calendarDate, { samplePk: m.samplePk, weight });
+    }
+  }
+  return Array.from(latestByDay.entries()).map(([dayKey, { samplePk, weight }]) => ({
+    samplePk,
+    dayKey,
+    weightGrams: weight,
+  }));
+}
+
 /**
  * The library's constructor throws unless `credentials` is truthy (it also
  * accepts a `garmin.config.json` file via app-root-path, which we don't use) —
@@ -188,21 +219,13 @@ export async function getGarminSession(userId: string): Promise<GarminSession | 
           params: { includeAll: true },
         }),
       );
-      // TEMP DEBUG — diagnosing an incorrect imported weight; remove once resolved.
-      console.log("[garmin debug] raw weight range response:", JSON.stringify(raw, null, 2));
       const metrics =
         raw?.dailyWeightSummaries?.flatMap((d) =>
           (d.allWeightMetrics ?? []).map((m) => ({ ...m, calendarDate: m.calendarDate ?? d.summaryDate })),
         ) ??
         raw?.dateWeightList ??
         [];
-      const out: GarminWeighIn[] = [];
-      for (const m of metrics) {
-        const weight = asNumber(m.weight);
-        if (m.samplePk == null || weight == null || !m.calendarDate) continue;
-        out.push({ samplePk: m.samplePk, dayKey: m.calendarDate, weightGrams: weight });
-      }
-      return out;
+      return pickLatestWeighInPerDay(metrics);
     },
 
     async pushWeight(lbs: number): Promise<void> {
