@@ -26,11 +26,23 @@ function asNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * The library's constructor throws unless `credentials` is truthy (it also
+ * accepts a `garmin.config.json` file via app-root-path, which we don't use) —
+ * but `loadToken()` never reads `this.credentials`, only `.login()` does, and we
+ * never call `.login()` on a token-based session. So a placeholder satisfies the
+ * check without any real credentials on hand.
+ */
+function tokenClient(tokens: StoredTokens): GarminConnect {
+  const gc = new GarminConnect({ username: "", password: "" });
+  gc.loadToken(tokens.oauth1, tokens.oauth2);
+  return gc;
+}
+
 /** Best-effort Garmin displayName (used in API paths); null is fine, resolved lazily on sync. */
 async function resolveDisplayName(tokens: StoredTokens): Promise<string | null> {
   try {
-    const gc = new GarminConnect();
-    gc.loadToken(tokens.oauth1, tokens.oauth2);
+    const gc = tokenClient(tokens);
     const profile = await gc.getUserProfile();
     return profile.displayName ?? null;
   } catch {
@@ -106,8 +118,7 @@ export async function getGarminSession(userId: string): Promise<GarminSession | 
   if (!connection) return null;
 
   const tokens = decryptJson<StoredTokens>(connection.encryptedTokens);
-  const gc = new GarminConnect();
-  gc.loadToken(tokens.oauth1, tokens.oauth2);
+  const gc = tokenClient(tokens);
 
   let displayName = connection.garminUserId;
 
