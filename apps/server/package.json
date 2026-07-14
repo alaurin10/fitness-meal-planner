@@ -16,10 +16,13 @@
     "@google/genai": "^1.0.0",
     "@platform/db": "workspace:*",
     "@platform/shared": "workspace:*",
+    "axios": "^1.15.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "garmin-connect": "^1.6.2",
     "jsonrepair": "^3.14.0",
+    "oauth-1.0a": "^2.2.6",
+    "tough-cookie": "^6.0.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

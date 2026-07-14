@@ -54,8 +54,28 @@ export function useConnectGarmin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { username: string; password: string }) => {
-      const { data } = await api.post<{ connected: boolean; sync: GarminSyncResult | null }>(
-        "/api/garmin/connect",
+      // Two-step verification accounts get `{ mfaRequired: true }` here and finish
+      // via useSubmitGarminMfa; others link immediately with `{ connected: true }`.
+      const { data } = await api.post<{
+        connected?: boolean;
+        mfaRequired?: boolean;
+        garminUserId?: string | null;
+      }>("/api/garmin/connect", input);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.connected) invalidateSyncTargets(qc);
+    },
+  });
+}
+
+export function useSubmitGarminMfa() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { code: string }) => {
+      const { data } = await api.post<{ connected: boolean; garminUserId?: string | null }>(
+        "/api/garmin/connect/mfa",
         input,
       );
       return data;
