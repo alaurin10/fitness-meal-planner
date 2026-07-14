@@ -28,6 +28,12 @@ const USER_AGENT_CONNECTMOBILE = "com.garmin.android.apps.connectmobile";
 const USER_AGENT_BROWSER =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36";
 
+// Garmin's OAuth endpoints occasionally 429 under burst load (seen in
+// production, not in lower-volume local testing) — retry with backoff before
+// giving up, respecting Retry-After when Garmin sends one.
+const MAX_429_RETRIES = 3;
+const MAX_429_DELAY_MS = 10_000;
+
 const CSRF_RE = /name="_csrf"\s+value="(.+?)"/;
 const TICKET_RE = /ticket=([^"]+)"/;
 const ACCOUNT_LOCKED_RE = /var\s+status\s*=\s*"([^"]*locked[^"]*)"/i;
@@ -90,14 +96,25 @@ async function jarRequest(
 
   for (let hop = 0; hop < 6; hop++) {
     const cookie = jar.getCookieStringSync(currentUrl);
-    const res = await client.request({
+    const requestConfig = {
       url: currentUrl,
       method: currentMethod,
       data,
       headers: { ...headers, ...(cookie ? { Cookie: cookie } : {}) },
       maxRedirects: 0,
       validateStatus: () => true,
-    });
+    };
+
+    let res = await client.request(requestConfig);
+    for (let retry = 0; res.status === 429 && retry < MAX_429_RETRIES; retry++) {
+      const retryAfterSec = Number(res.headers["retry-after"]);
+      const delayMs =
+        Number.isFinite(retryAfterSec) && retryAfterSec > 0
+          ? Math.min(retryAfterSec * 1000, MAX_429_DELAY_MS)
+          : Math.min(1000 * 2 ** retry, MAX_429_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      res = await client.request(requestConfig);
+    }
 
     const setCookies = res.headers["set-cookie"];
     if (Array.isArray(setCookies)) {
@@ -132,6 +149,17 @@ async function fetchConsumer(): Promise<Consumer> {
   } catch (err) {
     throw new GarminUnavailableError(
       `Could not fetch Garmin OAuth consumer: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+// jarRequest already retries 429s with backoff; if one still reaches here, Garmin
+// is genuinely rate-limiting this account/IP — say so distinctly rather than
+// letting it masquerade as bad credentials, a bad code, or a malformed response.
+function assertNotRateLimited(status: number): void {
+  if (status === 429) {
+    throw new GarminUnavailableError(
+      "Garmin is rate-limiting sign-in attempts right now — wait a few minutes and try again",
     );
   }
 }
@@ -192,6 +220,7 @@ export async function startGarminLogin(username: string, password: string): Prom
     return { status: "complete", tokens };
   }
 
+  assertNotRateLimited(result.status);
   assertNotBlocked(result.body);
 
   if (MFA_RE.test(result.body)) {
@@ -241,6 +270,7 @@ export async function resumeGarminLogin(
 
   const ticket = TICKET_RE.exec(result.body)?.[1];
   if (!ticket) {
+    assertNotRateLimited(result.status);
     assertNotBlocked(result.body);
     throw new GarminAuthError(
       "That verification code didn't work — it may be expired or mistyped. Request a new code and try again.",
@@ -285,10 +315,7 @@ async function ticketToTokens(
   const oauth_token = oauth1Parsed.get("oauth_token");
   const oauth_token_secret = oauth1Parsed.get("oauth_token_secret");
   if (!oauth_token || !oauth_token_secret) {
-    // TEMP DEBUG — diagnosing a prod-only OAuth1 failure; remove once resolved.
-    console.log(
-      `[garmin debug] preauthorized failed — status=${oauth1Res.status} body=${oauth1Res.body.slice(0, 800)}`,
-    );
+    assertNotRateLimited(oauth1Res.status);
     throw new GarminUnavailableError("Garmin did not return an OAuth1 token after sign-in");
   }
   const oauth1 = { oauth_token, oauth_token_secret };
@@ -313,6 +340,7 @@ async function ticketToTokens(
   try {
     raw = JSON.parse(exchangeRes.body) as Record<string, unknown>;
   } catch {
+    assertNotRateLimited(exchangeRes.status);
     throw new GarminUnavailableError("Garmin returned an unreadable OAuth2 token response");
   }
 

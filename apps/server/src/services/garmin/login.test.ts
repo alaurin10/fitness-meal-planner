@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock only axios; oauth-1.0a and tough-cookie run for real so signing and the
 // cookie jar are genuinely exercised.
@@ -162,5 +162,106 @@ describe("resumeGarminLogin", () => {
     });
 
     await expect(resumeGarminLogin(pending, "000000")).rejects.toBeInstanceOf(GarminAuthError);
+  });
+});
+
+describe("429 rate limiting", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function baseRoute(url: string, method: string) {
+    if (url.includes("/sso/embed") && method === "GET") {
+      return { status: 200, headers: { "set-cookie": ["GARMIN-SSO-GUID=g1; Path=/"] }, data: "" };
+    }
+    if (url.includes("/sso/signin") && method === "GET") {
+      return { status: 200, headers: { "set-cookie": ["SESSIONID=s1; Path=/"] }, data: SIGNIN_PAGE };
+    }
+    if (url.includes("/sso/signin") && method === "POST") {
+      return { status: 200, headers: {}, data: TICKET_PAGE };
+    }
+    return null;
+  }
+
+  it("retries a transient 429 on the preauthorized call and succeeds", async () => {
+    let preauthAttempts = 0;
+    mocks.request.mockImplementation((config: { url: string; method: string }) => {
+      const { url, method } = config;
+      const base = baseRoute(url, method);
+      if (base) return Promise.resolve(base);
+      if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
+        preauthAttempts += 1;
+        if (preauthAttempts === 1) {
+          return Promise.resolve({ status: 429, headers: {}, data: "Rate limited" });
+        }
+        return Promise.resolve({ status: 200, headers: {}, data: OAUTH1_BODY });
+      }
+      if (url.includes("/oauth-service/oauth/exchange") && method === "POST") {
+        return Promise.resolve({ status: 200, headers: {}, data: OAUTH2_JSON });
+      }
+      throw new Error(`unexpected request: ${method} ${url}`);
+    });
+
+    const promise = startGarminLogin("user@example.com", "pw");
+    await vi.advanceTimersByTimeAsync(20_000);
+    const result = await promise;
+
+    expect(result.status).toBe("complete");
+    expect(preauthAttempts).toBe(2);
+  });
+
+  it("surfaces a clear rate-limit error once retries are exhausted", async () => {
+    let preauthAttempts = 0;
+    mocks.request.mockImplementation((config: { url: string; method: string }) => {
+      const { url, method } = config;
+      const base = baseRoute(url, method);
+      if (base) return Promise.resolve(base);
+      if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
+        preauthAttempts += 1;
+        return Promise.resolve({ status: 429, headers: {}, data: "Rate limited" });
+      }
+      throw new Error(`unexpected request: ${method} ${url}`);
+    });
+
+    const promise = startGarminLogin("user@example.com", "pw");
+    const rejection = expect(promise).rejects.toThrow(/rate-limiting/i);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await rejection;
+
+    // Initial attempt + MAX_429_RETRIES retries, then give up.
+    expect(preauthAttempts).toBe(4);
+  });
+
+  it("honors a Retry-After header instead of the default backoff", async () => {
+    let preauthAttempts = 0;
+    mocks.request.mockImplementation((config: { url: string; method: string }) => {
+      const { url, method } = config;
+      const base = baseRoute(url, method);
+      if (base) return Promise.resolve(base);
+      if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
+        preauthAttempts += 1;
+        if (preauthAttempts === 1) {
+          return Promise.resolve({ status: 429, headers: { "retry-after": "3" }, data: "Rate limited" });
+        }
+        return Promise.resolve({ status: 200, headers: {}, data: OAUTH1_BODY });
+      }
+      if (url.includes("/oauth-service/oauth/exchange") && method === "POST") {
+        return Promise.resolve({ status: 200, headers: {}, data: OAUTH2_JSON });
+      }
+      throw new Error(`unexpected request: ${method} ${url}`);
+    });
+
+    const promise = startGarminLogin("user@example.com", "pw");
+    // Advancing by less than the 3s Retry-After should not trigger the retry yet.
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(preauthAttempts).toBe(1);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await promise;
+
+    expect(result.status).toBe("complete");
+    expect(preauthAttempts).toBe(2);
   });
 });
