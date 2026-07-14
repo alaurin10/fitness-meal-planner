@@ -285,6 +285,10 @@ async function ticketToTokens(
   const oauth_token = oauth1Parsed.get("oauth_token");
   const oauth_token_secret = oauth1Parsed.get("oauth_token_secret");
   if (!oauth_token || !oauth_token_secret) {
+    // TEMP DEBUG — diagnosing a prod-only OAuth1 failure; remove once resolved.
+    console.log(
+      `[garmin debug] preauthorized failed — status=${oauth1Res.status} body=${oauth1Res.body.slice(0, 800)}`,
+    );
     throw new GarminUnavailableError("Garmin did not return an OAuth1 token after sign-in");
   }
   const oauth1 = { oauth_token, oauth_token_secret };
