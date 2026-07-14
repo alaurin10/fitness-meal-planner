@@ -1,4 +1,17 @@
-import { GarminConnect } from "garmin-connect";
+// garmin-connect is CommonJS and its dist/index.js defines the `GarminConnect`
+// export via Object.defineProperty(exports, "GarminConnect", { get: ... })
+// rather than a plain assignment. Node's native ESM loader statically analyzes
+// CJS exports (cjs-module-lexer) to support `import { X } from "cjsPkg"`, and
+// it doesn't recognize getter-defined exports — so that form throws "Named
+// export 'GarminConnect' not found" at runtime under plain `node dist/index.js`
+// (tsx's looser dev-time transform doesn't hit this). The default import is
+// always safe: it resolves to the whole CJS exports object at runtime. The
+// package's .d.ts correctly describes that object's shape (just not in a way
+// the runtime export detector recognizes), so we use a type-only import for
+// typing and bridge it to the live value with one cast at the boundary.
+import garminConnectPkgRaw from "garmin-connect";
+import type { GarminConnect } from "garmin-connect";
+const garminConnectPkg = garminConnectPkgRaw as unknown as { GarminConnect: typeof GarminConnect };
 import { prisma } from "@platform/db";
 import { encryptJson, decryptJson } from "./crypto.js";
 import { buildWorkoutServicePayload } from "./workoutPush.js";
@@ -65,7 +78,7 @@ export function pickLatestWeighInPerDay(metrics: RawWeightMetric[]): GarminWeigh
  * check without any real credentials on hand.
  */
 function tokenClient(tokens: StoredTokens): GarminConnect {
-  const gc = new GarminConnect({ username: "", password: "" });
+  const gc = new garminConnectPkg.GarminConnect({ username: "", password: "" });
   gc.loadToken(tokens.oauth1, tokens.oauth2);
   return gc;
 }
