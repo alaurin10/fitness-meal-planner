@@ -18,7 +18,7 @@ import { useProfile } from "../hooks/useProfile";
 import { useCurrentWorkoutPlan } from "../hooks/useWorkoutPlan";
 import { useCurrentMealPlan } from "../hooks/useMealPlan";
 import { useHydration, useLogHydration, useUnlogHydration } from "../hooks/useHydration";
-import { useDailySummary } from "../hooks/useDailySummary";
+import { useDailySummary, type DailySummary } from "../hooks/useDailySummary";
 import { useStreaks } from "../hooks/useStreaks";
 import { useMealCompletions } from "../hooks/useMealCompletions";
 import {
@@ -288,6 +288,14 @@ export function DashboardPage() {
         );
       })()}
 
+      {/* From your watch — only rendered when Garmin data exists for today */}
+      {summary?.garmin && (
+        <GarminStatsCard
+          garmin={summary.garmin}
+          caloricTarget={summary.targets.caloricTarget}
+        />
+      )}
+
       {/* Today's workout — a full accent statement block when there's a session */}
       <div className="px-4 pt-1 flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4 stagger-in">
         <Card
@@ -527,6 +535,84 @@ export function DashboardPage() {
         loading={hydrationQuery.isLoading}
       />
     </Layout>
+  );
+}
+
+function GarminStatsCard({
+  garmin,
+  caloricTarget,
+}: {
+  garmin: NonNullable<DailySummary["garmin"]>;
+  caloricTarget: number | null;
+}) {
+  const stats: { label: string; value: string; sub?: string }[] = [];
+  if (garmin.steps != null) {
+    stats.push({ label: "Steps", value: garmin.steps.toLocaleString() });
+  }
+  if (garmin.activeKilocalories != null) {
+    stats.push({
+      label: "Active burn",
+      value: `${garmin.activeKilocalories.toLocaleString()} kcal`,
+      // Calories burned next to the eating target puts the day's energy
+      // balance in one glance.
+      sub:
+        caloricTarget != null && garmin.totalKilocalories != null
+          ? `${garmin.totalKilocalories.toLocaleString()} total`
+          : undefined,
+    });
+  }
+  if (garmin.restingHeartRate != null) {
+    stats.push({ label: "Resting HR", value: `${garmin.restingHeartRate} bpm` });
+  }
+  if (garmin.sleepSeconds != null) {
+    const h = Math.floor(garmin.sleepSeconds / 3600);
+    const m = Math.round((garmin.sleepSeconds % 3600) / 60);
+    stats.push({ label: "Sleep", value: `${h}h ${m.toString().padStart(2, "0")}m` });
+  }
+  if (stats.length === 0) return null;
+
+  return (
+    <div className="px-4 pt-1 pb-2 fade-up">
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <div className="eyebrow">From your watch</div>
+          <Icon name="flame" size={18} style={{ color: "var(--accent)" }} />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(stats.length, 4)}, 1fr)`,
+            gap: 10,
+          }}
+        >
+          {stats.map((s) => (
+            <div key={s.label} style={{ minWidth: 0 }}>
+              <div
+                className="font-display"
+                style={{ fontSize: 18, color: "var(--ink)", letterSpacing: "-0.01em" }}
+              >
+                {s.value}
+              </div>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "var(--sumi)",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  marginTop: 2,
+                }}
+              >
+                {s.label}
+              </div>
+              {s.sub && (
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{s.sub}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 

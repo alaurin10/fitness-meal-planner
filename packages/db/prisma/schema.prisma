@@ -25,6 +25,8 @@ model User {
   workoutCompletions WorkoutCompletion[]
   mealCompletions    MealCompletion[]
   exerciseBaselines  UserExerciseBaseline[]
+  garminConnection   GarminConnection?
+  dailyWellness      DailyWellness[]
 }
 
 model UserSettings {
@@ -128,14 +130,17 @@ model GroceryList {
 }
 
 model ProgressLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  loggedAt  DateTime @default(now())
-  weightLbs Float?
-  note      String?
-  liftPRs   Json?
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedAt   DateTime @default(now())
+  weightLbs  Float?
+  note       String?
+  liftPRs    Json?
+  source     String   @default("manual") // "manual" | "garmin"
+  externalId String?  // Garmin weight sample id, for sync dedupe
 
+  @@unique([userId, source, externalId])
   @@index([userId, loggedAt])
 }
 
@@ -200,8 +205,11 @@ model ActivityLog {
   activeCalories  Int?
   distanceMiles   Float?
   note            String?
+  source          String   @default("manual") // "manual" | "garmin"
+  externalId      String?  // Garmin activityId, for sync dedupe
   createdAt       DateTime @default(now())
 
+  @@unique([userId, source, externalId])
   @@index([userId, performedAt])
 }
 
@@ -229,6 +237,41 @@ model GroceryCategoryOverride {
 
   @@unique([userId, name])
   @@index([userId])
+}
+
+// A user's linked Garmin Connect account. Stores only the encrypted OAuth
+// token blob exported by the garmin-connect library — never the password.
+// One connection per user; deleting it severs the link but keeps synced data.
+model GarminConnection {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  garminUserId    String?   // Garmin displayName (used in API paths) — not a secret
+  encryptedTokens String    // AES-256-GCM blob of {oauth1, oauth2}, see services/garmin/crypto
+  lastSyncAt      DateTime?
+  lastSyncStatus  String    @default("never") // "never" | "ok" | "error" | "syncing"
+  lastSyncError   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Per-day wellness metrics synced from a wearable (currently Garmin).
+// dayKey is the device's calendarDate (user-local), matching the app's
+// dayKey convention used by completions and hydration.
+model DailyWellness {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey             String   // YYYY-MM-DD
+  steps              Int?
+  totalKilocalories  Int?
+  activeKilocalories Int?
+  restingHeartRate   Int?
+  sleepSeconds       Int?
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, dayKey])
+  @@index([userId, dayKey])
 }
 
 // Per-day workout completion tracking with set-level granularity.

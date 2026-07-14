@@ -25,6 +25,14 @@ export interface DailySummary {
     caloricTarget: number | null;
     proteinTargetG: number | null;
   };
+  /** Wearable metrics synced from Garmin; null when no connection/data. */
+  garmin: {
+    steps: number | null;
+    totalKilocalories: number | null;
+    activeKilocalories: number | null;
+    restingHeartRate: number | null;
+    sleepSeconds: number | null;
+  } | null;
 }
 
 export function useDailySummary(dayKey?: string) {

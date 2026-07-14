@@ -5,6 +5,14 @@ export interface DayRecord {
   workout: { completed: number; total: number; done: boolean; volumeLbs: number };
   meals: { completed: number; total: number; calories: number; protein: number; done: boolean };
   hydration: { cups: number; goal: number; done: boolean };
+  /** Wearable metrics synced from Garmin; null when no connection/data. */
+  garmin: {
+    steps: number | null;
+    totalKilocalories: number | null;
+    activeKilocalories: number | null;
+    restingHeartRate: number | null;
+    sleepSeconds: number | null;
+  } | null;
 }
 
 export interface HistoryResponse {

@@ -17,6 +17,8 @@ import { WorkoutMode } from "../components/WorkoutMode";
 import { useSwipe } from "../hooks/useSwipe";
 import { success, tap } from "../lib/haptics";
 import { useActivities, useLogActivity, useDeleteActivity } from "../hooks/useActivities";
+import { useGarminStatus, usePushWeekToGarmin } from "../hooks/useGarmin";
+import { useToast } from "../components/Toast";
 import { useIsDesktop } from "../hooks/useIsDesktop";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
@@ -81,6 +83,9 @@ export function WorkoutsPage() {
   const activitiesQuery = useActivities();
   const logActivity = useLogActivity();
   const deleteActivity = useDeleteActivity();
+  const garminStatus = useGarminStatus();
+  const pushWeek = usePushWeekToGarmin();
+  const toast = useToast();
   const unitLabel = weightUnitLabel(unitSystem);
   // Directional slide when switching days (swipe or pill tap).
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
@@ -215,8 +220,26 @@ export function WorkoutsPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                      <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
-                        {a.activityName}
+                      <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.activityName}</span>
+                        {a.source === "garmin" && (
+                          <span
+                            title="Synced from Garmin — deleting it here brings it back on the next sync"
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                              color: "var(--accent-2)",
+                              border: "1px solid var(--hair)",
+                              borderRadius: 999,
+                              padding: "1px 7px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            Garmin
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -431,6 +454,43 @@ export function WorkoutsPage() {
             )}
           </div>
         </Card>
+
+        {/* Garmin-only: schedule this week's sessions on the watch */}
+        {garminStatus.data?.connected && (
+          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              variant="ghost"
+              disabled={pushWeek.isPending}
+              onClick={() =>
+                pushWeek.mutate(plan.id, {
+                  onSuccess: (days) => {
+                    const ok = days.filter((d) => d.scheduled).length;
+                    const failed = days.length - ok;
+                    if (failed === 0) {
+                      toast.success(
+                        ok > 0
+                          ? `Sent ${ok} workout${ok === 1 ? "" : "s"} to your watch — they're on your Garmin calendar.`
+                          : "No training days to send this week.",
+                      );
+                    } else {
+                      toast.error(
+                        `Sent ${ok}/${days.length} workouts — ${days.find((d) => d.error)?.error ?? "some days failed"}`,
+                      );
+                    }
+                  },
+                  onError: (err) => {
+                    const axiosMsg = (err as { response?: { data?: { error?: string } } })
+                      .response?.data?.error;
+                    toast.error(axiosMsg ?? (err as Error).message);
+                  },
+                })
+              }
+            >
+              <Icon name="chevron" size={14} />
+              {pushWeek.isPending ? "Sending to watch…" : "Send week to watch"}
+            </Button>
+          </div>
+        )}
       </div>
 
       {exercises.length > 0 && (

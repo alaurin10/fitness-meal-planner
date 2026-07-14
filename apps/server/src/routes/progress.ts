@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@platform/db";
 import { ALL_DAYS } from "@platform/shared";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
-import { computeTargets } from "../services/targets.js";
+import { applyWeightToProfile } from "../services/weightSync.js";
+import { getGarminSession } from "../services/garmin/client.js";
 import { computeStreaks } from "../services/streakCalculator.js";
 import {
   findActiveWorkoutPlan,
@@ -52,51 +53,27 @@ router.post("/", requireAuth, async (req, res) => {
     },
   });
 
-  // Sync weight back to the profile so calorie/protein targets stay accurate.
-  // If the user's stored targets currently match the suggested values for their
-  // OLD weight, they're on "suggested" mode — recompute targets at the new
-  // weight. Otherwise they've explicitly overridden the targets, so preserve.
+  // Sync weight back to the profile so calorie/protein targets stay accurate
+  // (suggested targets recompute; explicit overrides are preserved).
   let profile = null;
   if (parsed.data.weightLbs != null) {
-    const current = await prisma.profile.findUnique({ where: { userId } });
-    if (current) {
-      const oldSuggested = computeTargets({
-        sex: current.sex,
-        age: current.age,
-        weightLbs: current.weightLbs,
-        heightIn: current.heightIn,
-        trainingDaysPerWeek: current.trainingDaysPerWeek,
-        goal: current.goal,
-      });
-      const newSuggested = computeTargets({
-        sex: current.sex,
-        age: current.age,
-        weightLbs: parsed.data.weightLbs,
-        heightIn: current.heightIn,
-        trainingDaysPerWeek: current.trainingDaysPerWeek,
-        goal: current.goal,
-      });
+    profile = await applyWeightToProfile(userId, parsed.data.weightLbs);
 
-      const onSuggestedCalories =
-        oldSuggested != null && current.caloricTarget === oldSuggested.caloricTarget;
-      const onSuggestedProtein =
-        oldSuggested != null && current.proteinTargetG === oldSuggested.proteinTargetG;
-
-      profile = await prisma.profile.update({
-        where: { userId },
-        data: {
-          weightLbs: parsed.data.weightLbs,
-          caloricTarget:
-            onSuggestedCalories && newSuggested
-              ? newSuggested.caloricTarget
-              : current.caloricTarget,
-          proteinTargetG:
-            onSuggestedProtein && newSuggested
-              ? newSuggested.proteinTargetG
-              : current.proteinTargetG,
-        },
-      });
-    }
+    // Mirror the weigh-in to Garmin when connected. Fire-and-forget: a Garmin
+    // hiccup must never fail a manual weight log.
+    const weightLbs = parsed.data.weightLbs;
+    void (async () => {
+      try {
+        const session = await getGarminSession(userId);
+        if (!session) return;
+        await session.api.pushWeight(weightLbs);
+        await session.persistTokens();
+      } catch (err) {
+        console.warn(
+          `[garmin] weight push-back failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    })();
   }
 
   res.json({ log, profile });
@@ -116,12 +93,15 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
     return;
   }
 
-  const [profile, workoutPlan, mealPlan, hydrationLog] = await Promise.all([
+  const [profile, workoutPlan, mealPlan, hydrationLog, wellness] = await Promise.all([
     prisma.profile.findUnique({ where: { userId } }),
     findActiveWorkoutPlan(userId),
     findActiveMealPlan(userId),
     prisma.hydrationLog.findUnique({
       where: { userId_date: { userId, date: new Date(dayKey + "T00:00:00.000Z") } },
+    }),
+    prisma.dailyWellness.findUnique({
+      where: { userId_dayKey: { userId, dayKey } },
     }),
   ]);
 
@@ -190,6 +170,17 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
       caloricTarget: profile?.caloricTarget ?? null,
       proteinTargetG: profile?.proteinTargetG ?? null,
     },
+    // Wearable metrics synced from Garmin; null for users without a connection
+    // so the payload is unchanged for them.
+    garmin: wellness
+      ? {
+          steps: wellness.steps,
+          totalKilocalories: wellness.totalKilocalories,
+          activeKilocalories: wellness.activeKilocalories,
+          restingHeartRate: wellness.restingHeartRate,
+          sleepSeconds: wellness.sleepSeconds,
+        }
+      : null,
   });
 });
 
@@ -214,7 +205,7 @@ router.get("/history", requireAuth, async (req, res) => {
   // user's full plan history made this endpoint slow down as data accumulated.
   const planBounds = historyPlanDateBounds(from, to);
 
-  const [workoutCompletions, mealCompletions, hydrationLogs, profile, allWorkoutPlans, allMealPlans] = await Promise.all([
+  const [workoutCompletions, mealCompletions, hydrationLogs, profile, allWorkoutPlans, allMealPlans, wellnessLogs] = await Promise.all([
     prisma.workoutCompletion.findMany({
       where: { userId, dayKey: { gte: from, lte: to } },
     }),
@@ -233,6 +224,9 @@ router.get("/history", requireAuth, async (req, res) => {
       where: { userId, weekStartDate: planBounds },
       orderBy: [{ weekStartDate: "desc" }, { createdAt: "desc" }],
     }),
+    prisma.dailyWellness.findMany({
+      where: { userId, dayKey: { gte: from, lte: to } },
+    }),
   ]);
 
   const hydrationGoal = profile?.hydrationGoal ?? 8;
@@ -242,6 +236,13 @@ router.get("/history", requireAuth, async (req, res) => {
     workout: { completed: number; total: number; done: boolean; volumeLbs: number };
     meals: { completed: number; total: number; calories: number; protein: number; done: boolean };
     hydration: { cups: number; goal: number; done: boolean };
+    garmin: {
+      steps: number | null;
+      totalKilocalories: number | null;
+      activeKilocalories: number | null;
+      restingHeartRate: number | null;
+      sleepSeconds: number | null;
+    } | null;
   }> = {};
 
   // Initialize all days in range
@@ -253,6 +254,7 @@ router.get("/history", requireAuth, async (req, res) => {
       workout: { completed: 0, total: 0, done: false, volumeLbs: 0 },
       meals: { completed: 0, total: 0, calories: 0, protein: 0, done: false },
       hydration: { cups: 0, goal: hydrationGoal, done: false },
+      garmin: null,
     };
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -333,6 +335,19 @@ router.get("/history", requireAuth, async (req, res) => {
     if (!day) continue;
     day.hydration.cups = hl.cups;
     day.hydration.done = hl.cups >= hydrationGoal;
+  }
+
+  // Fill Garmin wellness (keyed by dayKey already)
+  for (const w of wellnessLogs) {
+    const day = days[w.dayKey];
+    if (!day) continue;
+    day.garmin = {
+      steps: w.steps,
+      totalKilocalories: w.totalKilocalories,
+      activeKilocalories: w.activeKilocalories,
+      restingHeartRate: w.restingHeartRate,
+      sleepSeconds: w.sleepSeconds,
+    };
   }
 
   res.json({ days, targets: { caloricTarget: profile?.caloricTarget ?? null, proteinTargetG: profile?.proteinTargetG ?? null } });

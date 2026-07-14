@@ -6,6 +6,7 @@ import { WeekGrid, type WeekGridCellView } from "../../components/planWeek/WeekG
 import { useSaveSettings, useSettings, type MealScheduleMask } from "../../hooks/useSettings";
 import { useTheme, type ThemePreference } from "../../lib/theme";
 import type { MealDay, MealSlot } from "../../lib/types";
+import { GarminConnectionCard } from "./GarminConnectionCard";
 
 const SCHEDULE_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -268,6 +269,8 @@ export function SettingsTab() {
           />
         </div>
       </Card>
+
+      <GarminConnectionCard />
     </div>
   );
 }

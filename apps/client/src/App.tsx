@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { SkeletonList } from "./components/Skeleton";
+import { useGarminAutoSync } from "./hooks/useGarmin";
 
 // Lazy-load route pages so each ships in its own chunk and the initial bundle
 // stays small. Sign-in/up stay eager since they're the entry point.
@@ -21,6 +22,13 @@ const RecipeViewPage = lazy(() => import("./pages/RecipeView").then((m) => ({ de
 const GroceriesPage = lazy(() => import("./pages/Groceries").then((m) => ({ default: m.GroceriesPage })));
 const ProgressPage = lazy(() => import("./pages/Progress").then((m) => ({ default: m.ProgressPage })));
 const ProfilePage = lazy(() => import("./pages/profile/ProfileHub").then((m) => ({ default: m.ProfilePage })));
+
+// Mounted once per signed-in session: kicks a background Garmin sync when the
+// connection's data is stale. No-op for users without a Garmin connection.
+function GarminAutoSync() {
+  useGarminAutoSync();
+  return null;
+}
 
 function RouteFallback() {
   return (
@@ -41,6 +49,7 @@ export default function App() {
           <>
             <Show when="signed-in">
               <ScrollToTop />
+              <GarminAutoSync />
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />

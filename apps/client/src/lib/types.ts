@@ -178,6 +178,8 @@ export interface ActivityLog {
   activeCalories: number | null;
   distanceMiles: number | null;
   note: string | null;
+  source: "manual" | "garmin";
+  externalId: string | null;
   createdAt: string;
 }
 
