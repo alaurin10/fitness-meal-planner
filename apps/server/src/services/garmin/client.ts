@@ -188,6 +188,8 @@ export async function getGarminSession(userId: string): Promise<GarminSession | 
           params: { includeAll: true },
         }),
       );
+      // TEMP DEBUG — diagnosing an incorrect imported weight; remove once resolved.
+      console.log("[garmin debug] raw weight range response:", JSON.stringify(raw, null, 2));
       const metrics =
         raw?.dailyWeightSummaries?.flatMap((d) =>
           (d.allWeightMetrics ?? []).map((m) => ({ ...m, calendarDate: m.calendarDate ?? d.summaryDate })),
