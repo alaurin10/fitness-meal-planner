@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import axios, { type AxiosInstance } from "axios";
+import { Impit } from "impit";
 import OAuth from "oauth-1.0a";
 import { CookieJar, type SerializedCookieJar } from "tough-cookie";
 import { GarminAuthError, GarminUnavailableError, type StoredTokens } from "./types.js";
@@ -14,6 +14,17 @@ import { GarminAuthError, GarminUnavailableError, type StoredTokens } from "./ty
 // username/password. If 2FA is on, that POST returns an MFA page instead of a
 // service ticket; the caller stores `PendingLogin` and later calls
 // `resumeGarminLogin` with the code. Otherwise login completes immediately.
+//
+// HTTP goes through `impit` with Chrome impersonation rather than a plain Node
+// client (axios): Garmin's SSO/OAuth hosts sit behind Cloudflare, which gates on
+// the TLS handshake fingerprint (JA3/JA4), not the User-Agent header. A Node TLS
+// handshake is fingerprinted as "not a browser" and 429/403'd — especially from
+// shared datacenter egress IPs like a cloud host's — even though the same
+// credentials sign in fine from a real browser. impit presents a genuine Chrome
+// TLS fingerprint so the server can complete sign-in for any user. The widget
+// flow below already sidesteps Garmin's per-clientId/account rate-limit bucket;
+// this closes the remaining Cloudflare gap. `GARMIN_PROXY_URL`, if set, routes
+// this traffic through a trusted egress as a fallback (off by default).
 
 const OAUTH_CONSUMER_URL = "https://thegarth.s3.amazonaws.com/oauth_consumer.json";
 const GARMIN_SSO_ORIGIN = "https://sso.garmin.com";
@@ -72,18 +83,26 @@ function signinParams(): Record<string, string> {
   };
 }
 
-function newClient(): AxiosInstance {
-  // Text by default: the SSO endpoints return HTML and the OAuth1 endpoint returns
-  // a form-encoded body; we parse each explicitly.
-  return axios.create({ responseType: "text", transformResponse: [(d) => d] });
+function newClient(): Impit {
+  // Chrome TLS fingerprint to pass Cloudflare (see file header). We follow
+  // redirects manually (below) so Set-Cookie on every hop lands in our jar, so
+  // the instance-level auto-follow is disabled. Cookies are passed explicitly
+  // per request rather than via impit's own jar, keeping the hop-by-hop control.
+  return new Impit({
+    browser: "chrome",
+    followRedirects: false,
+    proxyUrl: process.env.GARMIN_PROXY_URL || undefined,
+  });
 }
 
 /**
  * GET/POST with an explicit cookie jar, following redirects manually so that
- * Set-Cookie headers on every hop land in the jar (axios drops intermediate ones).
+ * Set-Cookie headers on every hop land in the jar (auto-follow drops intermediate
+ * ones). Talks to Garmin through `impit` (Chrome-impersonated), so the request
+ * clears Cloudflare's TLS fingerprint check.
  */
 async function jarRequest(
-  client: AxiosInstance,
+  client: Impit,
   jar: CookieJar,
   method: "GET" | "POST",
   url: string,
@@ -96,38 +115,33 @@ async function jarRequest(
 
   for (let hop = 0; hop < 6; hop++) {
     const cookie = jar.getCookieStringSync(currentUrl);
-    const requestConfig = {
-      url: currentUrl,
+    const init = {
       method: currentMethod,
-      data,
       headers: { ...headers, ...(cookie ? { Cookie: cookie } : {}) },
-      maxRedirects: 0,
-      validateStatus: () => true,
+      body: data,
+      redirect: "manual" as const,
     };
 
-    let res = await client.request(requestConfig);
+    let res = await client.fetch(currentUrl, init);
     for (let retry = 0; res.status === 429 && retry < MAX_429_RETRIES; retry++) {
-      const retryAfterSec = Number(res.headers["retry-after"]);
+      const retryAfterSec = Number(res.headers.get("retry-after"));
       const delayMs =
         Number.isFinite(retryAfterSec) && retryAfterSec > 0
           ? Math.min(retryAfterSec * 1000, MAX_429_DELAY_MS)
           : Math.min(1000 * 2 ** retry, MAX_429_DELAY_MS);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      res = await client.request(requestConfig);
+      res = await client.fetch(currentUrl, init);
     }
 
-    const setCookies = res.headers["set-cookie"];
-    if (Array.isArray(setCookies)) {
-      for (const raw of setCookies) {
-        try {
-          jar.setCookieSync(raw, currentUrl);
-        } catch {
-          // Ignore cookies tough-cookie rejects (e.g. malformed domains).
-        }
+    for (const raw of res.headers.getSetCookie()) {
+      try {
+        jar.setCookieSync(raw, currentUrl);
+      } catch {
+        // Ignore cookies tough-cookie rejects (e.g. malformed domains).
       }
     }
 
-    const location = res.headers["location"] as string | undefined;
+    const location = res.headers.get("location") ?? undefined;
     if (res.status >= 300 && res.status < 400 && location) {
       currentUrl = new URL(location, currentUrl).toString();
       currentMethod = "GET";
@@ -135,16 +149,15 @@ async function jarRequest(
       delete headers["Content-Type"];
       continue;
     }
-    return { status: res.status, body: typeof res.data === "string" ? res.data : String(res.data) };
+    return { status: res.status, body: await res.text() };
   }
   throw new GarminUnavailableError("Too many redirects during Garmin sign-in");
 }
 
-async function fetchConsumer(): Promise<Consumer> {
+async function fetchConsumer(client: Impit): Promise<Consumer> {
   try {
-    const { data } = await axios.get<{ consumer_key: string; consumer_secret: string }>(
-      OAUTH_CONSUMER_URL,
-    );
+    const res = await client.fetch(OAUTH_CONSUMER_URL);
+    const data = (await res.json()) as { consumer_key: string; consumer_secret: string };
     return { key: data.consumer_key, secret: data.consumer_secret };
   } catch (err) {
     throw new GarminUnavailableError(
@@ -182,8 +195,8 @@ function assertNotBlocked(body: string): void {
  * then POST the credentials. Returns either finished tokens or an MFA challenge.
  */
 export async function startGarminLogin(username: string, password: string): Promise<StartResult> {
-  const consumer = await fetchConsumer();
   const client = newClient();
+  const consumer = await fetchConsumer(client);
   const jar = new CookieJar();
 
   // Prime session cookies via the embed endpoint.
@@ -294,7 +307,7 @@ function oauthClient(consumer: Consumer): OAuth {
  * shape `GarminConnect.loadToken` expects. Mirrors garmin-connect's own steps 4/5.
  */
 async function ticketToTokens(
-  client: AxiosInstance,
+  client: Impit,
   jar: CookieJar,
   ticket: string,
   consumer: Consumer,
