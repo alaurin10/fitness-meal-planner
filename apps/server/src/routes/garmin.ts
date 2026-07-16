@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@platform/db";
 import { currentUserId, requireAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
-import { completeLinkWithMfa, getGarminSession, startLink } from "../services/garmin/client.js";
+import {
+  completeLinkWithMfa,
+  getGarminSession,
+  linkWithImportedTokens,
+  startLink,
+} from "../services/garmin/client.js";
 import { GarminConfigError } from "../services/garmin/crypto.js";
 import { GarminAuthError, GarminUnavailableError } from "../services/garmin/types.js";
 import { syncUser } from "../services/garmin/sync.js";
@@ -97,6 +102,40 @@ router.post("/connect/mfa", requireAuth, mfaLimiter, async (req, res, next) => {
 
   try {
     const { garminUserId } = await completeLinkWithMfa(userId, parsed.data.code);
+    res.json({ connected: true, garminUserId });
+    kickInitialSync(userId);
+  } catch (err) {
+    if (!respondGarminError(res, err)) next(err);
+  }
+});
+
+// Escape hatch for when Garmin's SSO rate-limits this server's shared hosting
+// IP and in-app sign-in can't complete: the user signs in from their own
+// machine (`pnpm --filter @app/server garmin:export-tokens`) and pastes the
+// printed token JSON here. Tokens are verified against Garmin before storage.
+// Body/response are never logged — the paste contains live OAuth tokens.
+const importSchema = z.object({ tokens: z.string().min(1).max(20_000) });
+
+router.post("/connect/import", requireAuth, connectLimiter, async (req, res, next) => {
+  const userId = currentUserId(req);
+  const parsed = importSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Paste the token JSON printed by the export script" });
+    return;
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(parsed.data.tokens);
+  } catch {
+    res.status(400).json({
+      error: "That isn't valid JSON — paste the exact line printed by the export script",
+    });
+    return;
+  }
+
+  try {
+    const { garminUserId } = await linkWithImportedTokens(userId, raw);
     res.json({ connected: true, garminUserId });
     kickInitialSync(userId);
   } catch (err) {

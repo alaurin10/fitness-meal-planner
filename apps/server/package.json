@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "garmin:export-tokens": "tsx src/services/garmin/exportTokensCli.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
