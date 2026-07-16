@@ -8,6 +8,7 @@ import {
   useConnectGarmin,
   useDisconnectGarmin,
   useGarminStatus,
+  useImportGarminTokens,
   useSubmitGarminMfa,
   useSyncGarmin,
 } from "../../hooks/useGarmin";
@@ -37,6 +38,7 @@ export function GarminConnectionCard() {
   const status = useGarminStatus();
   const connect = useConnectGarmin();
   const submitMfa = useSubmitGarminMfa();
+  const importTokens = useImportGarminTokens();
   const disconnect = useDisconnectGarmin();
   const sync = useSyncGarmin();
   const toast = useToast();
@@ -45,9 +47,12 @@ export function GarminConnectionCard() {
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // "credentials" → (if the account has 2FA) "mfa" → connected.
-  const [step, setStep] = useState<"credentials" | "mfa">("credentials");
+  // "credentials" → (if the account has 2FA) "mfa" → connected. "import" is a
+  // fallback for when Garmin rate-limits sign-ins from the server's IP: the
+  // user signs in from their own computer and pastes the exported tokens.
+  const [step, setStep] = useState<"credentials" | "mfa" | "import">("credentials");
   const [mfaCode, setMfaCode] = useState("");
+  const [tokenJson, setTokenJson] = useState("");
 
   const connected = status.data?.connected ?? false;
 
@@ -55,6 +60,7 @@ export function GarminConnectionCard() {
     setUsername("");
     setPassword("");
     setMfaCode("");
+    setTokenJson("");
     setFormError(null);
     setStep("credentials");
   }
@@ -109,6 +115,26 @@ export function GarminConnectionCard() {
           setFormError(axiosErrorMessage(err));
           setMfaCode("");
         },
+      },
+    );
+  }
+
+  function submitImport(e: FormEvent) {
+    e.preventDefault();
+    const raw = tokenJson.trim();
+    if (!raw) {
+      setFormError("Paste the token JSON printed by the export script.");
+      return;
+    }
+    setFormError(null);
+    importTokens.mutate(
+      { tokens: raw },
+      {
+        onSuccess: () => {
+          resetForm();
+          toast.success("Garmin connected — syncing your data now.");
+        },
+        onError: (err) => setFormError(axiosErrorMessage(err)),
       },
     );
   }
@@ -174,8 +200,27 @@ export function GarminConnectionCard() {
                 {connect.isPending ? "Connecting…" : "Connect Garmin"}
               </Button>
             </form>
+            <button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setStep("import");
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                marginTop: 12,
+                fontSize: 12.5,
+                color: "var(--sumi)",
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
+            >
+              Sign-in blocked or rate-limited? Import tokens from your computer instead.
+            </button>
           </>
-        ) : (
+        ) : step === "mfa" ? (
           <>
             <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
               Enter the verification code Garmin just sent you (via your authenticator app, email,
@@ -200,6 +245,52 @@ export function GarminConnectionCard() {
                 </Button>
                 <Button type="button" variant="ghost" onClick={resetForm}>
                   Start over
+                </Button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
+              Garmin sometimes rate-limits sign-ins coming from cloud servers like this one, even
+              when your password is correct. The workaround: sign in from your own computer and
+              paste the resulting tokens here. In a checkout of this project, run:
+            </div>
+            <pre
+              style={{
+                marginTop: 10,
+                padding: "8px 10px",
+                background: "var(--paper, rgba(0,0,0,0.05))",
+                borderRadius: 8,
+                fontSize: 12,
+                overflowX: "auto",
+              }}
+            >
+              pnpm --filter @app/server garmin:export-tokens
+            </pre>
+            <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 10, lineHeight: 1.5 }}>
+              It signs you in from your home connection (including the two-factor code) and prints
+              a one-line token JSON — paste that below. Tokens are stored encrypted, your password
+              never leaves your computer, and the connection lasts about a year.
+            </div>
+            <form onSubmit={submitImport} style={{ marginTop: 14 }}>
+              <FormField label="Token JSON" error={formError}>
+                <textarea
+                  className="field-input"
+                  rows={4}
+                  value={tokenJson}
+                  onChange={(e) => setTokenJson(e.target.value)}
+                  placeholder='{"oauth1":{...},"oauth2":{...}}'
+                  spellCheck={false}
+                  style={{ fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
+                />
+              </FormField>
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <Button type="submit" disabled={importTokens.isPending}>
+                  {importTokens.isPending ? "Connecting…" : "Import & connect"}
+                </Button>
+                <Button type="button" variant="ghost" onClick={resetForm}>
+                  Back
                 </Button>
               </div>
             </form>

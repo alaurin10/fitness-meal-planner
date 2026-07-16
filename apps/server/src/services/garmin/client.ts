@@ -15,7 +15,7 @@ const garminConnectPkg = garminConnectPkgRaw as unknown as { GarminConnect: type
 import { prisma } from "@platform/db";
 import { encryptJson, decryptJson } from "./crypto.js";
 import { buildWorkoutServicePayload } from "./workoutPush.js";
-import { startGarminLogin, resumeGarminLogin } from "./login.js";
+import { startGarminLogin, resumeGarminLogin, withExpiry } from "./login.js";
 import { putPending, takePending } from "./pendingLogins.js";
 import {
   GarminAuthError,
@@ -150,6 +150,63 @@ export async function completeLinkWithMfa(
   return { garminUserId };
 }
 
+/**
+ * Alternate link path for when Garmin's SSO rate-limits this server's shared
+ * datacenter IP (waiting doesn't help — the limit is on the IP's reputation,
+ * not the account): the user runs `pnpm --filter @app/server garmin:export-tokens`
+ * on their own machine, where Garmin accepts the sign-in, and pastes the JSON it
+ * prints. Tokens are verified against Garmin before being stored, so a bad paste
+ * can never clobber a working connection with dead tokens.
+ */
+export async function linkWithImportedTokens(
+  userId: string,
+  raw: unknown,
+): Promise<{ garminUserId: string | null }> {
+  const tokens = parseImportedTokens(raw);
+
+  let garminUserId: string | null;
+  try {
+    const gc = tokenClient(tokens);
+    const profile = await gc.getUserProfile();
+    garminUserId = profile.displayName ?? null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new GarminAuthError(
+      `Garmin rejected those tokens — run the export script again for a fresh set (${msg})`,
+    );
+  }
+
+  await persistLinkedTokens(userId, tokens, garminUserId);
+  return { garminUserId };
+}
+
+function parseImportedTokens(raw: unknown): StoredTokens {
+  const obj = raw as
+    | { oauth1?: Record<string, unknown>; oauth2?: Record<string, unknown> }
+    | null
+    | undefined;
+  const oauth1 = obj?.oauth1;
+  const oauth2 = obj?.oauth2;
+  const nonEmptyString = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+  if (
+    !nonEmptyString(oauth1?.oauth_token) ||
+    !nonEmptyString(oauth1?.oauth_token_secret) ||
+    !nonEmptyString(oauth2?.access_token) ||
+    !nonEmptyString(oauth2?.refresh_token)
+  ) {
+    throw new GarminAuthError(
+      "That isn't a Garmin token export — paste the exact JSON line printed by the export script",
+    );
+  }
+  // Exports from other tools (e.g. garth) may lack the derived expiry fields
+  // garmin-connect's refresh logic reads; stamp them the same way login does.
+  const oauth2Full =
+    typeof oauth2.expires_at === "number"
+      ? (oauth2 as unknown as StoredTokens["oauth2"])
+      : withExpiry(oauth2);
+  return { oauth1, oauth2: oauth2Full } as unknown as StoredTokens;
+}
+
 export interface GarminSession {
   api: GarminApi;
   /** Re-encrypt and persist the (possibly refreshed) tokens. Call after use. */
@@ -282,15 +339,28 @@ export async function getGarminSession(userId: string): Promise<GarminSession | 
   };
 }
 
-/** Normalize unofficial-API failures into typed errors. */
+/** Normalize unofficial-API failures into typed errors. Exported for tests. */
+export function classifyGarminCallError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Rate limiting is transient — never tell the user to reconnect over it. A 429
+  // during the client's internal token refresh used to fall through to the auth
+  // regex below (via "refresh") and demand a needless re-link, pushing the user
+  // back into the SSO sign-in that Garmin was rate-limiting in the first place.
+  if (/429|too many requests/i.test(msg)) {
+    return new GarminUnavailableError(
+      "Garmin is rate-limiting requests right now — try again in a few minutes",
+    );
+  }
+  if (/401|403|unauthorized|forbidden|refresh/i.test(msg)) {
+    return new GarminAuthError(`Garmin session expired — reconnect your account (${msg})`);
+  }
+  return new GarminUnavailableError(`Garmin request failed: ${msg}`);
+}
+
 async function call<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/401|403|unauthorized|forbidden|refresh/i.test(msg)) {
-      throw new GarminAuthError(`Garmin session expired — reconnect your account (${msg})`);
-    }
-    throw new GarminUnavailableError(`Garmin request failed: ${msg}`);
+    throw classifyGarminCallError(err);
   }
 }

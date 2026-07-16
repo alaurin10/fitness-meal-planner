@@ -84,6 +84,26 @@ export function useSubmitGarminMfa() {
   });
 }
 
+/**
+ * Fallback link path: paste the token JSON produced by running the export
+ * script on your own computer (used when Garmin rate-limits sign-ins coming
+ * from the server's shared hosting IP).
+ */
+export function useImportGarminTokens() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { tokens: string }) => {
+      const { data } = await api.post<{ connected: boolean; garminUserId?: string | null }>(
+        "/api/garmin/connect/import",
+        input,
+      );
+      return data;
+    },
+    onSuccess: () => invalidateSyncTargets(qc),
+  });
+}
+
 export function useDisconnectGarmin() {
   const api = useApi();
   const qc = useQueryClient();

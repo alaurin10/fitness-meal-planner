@@ -350,7 +350,8 @@ async function ticketToTokens(
 
 // Add the derived expiry fields garmin-connect stamps on the OAuth2 token so its
 // built-in refresh logic works when we later loadToken(). Mirrors setOauth2TokenExpiresAt.
-function withExpiry(token: Record<string, unknown>): StoredTokens["oauth2"] {
+// Also used to normalize imported token exports that lack the derived fields.
+export function withExpiry(token: Record<string, unknown>): StoredTokens["oauth2"] {
   const nowSec = Math.floor(Date.now() / 1000);
   const expiresIn = Number(token.expires_in ?? 0);
   const refreshExpiresIn = Number(token.refresh_token_expires_in ?? 0);
