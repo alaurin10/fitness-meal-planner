@@ -1,17 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock only axios; oauth-1.0a and tough-cookie run for real so signing and the
-// cookie jar are genuinely exercised.
+// Mock only the impit HTTP transport; oauth-1.0a and tough-cookie run for real
+// so signing and the cookie jar are genuinely exercised. Responses use the real
+// Fetch `Headers` class so getSetCookie()/get() behave exactly as in production.
 const mocks = vi.hoisted(() => {
-  const request = vi.fn();
-  const get = vi.fn();
-  return { request, get };
+  const fetch = vi.fn();
+  const construct = vi.fn();
+  return { fetch, construct };
 });
 
-vi.mock("axios", () => ({
-  default: {
-    create: () => ({ request: mocks.request }),
-    get: mocks.get,
+vi.mock("impit", () => ({
+  Impit: class {
+    fetch = mocks.fetch;
+    constructor(options: unknown) {
+      mocks.construct(options);
+    }
   },
 }));
 
@@ -43,51 +46,72 @@ const OAUTH2_JSON = JSON.stringify({
   refresh_token_expires_in: 7776000,
 });
 
+// Build a fetch-style Response stub the way impit returns one.
+function resp(
+  status: number,
+  opts: { setCookie?: string[]; location?: string; retryAfter?: string; body?: string; json?: unknown } = {},
+) {
+  const headers = new Headers();
+  for (const c of opts.setCookie ?? []) headers.append("set-cookie", c);
+  if (opts.location) headers.set("location", opts.location);
+  if (opts.retryAfter) headers.set("retry-after", opts.retryAfter);
+  return {
+    status,
+    headers,
+    text: async () => opts.body ?? "",
+    json: async () => opts.json ?? {},
+  };
+}
+
 // Route a mocked request by URL + method. `signinPost` decides step-2 outcome.
 function router(signinPost: string) {
-  return (config: { url: string; method: string; headers?: Record<string, string> }) => {
-    const { url, method } = config;
+  return (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
+    const method = init?.method ?? "GET";
+    if (url.includes("oauth_consumer.json")) {
+      return Promise.resolve(resp(200, { json: { consumer_key: "ck", consumer_secret: "cs" } }));
+    }
     if (url.includes("/sso/embed") && method === "GET") {
-      return Promise.resolve({
-        status: 200,
-        headers: { "set-cookie": ["GARMIN-SSO-GUID=g1; Path=/"] },
-        data: "",
-      });
+      return Promise.resolve(resp(200, { setCookie: ["GARMIN-SSO-GUID=g1; Path=/"] }));
     }
     if (url.includes("/sso/signin") && method === "GET") {
-      return Promise.resolve({
-        status: 200,
-        headers: { "set-cookie": ["SESSIONID=s1; Path=/"] },
-        data: SIGNIN_PAGE,
-      });
+      return Promise.resolve(resp(200, { setCookie: ["SESSIONID=s1; Path=/"], body: SIGNIN_PAGE }));
     }
     if (url.includes("/sso/signin") && method === "POST") {
-      return Promise.resolve({ status: 200, headers: {}, data: signinPost });
+      return Promise.resolve(resp(200, { body: signinPost }));
     }
     if (url.includes("/sso/verifyMFA") && method === "POST") {
-      return Promise.resolve({ status: 200, headers: {}, data: TICKET_PAGE });
+      return Promise.resolve(resp(200, { body: TICKET_PAGE }));
     }
     if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
       // Capture that this call was OAuth1-signed.
-      expect(config.headers?.Authorization).toMatch(/^OAuth /);
-      return Promise.resolve({ status: 200, headers: {}, data: OAUTH1_BODY });
+      expect(init?.headers?.Authorization).toMatch(/^OAuth /);
+      return Promise.resolve(resp(200, { body: OAUTH1_BODY }));
     }
     if (url.includes("/oauth-service/oauth/exchange") && method === "POST") {
-      return Promise.resolve({ status: 200, headers: {}, data: OAUTH2_JSON });
+      return Promise.resolve(resp(200, { body: OAUTH2_JSON }));
     }
     throw new Error(`unexpected request: ${method} ${url}`);
   };
 }
 
 beforeEach(() => {
-  mocks.request.mockReset();
-  mocks.get.mockReset();
-  mocks.get.mockResolvedValue({ data: { consumer_key: "ck", consumer_secret: "cs" } });
+  mocks.fetch.mockReset();
+  mocks.construct.mockReset();
 });
 
 describe("startGarminLogin", () => {
+  it("impersonates Chrome and follows redirects manually", async () => {
+    mocks.fetch.mockImplementation(router(TICKET_PAGE));
+
+    await startGarminLogin("user@example.com", "pw");
+
+    expect(mocks.construct).toHaveBeenCalledWith(
+      expect.objectContaining({ browser: "chrome", followRedirects: false }),
+    );
+  });
+
   it("completes without MFA and returns garmin-connect-shaped tokens", async () => {
-    mocks.request.mockImplementation(router(TICKET_PAGE));
+    mocks.fetch.mockImplementation(router(TICKET_PAGE));
 
     const result = await startGarminLogin("user@example.com", "pw");
 
@@ -104,7 +128,7 @@ describe("startGarminLogin", () => {
   });
 
   it("returns mfa_required with serializable pending state when 2FA is on", async () => {
-    mocks.request.mockImplementation(router(MFA_PAGE));
+    mocks.fetch.mockImplementation(router(MFA_PAGE));
 
     const result = await startGarminLogin("user@example.com", "pw");
 
@@ -118,18 +142,21 @@ describe("startGarminLogin", () => {
   });
 
   it("throws GarminUnavailableError when the CSRF token is missing", async () => {
-    mocks.request.mockImplementation((config: { url: string; method: string }) => {
-      if (config.url.includes("/sso/signin") && config.method === "GET") {
-        return Promise.resolve({ status: 200, headers: {}, data: "<html>no csrf here</html>" });
+    mocks.fetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes("oauth_consumer.json")) {
+        return Promise.resolve(resp(200, { json: { consumer_key: "ck", consumer_secret: "cs" } }));
       }
-      return Promise.resolve({ status: 200, headers: {}, data: "" });
+      if (url.includes("/sso/signin") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(resp(200, { body: "<html>no csrf here</html>" }));
+      }
+      return Promise.resolve(resp(200, { body: "" }));
     });
 
     await expect(startGarminLogin("u", "p")).rejects.toBeInstanceOf(GarminUnavailableError);
   });
 
   it("throws GarminAuthError on bad credentials (no ticket, no MFA)", async () => {
-    mocks.request.mockImplementation(router("<html><body>Invalid</body></html>"));
+    mocks.fetch.mockImplementation(router("<html><body>Invalid</body></html>"));
 
     await expect(startGarminLogin("u", "p")).rejects.toBeInstanceOf(GarminAuthError);
   });
@@ -137,7 +164,7 @@ describe("startGarminLogin", () => {
 
 describe("resumeGarminLogin", () => {
   it("submits the code, exchanges the ticket, and returns tokens", async () => {
-    mocks.request.mockImplementation(router(MFA_PAGE));
+    mocks.fetch.mockImplementation(router(MFA_PAGE));
     const started = await startGarminLogin("u", "p");
     if (started.status !== "mfa_required") throw new Error("expected mfa_required");
 
@@ -154,11 +181,11 @@ describe("resumeGarminLogin", () => {
       signinParams: { id: "gauth-widget" },
       consumer: { key: "ck", secret: "cs" },
     };
-    mocks.request.mockImplementation((config: { url: string; method: string }) => {
-      if (config.url.includes("/sso/verifyMFA")) {
-        return Promise.resolve({ status: 200, headers: {}, data: "<html>wrong code</html>" });
+    mocks.fetch.mockImplementation((url: string) => {
+      if (url.includes("/sso/verifyMFA")) {
+        return Promise.resolve(resp(200, { body: "<html>wrong code</html>" }));
       }
-      throw new Error(`unexpected ${config.method} ${config.url}`);
+      throw new Error(`unexpected ${url}`);
     });
 
     await expect(resumeGarminLogin(pending, "000000")).rejects.toBeInstanceOf(GarminAuthError);
@@ -174,33 +201,34 @@ describe("429 rate limiting", () => {
   });
 
   function baseRoute(url: string, method: string) {
+    if (url.includes("oauth_consumer.json")) {
+      return resp(200, { json: { consumer_key: "ck", consumer_secret: "cs" } });
+    }
     if (url.includes("/sso/embed") && method === "GET") {
-      return { status: 200, headers: { "set-cookie": ["GARMIN-SSO-GUID=g1; Path=/"] }, data: "" };
+      return resp(200, { setCookie: ["GARMIN-SSO-GUID=g1; Path=/"] });
     }
     if (url.includes("/sso/signin") && method === "GET") {
-      return { status: 200, headers: { "set-cookie": ["SESSIONID=s1; Path=/"] }, data: SIGNIN_PAGE };
+      return resp(200, { setCookie: ["SESSIONID=s1; Path=/"], body: SIGNIN_PAGE });
     }
     if (url.includes("/sso/signin") && method === "POST") {
-      return { status: 200, headers: {}, data: TICKET_PAGE };
+      return resp(200, { body: TICKET_PAGE });
     }
     return null;
   }
 
   it("retries a transient 429 on the preauthorized call and succeeds", async () => {
     let preauthAttempts = 0;
-    mocks.request.mockImplementation((config: { url: string; method: string }) => {
-      const { url, method } = config;
+    mocks.fetch.mockImplementation((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
       const base = baseRoute(url, method);
       if (base) return Promise.resolve(base);
       if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
         preauthAttempts += 1;
-        if (preauthAttempts === 1) {
-          return Promise.resolve({ status: 429, headers: {}, data: "Rate limited" });
-        }
-        return Promise.resolve({ status: 200, headers: {}, data: OAUTH1_BODY });
+        if (preauthAttempts === 1) return Promise.resolve(resp(429, { body: "Rate limited" }));
+        return Promise.resolve(resp(200, { body: OAUTH1_BODY }));
       }
       if (url.includes("/oauth-service/oauth/exchange") && method === "POST") {
-        return Promise.resolve({ status: 200, headers: {}, data: OAUTH2_JSON });
+        return Promise.resolve(resp(200, { body: OAUTH2_JSON }));
       }
       throw new Error(`unexpected request: ${method} ${url}`);
     });
@@ -215,13 +243,13 @@ describe("429 rate limiting", () => {
 
   it("surfaces a clear rate-limit error once retries are exhausted", async () => {
     let preauthAttempts = 0;
-    mocks.request.mockImplementation((config: { url: string; method: string }) => {
-      const { url, method } = config;
+    mocks.fetch.mockImplementation((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
       const base = baseRoute(url, method);
       if (base) return Promise.resolve(base);
       if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
         preauthAttempts += 1;
-        return Promise.resolve({ status: 429, headers: {}, data: "Rate limited" });
+        return Promise.resolve(resp(429, { body: "Rate limited" }));
       }
       throw new Error(`unexpected request: ${method} ${url}`);
     });
@@ -237,19 +265,19 @@ describe("429 rate limiting", () => {
 
   it("honors a Retry-After header instead of the default backoff", async () => {
     let preauthAttempts = 0;
-    mocks.request.mockImplementation((config: { url: string; method: string }) => {
-      const { url, method } = config;
+    mocks.fetch.mockImplementation((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
       const base = baseRoute(url, method);
       if (base) return Promise.resolve(base);
       if (url.includes("/oauth-service/oauth/preauthorized") && method === "GET") {
         preauthAttempts += 1;
         if (preauthAttempts === 1) {
-          return Promise.resolve({ status: 429, headers: { "retry-after": "3" }, data: "Rate limited" });
+          return Promise.resolve(resp(429, { retryAfter: "3", body: "Rate limited" }));
         }
-        return Promise.resolve({ status: 200, headers: {}, data: OAUTH1_BODY });
+        return Promise.resolve(resp(200, { body: OAUTH1_BODY }));
       }
       if (url.includes("/oauth-service/oauth/exchange") && method === "POST") {
-        return Promise.resolve({ status: 200, headers: {}, data: OAUTH2_JSON });
+        return Promise.resolve(resp(200, { body: OAUTH2_JSON }));
       }
       throw new Error(`unexpected request: ${method} ${url}`);
     });
