@@ -105,14 +105,25 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
     }),
   ]);
 
+  // Completion lookups need the plan ids from above, but not each other.
+  const [wc, mc] = await Promise.all([
+    workoutPlan
+      ? prisma.workoutCompletion.findUnique({
+          where: { userId_planId_dayKey: { userId, planId: workoutPlan.id, dayKey } },
+        })
+      : null,
+    mealPlan
+      ? prisma.mealCompletion.findUnique({
+          where: { userId_planId_dayKey: { userId, planId: mealPlan.id, dayKey } },
+        })
+      : null,
+  ]);
+
   // Workout progress
   let workoutSets = { completed: 0, total: 0 };
   let workoutDone = false;
   let workoutVolumeLbs = 0;
   if (workoutPlan) {
-    const wc = await prisma.workoutCompletion.findUnique({
-      where: { userId_planId_dayKey: { userId, planId: workoutPlan.id, dayKey } },
-    });
     const date = new Date(dayKey + "T12:00:00");
     const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const planJson = workoutPlan.planJson as { days?: { day: string; exercises?: { sets: number; reps?: string | null; loadLbs?: number | null }[] }[] };
@@ -139,9 +150,6 @@ router.get("/daily-summary", requireAuth, async (req, res) => {
   let mealProgress = { completed: 0, total: 0, calories: 0, protein: 0 };
   let mealsDone = false;
   if (mealPlan) {
-    const mc = await prisma.mealCompletion.findUnique({
-      where: { userId_planId_dayKey: { userId, planId: mealPlan.id, dayKey } },
-    });
     const date = new Date(dayKey + "T12:00:00");
     const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
     const planJson = mealPlan.planJson as { days?: { day: string; meals?: { calories: number; proteinG: number }[] }[] };

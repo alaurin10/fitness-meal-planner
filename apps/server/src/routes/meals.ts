@@ -125,13 +125,15 @@ router.get("/current", requireAuth, async (req, res) => {
 
 router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
   const userId = currentUserId(req);
-  const profile = await prisma.profile.findUnique({ where: { userId } });
+  const [profile, settings] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.userSettings.findUnique({ where: { userId } }),
+  ]);
   if (!profile) {
     res.status(400).json({ error: "Create a profile first" });
     return;
   }
 
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
   const now = resolveClientNow(req.body.clientToday);
   const thisWeek = startOfWeek(now, weekStartDay);
@@ -165,7 +167,7 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
   const genDays = effectiveDaysToGenerate(daysToInclude, mask);
 
   try {
-    const schedule = await getTrainingSchedule(userId);
+    const schedule = await getTrainingSchedule(userId, profile);
     // Variety: feed recent weeks' meal names in as an avoid list so new weeks
     // don't rehash the last one. Strength is a profile preference.
     const variety = varietyParams(profile.varietyStrength);
@@ -198,7 +200,7 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
     const plan = await persistWeekPlan({ userId, target, thisWeek, isCurrentWeek, planJson });
 
     // Rebuild grocery list for just the targeted week
-    const groceryList = await rebuildGroceries(userId, target);
+    const groceryList = await rebuildGroceries(userId, target, plan);
 
     res.json({ plan, groceryList });
   } catch (err) {
@@ -306,7 +308,7 @@ router.post("/empty", requireAuth, async (req, res) => {
     return { plan };
   });
 
-  const groceryList = await rebuildGroceries(userId, target);
+  const groceryList = await rebuildGroceries(userId, target, result.plan);
   res.json({ plan: result.plan, groceryList });
 });
 
@@ -331,13 +333,15 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const profile = await prisma.profile.findUnique({ where: { userId } });
+  const [profile, settings] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.userSettings.findUnique({ where: { userId } }),
+  ]);
   if (!profile) {
     res.status(400).json({ error: "Create a profile first" });
     return;
   }
 
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const weekStartDay = (settings?.weekStartDay ?? "Mon") as WeekStartDay;
   const now = resolveClientNow(parsed.data.clientToday);
   const thisWeek = startOfWeek(now, weekStartDay);
@@ -405,7 +409,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
 
     let generated: MealPlanJson | null = null;
     if (genDays.length) {
-      const schedule = await getTrainingSchedule(userId);
+      const schedule = await getTrainingSchedule(userId, profile);
       const variety = varietyParams(profile.varietyStrength);
       const recentMealNames = extractRecentMealNames(
         await fetchRecentPlanJsons(userId, target, variety.weeksBack),
@@ -444,7 +448,7 @@ router.post("/plan-week", requireAuth, generationLimiter, async (req, res) => {
     );
 
     const plan = await persistWeekPlan({ userId, target, thisWeek, isCurrentWeek, planJson });
-    const groceryList = await rebuildGroceries(userId, target);
+    const groceryList = await rebuildGroceries(userId, target, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -516,7 +520,7 @@ router.put("/slot", requireAuth, async (req, res) => {
       },
       [{ day: parsed.data.day, op: { type: "recount" } }],
     );
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -582,7 +586,7 @@ router.post("/slot/add", requireAuth, async (req, res) => {
       },
       [{ day: parsed.data.day, op: { type: "recount" } }],
     );
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -615,7 +619,7 @@ router.delete("/slot", requireAuth, async (req, res) => {
       },
       [{ day: parsed.data.day, op: { type: "remove", index: parsed.data.index } }],
     );
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -711,7 +715,7 @@ router.post("/slot/regenerate", requireAuth, generationLimiter, async (req, res)
       },
       [{ day: parsed.data.day, op: { type: "recount" } }],
     );
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -741,7 +745,10 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
     return;
   }
 
-  const profile = await prisma.profile.findUnique({ where: { userId } });
+  const [profile, settings] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.userSettings.findUnique({ where: { userId } }),
+  ]);
   if (!profile) {
     res.status(400).json({ error: "Create a profile first" });
     return;
@@ -756,14 +763,13 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
   }
 
   try {
-    const schedule = await getTrainingSchedule(userId);
+    const schedule = await getTrainingSchedule(userId, profile);
     const variety = varietyParams(profile.varietyStrength);
     const recentMealNames = extractRecentMealNames(
       await fetchRecentPlanJsons(userId, targetPlan.weekStartDate, variety.weeksBack),
       variety.nameCap,
     );
     // Honor the recurring schedule template for this day when regenerating.
-    const settings = await prisma.userSettings.findUnique({ where: { userId } });
     const template = parseSlotMask(settings?.mealScheduleJson);
     const dayMask = template[parsed.data.day]?.length
       ? { [parsed.data.day]: template[parsed.data.day] }
@@ -824,7 +830,7 @@ router.post("/regenerate-day", requireAuth, generationLimiter, async (req, res) 
       [{ day: parsed.data.day, op: { type: "clearDay" } }],
     );
 
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -927,7 +933,7 @@ router.post("/leftovers/resolve", requireAuth, generationLimiter, async (req, re
       })),
     );
 
-    const groceryList = await rebuildGroceries(userId, plan.weekStartDate);
+    const groceryList = await rebuildGroceries(userId, plan.weekStartDate, plan);
     res.json({
       plan: { ...plan, planJson: normalizeMealPlan(plan.planJson) },
       groceryList,
@@ -1014,10 +1020,18 @@ async function mutatePlanForWeek(
 /**
  * Rebuild the grocery list for a specific week from that week's meal plan.
  * Each (userId, weekStartDate) gets its own grocery list. Manual items and
- * check state on the existing list are preserved.
+ * check state on the existing list are preserved. Callers that just wrote the
+ * plan pass it as `preloadedPlan` to skip re-fetching the row.
  */
-export async function rebuildGroceries(userId: string, weekStartDate: Date) {
-  const plan = await findMealPlanForWeek(userId, weekStartDate);
+export async function rebuildGroceries(
+  userId: string,
+  weekStartDate: Date,
+  preloadedPlan?: { id: string; planJson: unknown } | null,
+) {
+  const plan =
+    preloadedPlan !== undefined
+      ? preloadedPlan
+      : await findMealPlanForWeek(userId, weekStartDate);
   const fresh: GroceryItem[] = plan
     ? buildGroceryItems(normalizeMealPlan(plan.planJson))
     : [];

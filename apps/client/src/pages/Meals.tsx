@@ -41,12 +41,13 @@ import {
   type PlanResult,
 } from "../hooks/useMealPlan";
 import { useMealCompletions } from "../hooks/useMealCompletions";
+import { useFetchRecipe } from "../hooks/useRecipes";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
 import { recipeToMeal } from "../lib/recipeAdapter";
 import { fireCelebration } from "../lib/confetti";
 import { formatMinutes, formatQuantity, type UnitSystem } from "../lib/units";
-import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
+import type { Meal, MealDay, MealSlot, RecipeListItem, RecipeRecord } from "../lib/types";
 
 type PendingPicker =
   | { kind: "replace"; day: MealDay["day"]; index: number; slot?: MealSlot }
@@ -80,6 +81,7 @@ export function MealsPage() {
   const { data: profile } = useProfile();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const toast = useToast();
+  const fetchRecipe = useFetchRecipe();
   const unitSystem: UnitSystem = settings?.unitSystem ?? "imperial";
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
@@ -362,20 +364,30 @@ export function MealsPage() {
     });
   }
 
-  function handlePick(recipe: RecipeRecord) {
+  async function handlePick(picked: RecipeListItem) {
     if (!picker) return;
+    const target = picker;
+    setPicker(null);
+    // The picker list omits ingredients/steps; hydrate the full recipe
+    // before turning it into a meal.
+    let recipe: RecipeRecord;
+    try {
+      recipe = await fetchRecipe(picked.id);
+    } catch {
+      toast.error("Couldn't load that recipe. Try again.");
+      return;
+    }
     const meal: Meal = recipeToMeal(recipe);
-    if (picker.slot) meal.slot = picker.slot;
-    if (picker.kind === "replace") {
-      const { day, index } = picker;
+    if (target.slot) meal.slot = target.slot;
+    if (target.kind === "replace") {
+      const { day, index } = target;
       replaceSlot.mutate(
         { day, index, meal, weekStart: viewingWeekStart },
         { onSuccess: (data) => maybeOpenLeftoverRepair(data, day, index) },
       );
     } else {
-      addSlot.mutate({ day: picker.day, meal, weekStart: viewingWeekStart });
+      addSlot.mutate({ day: target.day, meal, weekStart: viewingWeekStart });
     }
-    setPicker(null);
   }
 
   const anyError =

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useRecipes } from "../hooks/useRecipes";
-import type { MealSlot, RecipeRecord } from "../lib/types";
+import type { MealSlot, RecipeListItem } from "../lib/types";
 import { RecipeCard } from "./RecipeCard";
 import {
   CATEGORY_LABEL,
@@ -22,16 +23,17 @@ export function RecipeBrowser({
   gridClassName = "space-y-2.5",
 }: {
   slot?: MealSlot;
-  onPick: (recipe: RecipeRecord) => void;
+  onPick: (recipe: RecipeListItem) => void;
   /** Override how each result renders (e.g. to make it draggable). */
-  renderCard?: (recipe: RecipeRecord) => React.ReactNode;
+  renderCard?: (recipe: RecipeListItem) => React.ReactNode;
   /** Classes for the results container — pass responsive grid columns here. */
   gridClassName?: string;
 }) {
   const [search, setSearch] = useState("");
   const [preset, setPreset] = useState<FilterPreset>(slot ?? "all");
+  const debouncedSearch = useDebouncedValue(search);
   const { data: recipes, isLoading } = useRecipes({
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
     favorite: preset === "favorites" ? true : undefined,
     category: isCategory(preset) ? preset : undefined,
   });

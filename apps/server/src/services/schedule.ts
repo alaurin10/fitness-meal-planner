@@ -1,4 +1,4 @@
-import { prisma } from "@platform/db";
+import { prisma, type Profile } from "@platform/db";
 import { findActiveWorkoutPlan } from "./activePlan.js";
 
 export interface TrainingSchedule {
@@ -15,9 +15,15 @@ const CALORIE_PER_SESSION_ESTIMATE: Record<string, number> = {
   maintain: 300,
 };
 
-export async function getTrainingSchedule(userId: string): Promise<TrainingSchedule> {
+export async function getTrainingSchedule(
+  userId: string,
+  preloadedProfile?: Profile | null,
+): Promise<TrainingSchedule> {
+  // Callers that already hold the profile pass it in to save a query.
   const [profile, plan] = await Promise.all([
-    prisma.profile.findUnique({ where: { userId } }),
+    preloadedProfile !== undefined
+      ? preloadedProfile
+      : prisma.profile.findUnique({ where: { userId } }),
     findActiveWorkoutPlan(userId),
   ]);
 

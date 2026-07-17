@@ -2,13 +2,13 @@ import { useDraggable } from "@dnd-kit/core";
 import { Card } from "../Card";
 import { RecipeBrowser } from "../RecipeBrowser";
 import { RecipeCard } from "../RecipeCard";
-import type { MealSlot, RecipeRecord } from "../../lib/types";
+import type { MealSlot, RecipeListItem } from "../../lib/types";
 
 function DraggableRecipeCard({
   recipe,
   onSelect,
 }: {
-  recipe: RecipeRecord;
+  recipe: RecipeListItem;
   onSelect: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -38,7 +38,7 @@ export function RecipeTray({
   onPick,
 }: {
   slot?: MealSlot;
-  onPick: (recipe: RecipeRecord) => void;
+  onPick: (recipe: RecipeListItem) => void;
 }) {
   return (
     <Card
