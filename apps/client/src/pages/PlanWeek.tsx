@@ -33,13 +33,13 @@ import { useIsDesktop } from "../hooks/useIsDesktop";
 import { useCurrentMealPlan, usePlanWeek, type PlanWeekCellInput } from "../hooks/useMealPlan";
 import { useSettings } from "../hooks/useSettings";
 import { useWeekStartDay } from "../hooks/useWeekStartDay";
-import type { Meal, MealDay, MealSlot, RecipeRecord } from "../lib/types";
+import type { Meal, MealDay, MealSlot, RecipeListItem } from "../lib/types";
 
 const ALL_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
 type CellAssign =
   | { mode: "generate" }
-  | { mode: "recipe"; recipe: RecipeRecord }
+  | { mode: "recipe"; recipe: RecipeListItem }
   | { mode: "keep"; meal: Meal }
   | { mode: "skip" };
 
@@ -142,11 +142,11 @@ export function PlanWeekPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
-  const [draggingRecipe, setDraggingRecipe] = useState<RecipeRecord | null>(null);
+  const [draggingRecipe, setDraggingRecipe] = useState<RecipeListItem | null>(null);
 
   function onDragEnd(e: DragEndEvent) {
     setDraggingRecipe(null);
-    const recipe = e.active.data.current?.recipe as RecipeRecord | undefined;
+    const recipe = e.active.data.current?.recipe as RecipeListItem | undefined;
     const overId = e.over?.id;
     if (!recipe || typeof overId !== "string") return;
     const [day, slot] = overId.split(":") as [MealDay["day"], MealSlot];
@@ -235,7 +235,7 @@ export function PlanWeekPage() {
               // Re-measure cells continuously; the grid restyles during a drag
               // (drop-zone outlines, hover scale), so cached rects go stale.
               measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-              onDragStart={(e) => setDraggingRecipe((e.active.data.current?.recipe as RecipeRecord) ?? null)}
+              onDragStart={(e) => setDraggingRecipe((e.active.data.current?.recipe as RecipeListItem) ?? null)}
               onDragEnd={onDragEnd}
               onDragCancel={() => setDraggingRecipe(null)}
             >

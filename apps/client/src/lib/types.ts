@@ -151,6 +151,13 @@ export interface RecipeRecord {
   updatedAt: string;
 }
 
+/**
+ * Shape returned by the recipes LIST endpoint, which omits the bulky
+ * ingredients/steps. Fetch the detail endpoint when a full RecipeRecord
+ * is needed (e.g. to build a meal from a recipe).
+ */
+export type RecipeListItem = Omit<RecipeRecord, "ingredientsJson" | "stepsJson">;
+
 export interface RecipeInput {
   name: string;
   slotHint?: MealSlot | null;

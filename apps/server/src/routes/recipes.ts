@@ -59,9 +59,32 @@ router.get("/", requireAuth, async (req, res) => {
   if (category) where.category = category;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
+  // List view: project out ingredientsJson/stepsJson — they dominate payload
+  // size and the list UI never renders them. GET /:id returns the full body.
   const recipes = await prisma.recipe.findMany({
     where,
     orderBy: [{ isFavorite: "desc" }, { updatedAt: "desc" }],
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      slotHint: true,
+      category: true,
+      servings: true,
+      prepMinutes: true,
+      cookMinutes: true,
+      totalMinutes: true,
+      calories: true,
+      proteinG: true,
+      carbsG: true,
+      fatG: true,
+      tags: true,
+      source: true,
+      notes: true,
+      isFavorite: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
   res.json({ recipes });
 });

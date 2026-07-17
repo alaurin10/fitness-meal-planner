@@ -1,4 +1,6 @@
+import { useCallback } from "react";
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -8,6 +10,7 @@ import type {
   MealDay,
   RecipeCategory,
   RecipeInput,
+  RecipeListItem,
   RecipeRecord,
   RecipeSource,
 } from "../lib/types";
@@ -31,12 +34,15 @@ export function useRecipes(filters: RecipeListFilters = {}) {
       if (filters.source) params.source = filters.source;
       if (filters.tag) params.tag = filters.tag;
       if (filters.category) params.category = filters.category;
-      const { data } = await api.get<{ recipes: RecipeRecord[] }>(
+      const { data } = await api.get<{ recipes: RecipeListItem[] }>(
         "/api/recipes",
         { params },
       );
       return data.recipes;
     },
+    // Keep showing the previous results while a new filter/search resolves,
+    // so typing doesn't collapse the list into skeletons.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -52,6 +58,29 @@ export function useRecipe(id: string | undefined) {
       return data.recipe;
     },
   });
+}
+
+/**
+ * Imperative fetch of a full recipe (ingredients + steps) through the query
+ * cache. For flows that hold a RecipeListItem and need the complete record.
+ */
+export function useFetchRecipe() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useCallback(
+    (id: string) =>
+      qc.fetchQuery({
+        queryKey: ["recipes", "detail", id],
+        queryFn: async () => {
+          const { data } = await api.get<{ recipe: RecipeRecord }>(
+            `/api/recipes/${id}`,
+          );
+          return data.recipe;
+        },
+        staleTime: 60_000,
+      }),
+    [api, qc],
+  );
 }
 
 export function useCreateRecipe() {

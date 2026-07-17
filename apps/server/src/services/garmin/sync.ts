@@ -1,14 +1,19 @@
 import { prisma } from "@platform/db";
+import { mapWithConcurrency } from "../concurrency.js";
 import { applyWeightToProfile } from "../weightSync.js";
 import type { GarminActivitySummary, GarminApi } from "./types.js";
 
 // Pull-based sync: wellness (steps/calories/HR/sleep), activities, weigh-ins.
-// Requests run sequentially and the backfill window is capped so a sync never
-// hammers Garmin. Everything upserts, so re-syncing is idempotent.
+// Requests run with bounded concurrency and the backfill window is capped so a
+// sync never hammers Garmin. Everything upserts, so re-syncing is idempotent.
 
 export const SYNC_COOLDOWN_MINUTES = 15;
 export const DEFAULT_BACKFILL_DAYS = 30;
 const ACTIVITY_PAGE_SIZE = 50;
+// Bounded parallelism for per-day Garmin calls and DB upserts: fast enough to
+// clear a 90-day backfill quickly, small enough to stay polite to Garmin and
+// within Prisma's default connection pool.
+const SYNC_CONCURRENCY = 4;
 const GRAMS_PER_POUND = 453.59237;
 const METERS_PER_MILE = 1609.344;
 
@@ -133,32 +138,36 @@ export async function syncUser(
 
   // ── Wellness ──
   try {
-    for (const dayKey of dayKeysBetween(fromDayKey, toDayKey)) {
-      const [summary, sleepSeconds] = [
-        await api.getDailySummary(dayKey),
-        await api.getSleepSeconds(dayKey).catch(() => null),
-      ];
-      const hasData =
-        summary.steps != null ||
-        summary.totalKilocalories != null ||
-        summary.activeKilocalories != null ||
-        summary.restingHeartRate != null ||
-        sleepSeconds != null;
-      if (!hasData) continue;
-      const data = {
-        steps: summary.steps,
-        totalKilocalories: summary.totalKilocalories,
-        activeKilocalories: summary.activeKilocalories,
-        restingHeartRate: summary.restingHeartRate,
-        sleepSeconds,
-      };
-      await prisma.dailyWellness.upsert({
-        where: { userId_dayKey: { userId, dayKey } },
-        update: data,
-        create: { userId, dayKey, ...data },
-      });
-      result.wellnessDays += 1;
-    }
+    await mapWithConcurrency(
+      dayKeysBetween(fromDayKey, toDayKey),
+      SYNC_CONCURRENCY,
+      async (dayKey) => {
+        const [summary, sleepSeconds] = await Promise.all([
+          api.getDailySummary(dayKey),
+          api.getSleepSeconds(dayKey).catch(() => null),
+        ]);
+        const hasData =
+          summary.steps != null ||
+          summary.totalKilocalories != null ||
+          summary.activeKilocalories != null ||
+          summary.restingHeartRate != null ||
+          sleepSeconds != null;
+        if (!hasData) return;
+        const data = {
+          steps: summary.steps,
+          totalKilocalories: summary.totalKilocalories,
+          activeKilocalories: summary.activeKilocalories,
+          restingHeartRate: summary.restingHeartRate,
+          sleepSeconds,
+        };
+        await prisma.dailyWellness.upsert({
+          where: { userId_dayKey: { userId, dayKey } },
+          update: data,
+          create: { userId, dayKey, ...data },
+        });
+        result.wellnessDays += 1;
+      },
+    );
   } catch (err) {
     result.errors.push(`wellness: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -166,32 +175,35 @@ export async function syncUser(
   // ── Activities ──
   try {
     let start = 0;
-    pages: while (true) {
+    while (true) {
       const page = await api.getActivities(start, ACTIVITY_PAGE_SIZE);
       if (page.length === 0) break;
-      for (const activity of page) {
-        const mapped = mapGarminActivity(activity);
-        if (mapped.performedAt < windowStart) break pages; // most-recent-first
+      // Pages are most-recent-first: keep only activities inside the window,
+      // and stop paging once one falls outside it.
+      const mapped = page.map(mapGarminActivity);
+      const cutoff = mapped.findIndex((m) => m.performedAt < windowStart);
+      const inWindow = cutoff === -1 ? mapped : mapped.slice(0, cutoff);
+      await mapWithConcurrency(inWindow, SYNC_CONCURRENCY, async (m) => {
         await prisma.activityLog.upsert({
           where: {
             userId_source_externalId: {
               userId,
               source: "garmin",
-              externalId: mapped.externalId,
+              externalId: m.externalId,
             },
           },
           update: {
-            activityName: mapped.activityName,
-            performedAt: mapped.performedAt,
-            durationMinutes: mapped.durationMinutes,
-            activeCalories: mapped.activeCalories,
-            distanceMiles: mapped.distanceMiles,
+            activityName: m.activityName,
+            performedAt: m.performedAt,
+            durationMinutes: m.durationMinutes,
+            activeCalories: m.activeCalories,
+            distanceMiles: m.distanceMiles,
           },
-          create: { userId, source: "garmin", ...mapped },
+          create: { userId, source: "garmin", ...m },
         });
         result.activitiesImported += 1;
-      }
-      if (page.length < ACTIVITY_PAGE_SIZE) break;
+      });
+      if (cutoff !== -1 || page.length < ACTIVITY_PAGE_SIZE) break;
       start += ACTIVITY_PAGE_SIZE;
     }
   } catch (err) {

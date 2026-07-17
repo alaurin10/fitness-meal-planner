@@ -1,5 +1,5 @@
 import { useIsDesktop } from "../hooks/useIsDesktop";
-import type { MealSlot, RecipeRecord } from "../lib/types";
+import type { MealSlot, RecipeListItem } from "../lib/types";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
@@ -10,7 +10,7 @@ import { CATEGORY_LABEL } from "./RecipeFilterChips";
 interface Props {
   open: boolean;
   slot?: MealSlot;
-  onPick: (recipe: RecipeRecord) => void;
+  onPick: (recipe: RecipeListItem) => void;
   onClose: () => void;
 }
 

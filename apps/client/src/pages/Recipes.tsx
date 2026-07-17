@@ -13,15 +13,17 @@ import {
   type FilterPreset,
 } from "../components/RecipeFilterChips";
 import { SkeletonList } from "../components/Skeleton";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useRecipes, type RecipeListFilters } from "../hooks/useRecipes";
 
 export function RecipesPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [preset, setPreset] = useState<FilterPreset>("all");
+  const debouncedSearch = useDebouncedValue(search);
 
   const filters: RecipeListFilters = {
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
     favorite: preset === "favorites" ? true : undefined,
     category: isCategory(preset) ? preset : undefined,
   };

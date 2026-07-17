@@ -2,14 +2,14 @@ import { Card } from "./Card";
 import { Chip } from "./Primitives";
 import { Icon } from "./Icon";
 import { Illustration, mealIllustration } from "./Illustration";
-import type { RecipeRecord } from "../lib/types";
+import type { RecipeListItem } from "../lib/types";
 import { formatMinutes } from "../lib/units";
 
 export function RecipeCard({
   recipe,
   onSelect,
 }: {
-  recipe: RecipeRecord;
+  recipe: RecipeListItem;
   onSelect: () => void;
 }) {
   const total =
