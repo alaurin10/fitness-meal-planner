@@ -3,7 +3,15 @@ import type { DayLabel } from "@platform/shared";
 import { Card } from "../../../components/Card";
 import { Icon } from "../../../components/Icon";
 import { Chip } from "../../../components/Primitives";
-import type { EquipmentId, Profile, ProfileInput, WorkoutStyle } from "../../../hooks/useProfile";
+import type {
+  EquipmentId,
+  Profile,
+  ProfileInput,
+  VarietyStrength,
+  WorkoutDuration,
+  WorkoutStyle,
+  WorkoutType,
+} from "../../../hooks/useProfile";
 import { useWeekStartDay } from "../../../hooks/useWeekStartDay";
 import {
   EQUIPMENT_LABEL,
@@ -12,6 +20,8 @@ import {
   GOAL_LABEL,
   WORKOUT_STYLES,
   WORKOUT_STYLE_LABEL,
+  WORKOUT_TYPE_LABEL,
+  WORKOUT_VARIETY_LABEL,
 } from "../constants";
 import { EditSheet, SectionHeader } from "../EditSheet";
 import {
@@ -21,6 +31,9 @@ import {
   IconChoiceGrid,
   SummaryRow,
   TrainingDaysPicker,
+  WorkoutDurationPicker,
+  WorkoutTypesPicker,
+  WorkoutVarietyPicker,
 } from "../fields";
 import { getSaveErrorMessage } from "../helpers";
 import type { SaveSection } from "../types";
@@ -31,6 +44,9 @@ interface TrainingDraft {
   trainingDaysPerWeek: number;
   goal: ProfileInput["goal"];
   workoutStyle: WorkoutStyle;
+  workoutDuration: WorkoutDuration;
+  workoutTypes: WorkoutType[];
+  workoutVariety: VarietyStrength;
   equipment: EquipmentId[];
 }
 
@@ -55,6 +71,9 @@ export function TrainingSection({
       trainingDaysPerWeek: profile.trainingDaysPerWeek,
       goal: profile.goal,
       workoutStyle: profile.workoutStyle ?? "ppl",
+      workoutDuration: profile.workoutDuration ?? 60,
+      workoutTypes: profile.workoutTypes ?? ["lifts", "core"],
+      workoutVariety: profile.workoutVariety ?? "medium",
       equipment: profile.equipment ?? [],
     });
     setError(null);
@@ -93,7 +112,22 @@ export function TrainingSection({
             </span>
           }
         />
-        <SummaryRow label="Split" value={WORKOUT_STYLE_LABEL[profile.workoutStyle ?? "ppl"]} last />
+        <SummaryRow label="Split" value={WORKOUT_STYLE_LABEL[profile.workoutStyle ?? "ppl"]} />
+        <SummaryRow
+          label="Session length"
+          value={`~${profile.workoutDuration ?? 60} min`}
+        />
+        <SummaryRow
+          label="Includes"
+          value={(profile.workoutTypes ?? ["lifts", "core"])
+            .map((t) => WORKOUT_TYPE_LABEL[t] ?? t)
+            .join(" + ")}
+        />
+        <SummaryRow
+          label="Variety"
+          value={WORKOUT_VARIETY_LABEL[profile.workoutVariety ?? "medium"]}
+          last
+        />
         <div style={{ paddingTop: 12 }}>
           <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>Equipment</div>
           {profile.equipment && profile.equipment.length > 0 ? (
@@ -153,6 +187,22 @@ export function TrainingSection({
               onChange={(workoutStyle) => setDraft((d) => (d ? { ...d, workoutStyle } : d))}
               columns={2}
               hint={WORKOUT_STYLES.find((o) => o.value === draft.workoutStyle)?.hint}
+            />
+            <WorkoutDurationPicker
+              value={draft.workoutDuration}
+              onChange={(workoutDuration) =>
+                setDraft((d) => (d ? { ...d, workoutDuration } : d))
+              }
+            />
+            <WorkoutTypesPicker
+              value={draft.workoutTypes}
+              onChange={(workoutTypes) => setDraft((d) => (d ? { ...d, workoutTypes } : d))}
+            />
+            <WorkoutVarietyPicker
+              value={draft.workoutVariety}
+              onChange={(workoutVariety) =>
+                setDraft((d) => (d ? { ...d, workoutVariety } : d))
+              }
             />
             <EquipmentPicker
               value={draft.equipment}

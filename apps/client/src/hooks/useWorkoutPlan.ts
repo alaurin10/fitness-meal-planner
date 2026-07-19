@@ -10,6 +10,10 @@ export interface Exercise {
   loadLbs: number | null;
   restSeconds: number;
   notes?: string;
+  // Absent on plans generated before exercise types existed.
+  type?: "strength" | "cardio" | "core";
+  // Block length for cardio entries; null/absent otherwise.
+  durationMinutes?: number | null;
 }
 
 export interface TrainingDay {

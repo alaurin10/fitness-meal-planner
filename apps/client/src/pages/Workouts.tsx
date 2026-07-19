@@ -573,7 +573,7 @@ export function WorkoutsPage() {
                         </span>
                       )}
                     </div>
-                    {editingLoadIdx === i ? (
+                    {ex.type === "cardio" ? null : editingLoadIdx === i ? (
                       <LoadEditor
                         initialLoadLbs={ex.loadLbs}
                         unitSystem={unitSystem}
@@ -633,12 +633,23 @@ export function WorkoutsPage() {
                       alignItems: "center",
                     }}
                   >
-                    <span>
-                      <b style={{ color: "var(--sumi)", fontWeight: 500 }}>{ex.sets}</b>{" "}
-                      × {ex.reps}
-                    </span>
-                    <span>·</span>
-                    <span>{ex.restSeconds}s rest</span>
+                    {ex.type === "cardio" ? (
+                      <span>
+                        <b style={{ color: "var(--sumi)", fontWeight: 500 }}>
+                          {ex.durationMinutes ?? "—"}
+                        </b>{" "}
+                        min
+                      </span>
+                    ) : (
+                      <>
+                        <span>
+                          <b style={{ color: "var(--sumi)", fontWeight: 500 }}>{ex.sets}</b>{" "}
+                          × {ex.reps}
+                        </span>
+                        <span>·</span>
+                        <span>{ex.restSeconds}s rest</span>
+                      </>
+                    )}
                     {viewingToday && exerciseSets.length > 0 && (
                       <>
                         <span>·</span>

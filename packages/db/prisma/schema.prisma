@@ -74,6 +74,12 @@ model Profile {
   weekendRelaxed      Boolean  @default(true)
   // Workout split style: "ppl" (Push/Pull/Legs or Upper/Lower) | "muscle_group"
   workoutStyle        String   @default("ppl")
+  // Target session length in minutes: 30 | 45 | 60 | 75 | 90
+  workoutDuration     Int      @default(60)
+  // What each session contains. "lifts" is always present; optional "cardio", "core".
+  workoutTypes        String[] @default(["lifts", "core"])
+  // How aggressively new weeks rotate exercise selection: "low" | "medium" | "high"
+  workoutVariety      String   @default("medium")
   // Equipment available for workouts. Empty array => bodyweight only.
   // Known values: "barbell", "dumbbells", "kettlebells", "pull_up_bar",
   // "bench", "squat_rack", "cable_machine", "resistance_bands", "cardio_machine".

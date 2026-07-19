@@ -123,8 +123,10 @@ const exerciseSchema: Schema = {
     loadLbs: { type: Type.NUMBER, nullable: true },
     restSeconds: { type: Type.INTEGER },
     notes: { type: Type.STRING },
+    type: { type: Type.STRING, enum: ["strength", "cardio", "core"] },
+    durationMinutes: { type: Type.INTEGER, nullable: true },
   },
-  required: ["name", "muscleGroup", "description", "sets", "reps", "loadLbs", "restSeconds"],
+  required: ["name", "muscleGroup", "description", "sets", "reps", "loadLbs", "restSeconds", "type"],
 };
 
 const trainingDaySchema: Schema = {

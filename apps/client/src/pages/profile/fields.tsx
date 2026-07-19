@@ -3,7 +3,14 @@ import { rotateDays, type DayLabel, type WeekStartDay } from "@platform/shared";
 import { Card } from "../../components/Card";
 import { Icon, type IconName } from "../../components/Icon";
 import { Chip } from "../../components/Primitives";
-import type { EquipmentId, ProfileInput } from "../../hooks/useProfile";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import type {
+  EquipmentId,
+  ProfileInput,
+  VarietyStrength,
+  WorkoutDuration,
+  WorkoutType,
+} from "../../hooks/useProfile";
 import {
   cmToInches,
   inchesToCm,
@@ -11,7 +18,15 @@ import {
   poundsToKg,
   roundTo,
 } from "../../lib/units";
-import { EQUIPMENT, EXPERIENCE, GOALS, QUICK_NOTES } from "./constants";
+import {
+  EQUIPMENT,
+  EXPERIENCE,
+  GOALS,
+  QUICK_NOTES,
+  WORKOUT_DURATIONS,
+  WORKOUT_TYPE_OPTIONS,
+  WORKOUT_VARIETY_OPTIONS,
+} from "./constants";
 import { toFeetInches, toInches } from "./helpers";
 
 export const twoColGrid: CSSProperties = {
@@ -697,6 +712,104 @@ export function EquipmentPicker({
         {value.length === 0
           ? "Nothing selected — plans will be bodyweight only."
           : "Workouts will only use the equipment you've selected."}
+      </div>
+    </div>
+  );
+}
+
+export function WorkoutDurationPicker({
+  value,
+  onChange,
+}: {
+  value: WorkoutDuration;
+  onChange: (value: WorkoutDuration) => void;
+}) {
+  return (
+    <div>
+      <div style={sectionLabelStyle}>Session length</div>
+      <SegmentedControl
+        options={WORKOUT_DURATIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+        value={String(value)}
+        onChange={(v) => onChange(Number(v) as WorkoutDuration)}
+        aria-label="Session length in minutes"
+        minSegmentWidth={48}
+      />
+      <div className="text-caption" style={{ marginTop: 6 }}>
+        Minutes per workout, including rest between sets.
+      </div>
+    </div>
+  );
+}
+
+export function WorkoutTypesPicker({
+  value,
+  onChange,
+}: {
+  value: WorkoutType[];
+  onChange: (value: WorkoutType[]) => void;
+}) {
+  return (
+    <div>
+      <div style={sectionLabelStyle}>Workout includes</div>
+      <div className="flex flex-wrap gap-1.5">
+        {WORKOUT_TYPE_OPTIONS.map((opt) => {
+          const active = opt.locked || value.includes(opt.value);
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              disabled={opt.locked}
+              onClick={() =>
+                onChange(
+                  active ? value.filter((t) => t !== opt.value) : [...value, opt.value],
+                )
+              }
+              className="tappable"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: opt.locked ? "default" : "pointer",
+              }}
+            >
+              <Chip variant={active ? "moss" : "ghost"}>
+                {active ? "✓ " : ""}
+                {opt.label}
+              </Chip>
+            </button>
+          );
+        })}
+      </div>
+      <div className="text-caption" style={{ marginTop: 10, lineHeight: 1.5 }}>
+        Lifting is always included. Add core work and cardio finishers to taste.
+      </div>
+    </div>
+  );
+}
+
+export function WorkoutVarietyPicker({
+  value,
+  onChange,
+}: {
+  value: VarietyStrength;
+  onChange: (value: VarietyStrength) => void;
+}) {
+  return (
+    <div>
+      <div style={sectionLabelStyle}>Exercise variety</div>
+      <SegmentedControl
+        options={WORKOUT_VARIETY_OPTIONS}
+        value={value}
+        onChange={onChange}
+        aria-label="Workout variety"
+        minSegmentWidth={84}
+      />
+      <div className="text-caption" style={{ marginTop: 6 }}>
+        {value === "high"
+          ? "New weeks strongly rotate accessories away from the last 3 weeks. Lifts with saved weights stay."
+          : value === "low"
+            ? "Keep the routine consistent week to week."
+            : "Primary lifts stay put; a few accessories rotate each week."}
       </div>
     </div>
   );

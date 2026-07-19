@@ -10,6 +10,10 @@ export const weekdaySchema = z.enum([
   "Sun",
 ]);
 
+export const exerciseTypeSchema = z.enum(["strength", "cardio", "core"]);
+
+export type ExerciseType = z.infer<typeof exerciseTypeSchema>;
+
 export const exerciseSchema = z.object({
   name: z.string().min(1),
   muscleGroup: z.string().min(1).catch(""),
@@ -19,6 +23,10 @@ export const exerciseSchema = z.object({
   loadLbs: z.number().nullable().catch(null),
   restSeconds: z.number().int().nonnegative().catch(60),
   notes: z.string().optional(),
+  // Absent on plans stored before types existed — treat those as lifts.
+  type: exerciseTypeSchema.catch("strength"),
+  // Block length for cardio entries; null/absent for strength and core.
+  durationMinutes: z.number().int().positive().nullable().optional().catch(null),
 });
 
 export const trainingDaySchema = z.object({

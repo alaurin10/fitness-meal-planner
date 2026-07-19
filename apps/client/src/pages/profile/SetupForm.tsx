@@ -21,6 +21,8 @@ import {
   NumbersFields,
   TargetCard,
   TrainingDaysPicker,
+  WorkoutDurationPicker,
+  WorkoutTypesPicker,
   sectionLabelStyle,
 } from "./fields";
 import { getSaveErrorMessage, profileToForm, shouldUseSuggested } from "./helpers";
@@ -211,6 +213,21 @@ export function SetupForm({ profile }: { profile: Profile | null }) {
             columns={2}
             hint={WORKOUT_STYLES.find((o) => o.value === form.workoutStyle)?.hint}
           />
+        </Card>
+      </div>
+
+      <div className="px-4 pt-3">
+        <Card>
+          <div style={{ display: "grid", gap: 18 }}>
+            <WorkoutDurationPicker
+              value={form.workoutDuration}
+              onChange={(v) => upd("workoutDuration", v)}
+            />
+            <WorkoutTypesPicker
+              value={form.workoutTypes}
+              onChange={(v) => upd("workoutTypes", v)}
+            />
+          </div>
         </Card>
       </div>
 

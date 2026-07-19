@@ -468,11 +468,19 @@ function OverviewSheet({
                       alignItems: "center",
                     }}
                   >
-                    <span>
-                      <b>{ex.sets}</b> × {ex.reps}
-                    </span>
-                    <span>·</span>
-                    <span>{ex.restSeconds}s rest</span>
+                    {ex.type === "cardio" ? (
+                      <span>
+                        <b>{ex.durationMinutes ?? "—"}</b> min
+                      </span>
+                    ) : (
+                      <>
+                        <span>
+                          <b>{ex.sets}</b> × {ex.reps}
+                        </span>
+                        <span>·</span>
+                        <span>{ex.restSeconds}s rest</span>
+                      </>
+                    )}
                     <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
                       {Array.from({ length: ex.sets }, (_, s) => (
                         <span
@@ -601,6 +609,14 @@ function ActiveScreen({
         }}
       >
         {(() => {
+          if (exercise.type === "cardio" && exercise.durationMinutes) {
+            return (
+              <RepTimer
+                key={`${exerciseIdx}-${setNum}`}
+                seconds={exercise.durationMinutes * 60}
+              />
+            );
+          }
           const duration = parseRepDuration(exercise.reps);
           return duration !== null ? (
             <RepTimer
@@ -612,7 +628,7 @@ function ActiveScreen({
             <Stat label="Reps" value={exercise.reps} />
           );
         })()}
-        {editingLoad && onUpdateLoad ? (
+        {exercise.type === "cardio" ? null : editingLoad && onUpdateLoad ? (
           <LoadEditor
             initialLoadLbs={exercise.loadLbs}
             unitSystem={unitSystem}
@@ -695,7 +711,9 @@ function ActiveScreen({
             {nextExercise.name}
           </div>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-            {nextExercise.sets} × {nextExercise.reps}
+            {nextExercise.type === "cardio"
+              ? `${nextExercise.durationMinutes ?? "—"} min`
+              : `${nextExercise.sets} × ${nextExercise.reps}`}
           </div>
         </div>
       )}
