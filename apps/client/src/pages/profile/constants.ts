@@ -3,7 +3,10 @@ import type {
   EquipmentId,
   MealComplexity,
   ProfileInput,
+  VarietyStrength,
+  WorkoutDuration,
   WorkoutStyle,
+  WorkoutType,
 } from "../../hooks/useProfile";
 
 export const EMPTY: ProfileInput = {
@@ -20,6 +23,9 @@ export const EMPTY: ProfileInput = {
   dietaryNotes: null,
   mealComplexity: "varied",
   workoutStyle: "ppl",
+  workoutDuration: 60,
+  workoutTypes: ["lifts", "core"],
+  workoutVariety: "medium",
   equipment: [],
   hydrationGoal: 8,
   trainingDays: [],
@@ -80,6 +86,42 @@ export const WORKOUT_STYLES: Array<{
 export const WORKOUT_STYLE_LABEL: Record<WorkoutStyle, string> = {
   ppl: "PPL / Upper-Lower",
   muscle_group: "Muscle Groups",
+};
+
+export const WORKOUT_DURATIONS: ReadonlyArray<{ value: WorkoutDuration; label: string }> = [
+  { value: 30, label: "30" },
+  { value: 45, label: "45" },
+  { value: 60, label: "60" },
+  { value: 75, label: "75" },
+  { value: 90, label: "90" },
+];
+
+export const WORKOUT_TYPE_OPTIONS: ReadonlyArray<{
+  value: WorkoutType;
+  label: string;
+  locked?: boolean;
+}> = [
+  { value: "lifts", label: "Lifts", locked: true },
+  { value: "core", label: "Core" },
+  { value: "cardio", label: "Cardio" },
+];
+
+export const WORKOUT_TYPE_LABEL: Record<WorkoutType, string> = {
+  lifts: "Lifts",
+  core: "Core",
+  cardio: "Cardio",
+};
+
+export const WORKOUT_VARIETY_OPTIONS: ReadonlyArray<{ value: VarietyStrength; label: string }> = [
+  { value: "low", label: "Consistent" },
+  { value: "medium", label: "Balanced" },
+  { value: "high", label: "Fresh" },
+];
+
+export const WORKOUT_VARIETY_LABEL: Record<VarietyStrength, string> = {
+  low: "Same lifts, steady progression",
+  medium: "Balanced rotation",
+  high: "New movements every week",
 };
 
 export const EQUIPMENT: Array<{ value: EquipmentId; label: string }> = [

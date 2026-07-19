@@ -6,6 +6,7 @@ const BODYWEIGHT_FACTOR = 0.5;
 interface PlanExercise {
   loadLbs?: number | null;
   reps?: string | null;
+  type?: string | null;
 }
 
 /** Midpoint of a rep string like "8-10" → 9, "5" → 5. Returns 0 if unparseable. */
@@ -43,6 +44,9 @@ export function computeWorkoutVolumeLbs(args: {
   let total = 0;
   for (let i = 0; i < exercises.length; i++) {
     const ex = exercises[i]!;
+    // Cardio blocks lift nothing — without this guard a bodyweight fallback
+    // would credit phantom volume for a timed conditioning entry.
+    if (ex.type === "cardio") continue;
     const doneCount = completedSets[String(i)]?.length ?? 0;
     if (doneCount === 0) continue;
     const reps = parseRepsForVolume(ex.reps);

@@ -119,3 +119,60 @@ describe("buildWorkoutServicePayload", () => {
     expect(rest.endConditionValue).toBe(60);
   });
 });
+
+describe("cardio finisher steps", () => {
+  const payload = convertPlanDay(
+    {
+      day: "Mon",
+      focus: "Push",
+      exercises: [
+        { name: "Bench Press", sets: 2, reps: "5", loadLbs: 135, restSeconds: 60 },
+        {
+          name: "Bike Intervals",
+          sets: 1,
+          reps: "—",
+          loadLbs: null,
+          restSeconds: 0,
+          type: "cardio",
+          durationMinutes: 15,
+        },
+      ],
+    },
+    "Push · Mon (FMP)",
+  );
+
+  it("converts cardio to a single time-based step", () => {
+    expect(payload.steps).toHaveLength(2);
+    expect(payload.steps[1]).toMatchObject({
+      exerciseCategory: "CARDIO",
+      exerciseName: null,
+      description: "Bike Intervals — 15 min",
+      sets: 1,
+      weightLbs: null,
+      durationSeconds: 900,
+    });
+  });
+
+  it("emits one time-ended interval with no trailing rest and counts it in the estimate", () => {
+    const body = buildWorkoutServicePayload(payload) as {
+      estimatedDurationInSecs: number;
+      workoutSegments: { workoutSteps: Record<string, unknown>[] }[];
+    };
+    const steps = body.workoutSegments[0]!.workoutSteps;
+    // 2 bench sets with rest after each (cardio follows, so the second set's
+    // rest is kept) + 1 cardio interval with nothing after it.
+    expect(steps.map((s) => (s.stepType as { stepTypeKey: string }).stepTypeKey)).toEqual([
+      "interval",
+      "rest",
+      "interval",
+      "rest",
+      "interval",
+    ]);
+    const cardio = steps[4]!;
+    expect((cardio.endCondition as { conditionTypeKey: string }).conditionTypeKey).toBe("time");
+    expect(cardio.endConditionValue).toBe(900);
+    expect(cardio.weightValue).toBeNull();
+    // 2 sets × 40s + 2 × 60s rest + 900s cardio
+    expect(body.estimatedDurationInSecs).toBe(2 * 40 + 2 * 60 + 900);
+  });
+});

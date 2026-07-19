@@ -23,6 +23,8 @@ interface PlanExercise {
   reps?: string | null;
   loadLbs?: number | null;
   restSeconds?: number | null;
+  type?: string | null;
+  durationMinutes?: number | null;
 }
 
 interface PlanDay {
@@ -110,6 +112,18 @@ export function parseRepsLowerBound(reps: string | null | undefined): number {
 /** Convert one plan day into the app-level workout payload. */
 export function convertPlanDay(day: PlanDay, workoutName: string): GarminWorkoutPayload {
   const steps: GarminWorkoutStep[] = (day.exercises ?? []).map((ex) => {
+    if (ex.type === "cardio" && ex.durationMinutes != null && ex.durationMinutes > 0) {
+      return {
+        exerciseCategory: "CARDIO",
+        exerciseName: null,
+        description: `${ex.name} — ${ex.durationMinutes} min`,
+        reps: 0,
+        weightLbs: null,
+        restSeconds: 0,
+        sets: 1,
+        durationSeconds: ex.durationMinutes * 60,
+      };
+    }
     const taxonomy = mapExerciseToGarmin(ex.name);
     const load = ex.loadLbs != null && ex.loadLbs > 0 ? ex.loadLbs : null;
     return {
@@ -140,6 +154,30 @@ export function buildWorkoutServicePayload(payload: GarminWorkoutPayload): Recor
   let stepOrder = 1;
 
   for (const step of payload.steps) {
+    // Cardio block: a single time-ended interval step, no trailing rest.
+    if (step.durationSeconds != null && step.durationSeconds > 0) {
+      workoutSteps.push({
+        type: "ExecutableStepDTO",
+        stepId: null,
+        stepOrder: stepOrder++,
+        childStepId: null,
+        description: step.description,
+        stepType: { stepTypeId: 3, stepTypeKey: "interval", displayOrder: 3 },
+        endCondition: { conditionTypeId: 2, conditionTypeKey: "time", displayOrder: 2, displayable: true },
+        endConditionValue: step.durationSeconds,
+        preferredEndConditionUnit: null,
+        endConditionCompare: null,
+        targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target", displayOrder: 1 },
+        targetValueOne: null,
+        targetValueTwo: null,
+        zoneNumber: null,
+        category: step.exerciseCategory,
+        exerciseName: step.exerciseName,
+        weightValue: null,
+        weightUnit: null,
+      });
+      continue;
+    }
     const weightKg =
       step.weightLbs != null ? Math.round((step.weightLbs / LBS_PER_KG) * 100) / 100 : null;
     for (let set = 1; set <= step.sets; set++) {
@@ -186,15 +224,17 @@ export function buildWorkoutServicePayload(payload: GarminWorkoutPayload): Recor
     }
   }
 
-  const totalSets = payload.steps.reduce((s, e) => s + e.sets, 0);
-  const totalRest = payload.steps.reduce((s, e) => s + e.sets * e.restSeconds, 0);
+  const strengthSteps = payload.steps.filter((s) => !(s.durationSeconds != null && s.durationSeconds > 0));
+  const totalSets = strengthSteps.reduce((s, e) => s + e.sets, 0);
+  const totalRest = strengthSteps.reduce((s, e) => s + e.sets * e.restSeconds, 0);
+  const totalCardio = payload.steps.reduce((s, e) => s + (e.durationSeconds ?? 0), 0);
 
   return {
     workoutName: payload.name,
     description: payload.description,
     sportType,
     subSportType: null,
-    estimatedDurationInSecs: totalSets * ESTIMATED_SECONDS_PER_SET + totalRest,
+    estimatedDurationInSecs: totalSets * ESTIMATED_SECONDS_PER_SET + totalRest + totalCardio,
     estimatedDistanceInMeters: null,
     avgTrainingSpeed: null,
     workoutSegments: [{ segmentOrder: 1, sportType, workoutSteps }],

@@ -23,6 +23,9 @@ export type EquipmentId = (typeof EQUIPMENT_OPTIONS)[number];
 
 export type WorkoutStyle = "ppl" | "muscle_group";
 
+export type WorkoutDuration = 30 | 45 | 60 | 75 | 90;
+export type WorkoutType = "lifts" | "cardio" | "core";
+
 export interface Profile {
   id: string;
   userId: string;
@@ -46,6 +49,9 @@ export interface Profile {
   weeknightMaxMinutes: number | null;
   weekendRelaxed: boolean;
   workoutStyle: WorkoutStyle;
+  workoutDuration: WorkoutDuration;
+  workoutTypes: WorkoutType[];
+  workoutVariety: VarietyStrength;
   equipment: EquipmentId[];
   hydrationGoal: number;
   updatedAt: string;
@@ -72,6 +78,9 @@ export interface ProfileInput {
   weeknightMaxMinutes?: number | null;
   weekendRelaxed?: boolean;
   workoutStyle: WorkoutStyle;
+  workoutDuration: WorkoutDuration;
+  workoutTypes: WorkoutType[];
+  workoutVariety: VarietyStrength;
   equipment: EquipmentId[];
   hydrationGoal?: number;
 }

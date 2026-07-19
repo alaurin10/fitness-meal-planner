@@ -44,6 +44,8 @@ export interface GarminWorkoutStep {
   weightLbs: number | null;
   restSeconds: number;
   sets: number;
+  // Set for cardio blocks: the step ends on time instead of reps.
+  durationSeconds?: number | null;
 }
 
 export interface GarminWorkoutPayload {

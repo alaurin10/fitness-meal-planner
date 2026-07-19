@@ -25,6 +25,11 @@ import {
   weeklyPlanSchema,
   type WeeklyPlanJson,
 } from "../services/workoutPlanSchema.js";
+import { varietyParams } from "../services/varietyContext.js";
+import {
+  extractRecentExerciseNames,
+  fetchRecentWorkoutPlanJsons,
+} from "../services/workoutVarietyContext.js";
 
 /**
  * Resolve the user's configured week-start day. Falls back to "Mon" if no
@@ -123,15 +128,22 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
     return;
   }
 
+  // Variety: feed recent weeks' exercise names in so new weeks rotate
+  // accessories instead of rehashing the same lifts. Strength is a profile
+  // preference (mirrors the meal-side variety machinery).
+  const variety = varietyParams(profile.workoutVariety);
+
   const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
-  const [recentProgress, previousPlan, baselines] = await Promise.all([
+  const [recentProgress, previousPlan, baselines, recentPlans] = await Promise.all([
     prisma.progressLog.findMany({
       where: { userId, loggedAt: { gte: fourWeeksAgo } },
       orderBy: { loggedAt: "desc" },
     }),
     findActiveWorkoutPlan(userId),
     prisma.userExerciseBaseline.findMany({ where: { userId } }),
+    fetchRecentWorkoutPlanJsons(userId, target, variety.weeksBack),
   ]);
+  const recentExerciseNames = extractRecentExerciseNames(recentPlans, variety.nameCap);
 
   try {
     const planJson = await generateWeeklyPlan({
@@ -140,6 +152,9 @@ router.post("/generate", requireAuth, generationLimiter, async (req, res) => {
       previousPlan,
       baselines,
       daysToGenerate: workoutDays,
+      recentExerciseNames,
+      varietyTone: variety.promptTone,
+      temperature: variety.temperature,
     });
 
     // Deactivate (not delete) existing plans for this week to preserve

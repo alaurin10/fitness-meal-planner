@@ -5,7 +5,7 @@ import type {
   WeeklyPlan,
 } from "@platform/db";
 import { normalizeExerciseName, type DayLabel } from "@platform/shared";
-import { callGemini, generateWithRetry, GenerationSkipError } from "./gemini.js";
+import { callGemini, defaultTemperature, generateWithRetry, GenerationSkipError } from "./gemini.js";
 import { buildSystemPrompt, buildUserPrompt } from "./workoutPlanPrompt.js";
 import { weeklyPlanResponseSchema } from "./geminiSchemas.js";
 import { weeklyPlanSchema, type WeeklyPlanJson } from "./workoutPlanSchema.js";
@@ -16,15 +16,20 @@ export async function generateWeeklyPlan(args: {
   previousPlan: WeeklyPlan | null;
   baselines: UserExerciseBaseline[];
   daysToGenerate?: DayLabel[];
+  recentExerciseNames?: string[];
+  varietyTone?: "soft" | "strict";
+  temperature?: number;
 }): Promise<WeeklyPlanJson> {
   return generateWithRetry(async (model, attempt) => {
     const parsed = await callGemini({
       model,
       attempt,
-      maxOutputTokens: 8192,
+      // Long sessions × 7 days with descriptions overflow 8192.
+      maxOutputTokens: 16384,
       responseSchema: weeklyPlanResponseSchema,
       systemInstruction: buildSystemPrompt(),
       contents: buildUserPrompt(args),
+      temperature: defaultTemperature(args.temperature ?? 0.9),
     });
 
     const validated = weeklyPlanSchema.safeParse(parsed);

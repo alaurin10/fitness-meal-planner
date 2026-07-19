@@ -39,6 +39,14 @@ const profileSchema = z.object({
   weeknightMaxMinutes: z.number().int().min(10).max(180).nullable().optional(),
   weekendRelaxed: z.boolean().optional(),
   workoutStyle: z.enum(["ppl", "muscle_group"]).default("ppl"),
+  workoutDuration: z
+    .union([z.literal(30), z.literal(45), z.literal(60), z.literal(75), z.literal(90)])
+    .default(60),
+  workoutTypes: z
+    .array(z.enum(["lifts", "cardio", "core"]))
+    .default(["lifts", "core"])
+    .transform((types) => Array.from(new Set(["lifts", ...types]))),
+  workoutVariety: z.enum(["low", "medium", "high"]).default("medium"),
   equipment: z.array(z.enum(EQUIPMENT_OPTIONS)).default([]),
   hydrationGoal: z.number().int().min(1).max(20).optional(),
   trainingDays: z.array(z.enum(ALL_DAYS as unknown as [string, ...string[]])).default([]),
