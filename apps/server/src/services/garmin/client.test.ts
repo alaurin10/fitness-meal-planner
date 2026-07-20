@@ -29,6 +29,7 @@ vi.mock("garmin-connect", () => {
 import {
   classifyGarminCallError,
   linkWithImportedTokens,
+  normalizeExerciseSet,
   pickLatestWeighInPerDay,
 } from "./client.js";
 import { decryptJson } from "./crypto.js";
@@ -87,6 +88,55 @@ describe("pickLatestWeighInPerDay", () => {
 
   it("returns an empty array for no metrics", () => {
     expect(pickLatestWeighInPerDay([])).toEqual([]);
+  });
+});
+
+describe("normalizeExerciseSet", () => {
+  it("keeps the highest-probability exercise identification", () => {
+    const set = normalizeExerciseSet({
+      exercises: [
+        { category: "CURL", name: "DUMBBELL_BICEPS_CURL", probability: 33 },
+        { category: "BENCH_PRESS", name: "BARBELL_BENCH_PRESS", probability: 67 },
+      ],
+      setType: "ACTIVE",
+      repetitionCount: 8,
+      weight: 61234,
+      duration: 41.2,
+      startTime: "2026-07-20T14:03:11.0",
+      wkStepIndex: 2,
+    });
+
+    expect(set).toEqual({
+      setType: "ACTIVE",
+      category: "BENCH_PRESS",
+      name: "BARBELL_BENCH_PRESS",
+      reps: 8,
+      weightGrams: 61234,
+      durationSeconds: 41.2,
+      startTimeGMT: "2026-07-20T14:03:11.0",
+      wkStepIndex: 2,
+    });
+  });
+
+  it("nulls out everything Garmin didn't send (unrecognized freeform set)", () => {
+    expect(normalizeExerciseSet({ exercises: [], setType: "ACTIVE" })).toEqual({
+      setType: "ACTIVE",
+      category: null,
+      name: null,
+      reps: null,
+      weightGrams: null,
+      durationSeconds: null,
+      startTimeGMT: null,
+      wkStepIndex: null,
+    });
+  });
+
+  it("passes REST sets through with null weight/reps intact", () => {
+    const set = normalizeExerciseSet({ setType: "REST", duration: 90 });
+    expect(set.setType).toBe("REST");
+    expect(set.durationSeconds).toBe(90);
+    expect(set.reps).toBeNull();
+    expect(set.weightGrams).toBeNull();
   });
 });
 

@@ -213,6 +213,9 @@ model ActivityLog {
   note            String?
   source          String   @default("manual") // "manual" | "garmin"
   externalId      String?  // Garmin activityId, for sync dedupe
+  // When per-set completion sync-back last consumed this Garmin activity.
+  // Null = not yet processed (or manual/non-strength activity).
+  setsSyncedAt    DateTime?
   createdAt       DateTime @default(now())
 
   @@unique([userId, source, externalId])

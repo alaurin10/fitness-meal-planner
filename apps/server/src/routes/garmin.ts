@@ -13,6 +13,7 @@ import { GarminConfigError } from "../services/garmin/crypto.js";
 import { GarminAuthError, GarminUnavailableError } from "../services/garmin/types.js";
 import { syncUser } from "../services/garmin/sync.js";
 import { pushWeekToGarmin } from "../services/garmin/workoutPush.js";
+import { checkWatchSession } from "../services/garmin/setSyncBack.js";
 
 const router = Router();
 
@@ -21,6 +22,9 @@ const router = Router();
 const connectLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5, name: "Garmin connect" });
 const mfaLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, name: "Garmin MFA" });
 const syncLimiter = rateLimit({ windowMs: 60 * 1000, max: 6, name: "Garmin sync" });
+// Watch-session polling backstop; the real throttle is the per-user 60s floor
+// between Garmin calls inside checkWatchSession.
+const watchLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, name: "watch session" });
 
 // Kick the initial 30-day backfill in the background. Running it inline would hold
 // the HTTP request open for minutes (sequential Garmin calls) and surface as a
@@ -211,6 +215,41 @@ router.post("/push-week", requireAuth, syncLimiter, async (req, res, next) => {
     const days = await pushWeekToGarmin(userId, session.api, plan);
     await session.persistTokens();
     res.json({ days });
+  } catch (err) {
+    if (!respondGarminError(res, err)) next(err);
+  }
+});
+
+// One poll of the "doing this on my watch" live session: looks for today's
+// saved strength activity on Garmin and, once it appears, maps its sets onto
+// the plan and returns the merged completion. The client polls this (~75s).
+const watchSessionSchema = z.object({
+  planId: z.string().min(1),
+  dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+router.post("/watch-session/check", requireAuth, watchLimiter, async (req, res, next) => {
+  const userId = currentUserId(req);
+  const parsed = watchSessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "planId and dayKey (YYYY-MM-DD) are required" });
+    return;
+  }
+
+  try {
+    const session = await getGarminSession(userId);
+    if (!session) {
+      res.status(400).json({ error: "Garmin is not connected" });
+      return;
+    }
+    const result = await checkWatchSession(userId, session.api, parsed.data);
+    if (!result) {
+      res.status(404).json({ error: "Plan not found" });
+      return;
+    }
+    if (result.madeGarminCall) await session.persistTokens();
+    const { madeGarminCall: _ignored, ...body } = result;
+    res.json(result.status === "waiting" ? { ...body, nextPollSeconds: 75 } : body);
   } catch (err) {
     if (!respondGarminError(res, err)) next(err);
   }

@@ -23,6 +23,7 @@ import {
   type GarminActivitySummary,
   type GarminApi,
   type GarminDailySummary,
+  type GarminExerciseSet,
   type GarminWeighIn,
   type GarminWorkoutPayload,
   type StoredTokens,
@@ -68,6 +69,38 @@ export function pickLatestWeighInPerDay(metrics: RawWeightMetric[]): GarminWeigh
     dayKey,
     weightGrams: weight,
   }));
+}
+
+interface RawExerciseSet {
+  exercises?: { category?: string | null; name?: string | null; probability?: number }[];
+  setType?: string;
+  repetitionCount?: number;
+  weight?: number;
+  duration?: number;
+  startTime?: string;
+  wkStepIndex?: number;
+}
+
+/**
+ * Normalize one raw exerciseSets entry. Garmin attaches a list of candidate
+ * exercise identifications with probabilities; keep the most probable one.
+ * Every field is optional in the wild, so absent values become null.
+ */
+export function normalizeExerciseSet(raw: RawExerciseSet): GarminExerciseSet {
+  let best: { category?: string | null; name?: string | null; probability?: number } | null = null;
+  for (const candidate of raw.exercises ?? []) {
+    if (!best || (candidate.probability ?? 0) > (best.probability ?? 0)) best = candidate;
+  }
+  return {
+    setType: raw.setType ?? "ACTIVE",
+    category: best?.category ?? null,
+    name: best?.name ?? null,
+    reps: asNumber(raw.repetitionCount),
+    weightGrams: asNumber(raw.weight),
+    durationSeconds: asNumber(raw.duration),
+    startTimeGMT: typeof raw.startTime === "string" ? raw.startTime : null,
+    wkStepIndex: asNumber(raw.wkStepIndex),
+  };
 }
 
 /**
@@ -274,6 +307,18 @@ export async function getGarminSession(userId: string): Promise<GarminSession | 
         distanceMeters: asNumber(a.distance),
         calories: asNumber(a.calories),
       }));
+    },
+
+    async getActivityExerciseSets(activityId: string): Promise<GarminExerciseSet[]> {
+      const raw = await call(() =>
+        gc.get<{ exerciseSets?: RawExerciseSet[] }>(
+          `${GC_API}/activity-service/activity/${activityId}/exerciseSets`,
+        ),
+      );
+      if (process.env.GARMIN_DEBUG === "1") {
+        console.warn("[garmin] exerciseSets raw payload:", JSON.stringify(raw));
+      }
+      return (raw?.exerciseSets ?? []).map(normalizeExerciseSet);
     },
 
     async getWeighIns(fromDayKey: string, toDayKey: string): Promise<GarminWeighIn[]> {

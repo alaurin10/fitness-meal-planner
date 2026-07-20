@@ -4,12 +4,15 @@ import type { GarminApi } from "./types.js";
 const prismaMock = vi.hoisted(() => ({
   garminConnection: { findUnique: vi.fn(), update: vi.fn() },
   dailyWellness: { upsert: vi.fn() },
-  activityLog: { upsert: vi.fn() },
+  activityLog: { upsert: vi.fn(), findUnique: vi.fn() },
   progressLog: { upsert: vi.fn(), findMany: vi.fn() },
   profile: { findUnique: vi.fn(), update: vi.fn() },
 }));
 
 vi.mock("@platform/db", () => ({ prisma: prismaMock }));
+
+const syncActivitySetsMock = vi.hoisted(() => vi.fn());
+vi.mock("./setSyncBack.js", () => ({ syncActivitySets: syncActivitySetsMock }));
 
 import { dayKeysBetween, gramsToPounds, mapGarminActivity, syncUser } from "./sync.js";
 
@@ -26,6 +29,7 @@ function fakeApi(overrides: Partial<GarminApi> = {}): GarminApi {
     }),
     getSleepSeconds: vi.fn().mockResolvedValue(7 * 3600),
     getActivities: vi.fn().mockResolvedValue([]),
+    getActivityExerciseSets: vi.fn().mockResolvedValue([]),
     getWeighIns: vi.fn().mockResolvedValue([]),
     pushWeight: vi.fn(),
     createStrengthWorkout: vi.fn(),
@@ -50,9 +54,11 @@ beforeEach(() => {
   prismaMock.garminConnection.update.mockResolvedValue({});
   prismaMock.dailyWellness.upsert.mockResolvedValue({});
   prismaMock.activityLog.upsert.mockResolvedValue({});
+  prismaMock.activityLog.findUnique.mockResolvedValue(null);
   prismaMock.progressLog.upsert.mockResolvedValue({});
   prismaMock.progressLog.findMany.mockResolvedValue([]);
   prismaMock.profile.findUnique.mockResolvedValue(null);
+  syncActivitySetsMock.mockResolvedValue({ status: "synced" });
 });
 
 describe("helpers", () => {
@@ -205,6 +211,98 @@ describe("syncUser", () => {
         },
       }),
     );
+  });
+
+  function strengthActivity(id: number, startTimeGMT = "2026-07-09 14:00:00") {
+    return {
+      activityId: id,
+      activityName: "Strength",
+      typeKey: "strength_training",
+      startTimeLocal: "2026-07-09 10:00:00",
+      startTimeGMT,
+      durationSeconds: 2400,
+      distanceMeters: null,
+      calories: 300,
+    };
+  }
+
+  it("runs set sync-back for in-window strength activities only", async () => {
+    prismaMock.garminConnection.findUnique.mockResolvedValue(connection());
+    const api = fakeApi({
+      getActivities: vi
+        .fn()
+        .mockResolvedValueOnce([
+          strengthActivity(11),
+          {
+            activityId: 12,
+            activityName: "Evening Ride",
+            typeKey: "cycling",
+            startTimeLocal: "2026-07-09 18:00:00",
+            startTimeGMT: "2026-07-09 22:00:00",
+            durationSeconds: 3600,
+            distanceMeters: 32000,
+            calories: 800,
+          },
+        ])
+        .mockResolvedValue([]),
+    });
+
+    const result = await syncUser("u1", api, { now: NOW, backfillDays: 3 });
+
+    expect(syncActivitySetsMock).toHaveBeenCalledTimes(1);
+    expect(syncActivitySetsMock).toHaveBeenCalledWith(
+      "u1",
+      api,
+      expect.objectContaining({ activityId: 11 }),
+    );
+    expect(result.setsSyncedActivities).toBe(1);
+  });
+
+  it("skips strength activities whose sets were already consumed", async () => {
+    prismaMock.garminConnection.findUnique.mockResolvedValue(connection());
+    prismaMock.activityLog.findUnique.mockResolvedValue({ setsSyncedAt: new Date() });
+    const api = fakeApi({
+      getActivities: vi.fn().mockResolvedValueOnce([strengthActivity(11)]).mockResolvedValue([]),
+    });
+
+    const result = await syncUser("u1", api, { now: NOW, backfillDays: 3 });
+
+    expect(syncActivitySetsMock).not.toHaveBeenCalled();
+    expect(result.setsSyncedActivities).toBe(0);
+  });
+
+  it("caps set sync-back fan-out per run, newest activities first", async () => {
+    prismaMock.garminConnection.findUnique.mockResolvedValue(connection());
+    // Seven same-day strength activities, hour = activity id, all in window.
+    const activities = [1, 2, 3, 4, 5, 6, 7].map((i) =>
+      strengthActivity(i, `2026-07-09 0${i}:00:00`),
+    );
+    const api = fakeApi({
+      getActivities: vi.fn().mockResolvedValueOnce(activities).mockResolvedValue([]),
+    });
+
+    await syncUser("u1", api, { now: NOW, backfillDays: 7 });
+
+    expect(syncActivitySetsMock).toHaveBeenCalledTimes(5);
+    // Newest first: activity 7 has the latest startTimeGMT.
+    expect(syncActivitySetsMock.mock.calls[0]![2]).toEqual(
+      expect.objectContaining({ activityId: 7 }),
+    );
+  });
+
+  it("reports set sync-back failures without failing the sync", async () => {
+    prismaMock.garminConnection.findUnique.mockResolvedValue(connection());
+    syncActivitySetsMock.mockRejectedValue(new Error("exerciseSets endpoint moved"));
+    const api = fakeApi({
+      getActivities: vi.fn().mockResolvedValueOnce([strengthActivity(11)]).mockResolvedValue([]),
+    });
+
+    const result = await syncUser("u1", api, { now: NOW, backfillDays: 3 });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("setSync");
+    expect(result.activitiesImported).toBe(1);
+    expect(result.weightsImported).toBe(0);
   });
 
   it("records section failures without aborting the rest", async () => {

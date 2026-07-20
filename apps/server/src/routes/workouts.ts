@@ -25,6 +25,11 @@ import {
   weeklyPlanSchema,
   type WeeklyPlanJson,
 } from "../services/workoutPlanSchema.js";
+import {
+  dayLabelForDayKey,
+  isAllDone,
+  sanitizeSetsJson,
+} from "../services/workoutCompletion.js";
 import { varietyParams } from "../services/varietyContext.js";
 import {
   extractRecentExerciseNames,
@@ -396,24 +401,10 @@ router.put("/completions", requireAuth, async (req, res) => {
   const validated = weeklyPlanSchema.safeParse(plan.planJson);
   let completedAt: Date | null = null;
   if (validated.success) {
-    // Derive which day-of-week from the dayKey
-    const date = new Date(dayKey + "T12:00:00");
-    const dayLabel = ALL_DAYS[(date.getDay() + 6) % 7]!;
-    const dayEntry = validated.data.days.find((d) => d.day === dayLabel);
+    const dayEntry = validated.data.days.find((d) => d.day === dayLabelForDayKey(dayKey));
     if (dayEntry) {
-      // Drop keys that don't map to an exercise on that day so stored
-      // completions never reference slots outside the plan.
-      setsJson = Object.fromEntries(
-        Object.entries(setsJson).filter(([key]) => {
-          const idx = Number(key);
-          return Number.isInteger(idx) && idx >= 0 && idx < dayEntry.exercises.length;
-        }),
-      );
-      const allDone = dayEntry.exercises.every((ex, idx) => {
-        const completedSets = setsJson[String(idx)] ?? [];
-        return completedSets.length >= ex.sets;
-      });
-      if (allDone) {
+      setsJson = sanitizeSetsJson(setsJson, dayEntry.exercises);
+      if (isAllDone(setsJson, dayEntry.exercises)) {
         // Preserve the original completion timestamp on re-PUTs.
         const existing = await prisma.workoutCompletion.findUnique({
           where: { userId_planId_dayKey: { userId, planId, dayKey } },

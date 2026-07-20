@@ -13,6 +13,7 @@ import { Illustration } from "../components/Illustration";
 import { PageHero } from "../components/Primitives";
 import { SkeletonList } from "../components/Skeleton";
 import { WeekSelector } from "../components/WeekSelector";
+import { WatchSession } from "../components/WatchSession";
 import { WorkoutMode } from "../components/WorkoutMode";
 import { useSwipe } from "../hooks/useSwipe";
 import { success, tap } from "../lib/haptics";
@@ -74,6 +75,9 @@ export function WorkoutsPage() {
     return localDayKey(d);
   }, [viewingWeekStartDate, activeDayIdx]);
   const [workoutInProgress, setWorkoutInProgress] = useState(false);
+  // "Doing this on my watch" live session — waits for the saved Garmin
+  // activity and syncs its sets back instead of a phone walkthrough.
+  const [watchMode, setWatchMode] = useState(false);
   const completion = useWorkoutCompletions(plan?.id, activeDayKey);
   const updateLoad = useUpdateExerciseLoad();
   const [editingLoadIdx, setEditingLoadIdx] = useState<number | null>(null);
@@ -311,6 +315,23 @@ export function WorkoutsPage() {
     viewingWeekStart === thisWeekStart && activeDay === DAYS[todayIdx];
 
   const sessProgress = completionProgress(completion.setsJson, exercises);
+
+  if (watchMode && exercises.length > 0) {
+    return (
+      <WatchSession
+        planId={plan.id}
+        dayKey={activeDayKey}
+        dayLabel={longDay(activeDay)}
+        focus={dayEntry?.focus ?? "Workout"}
+        exercises={exercises}
+        onExit={() => setWatchMode(false)}
+        onSwitchToPhone={() => {
+          setWatchMode(false);
+          setWorkoutInProgress(true);
+        }}
+      />
+    );
+  }
 
   if (workoutInProgress && exercises.length > 0) {
     const resumeAt = findResumePosition(exercises, completion.setsJson);
@@ -719,6 +740,12 @@ export function WorkoutsPage() {
                 ? "Workout complete ✓"
                 : "Start workout"}
           </Button>
+          {garminStatus.data?.connected && viewingToday && !completion.isComplete && (
+            <Button variant="ghost" className="w-full" onClick={() => setWatchMode(true)}>
+              <Icon name="timer" size={15} />
+              I'm doing this on my watch
+            </Button>
+          )}
           {viewingToday && sessProgress.completed > 0 && !completion.isComplete && (
             <div
               style={{
