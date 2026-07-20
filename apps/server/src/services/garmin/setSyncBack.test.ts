@@ -13,13 +13,9 @@ vi.mock("@platform/db", () => ({ prisma: prismaMock }));
 import {
   checkWatchSession,
   matchGarminSetsToPlan,
-  resetWatchCheckThrottle,
   syncActivitySets,
-  WATCH_CHECK_MIN_INTERVAL_MS,
   type MatchExercise,
 } from "./setSyncBack.js";
-
-const NOW = new Date("2026-07-20T15:00:00Z");
 
 function gSet(overrides: Partial<GarminExerciseSet> = {}): GarminExerciseSet {
   return {
@@ -331,7 +327,6 @@ describe("checkWatchSession", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetWatchCheckThrottle();
     prismaMock.userSettings.findUnique.mockResolvedValue(null);
     prismaMock.weeklyPlan.findFirst.mockResolvedValue({ id: "p1", planJson });
     prismaMock.workoutCompletion.findUnique.mockResolvedValue(null);
@@ -345,7 +340,7 @@ describe("checkWatchSession", () => {
   it("returns null for a plan the user does not own", async () => {
     prismaMock.weeklyPlan.findFirst.mockResolvedValue(null);
     expect(
-      await checkWatchSession("u1", fakeApi(), { planId: "px", dayKey: "2026-07-20" }, NOW),
+      await checkWatchSession("u1", fakeApi(), { planId: "px", dayKey: "2026-07-20" }),
     ).toBeNull();
   });
 
@@ -357,32 +352,19 @@ describe("checkWatchSession", () => {
       ]),
     });
 
-    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" }, NOW);
+    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" });
 
-    expect(result).toEqual({ status: "waiting", madeGarminCall: true });
+    expect(result).toEqual({ status: "waiting" });
     expect(api.getActivityExerciseSets).not.toHaveBeenCalled();
   });
 
-  it("throttles repeat polls to one real Garmin call per interval", async () => {
+  it("does one Garmin lookup per call", async () => {
     const api = fakeApi();
 
-    await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" }, NOW);
-    const second = await checkWatchSession(
-      "u1",
-      api,
-      { planId: "p1", dayKey: "2026-07-20" },
-      new Date(NOW.getTime() + WATCH_CHECK_MIN_INTERVAL_MS / 2),
-    );
-    const third = await checkWatchSession(
-      "u1",
-      api,
-      { planId: "p1", dayKey: "2026-07-20" },
-      new Date(NOW.getTime() + WATCH_CHECK_MIN_INTERVAL_MS + 1000),
-    );
+    await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" });
+    await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" });
 
     expect(api.getActivities).toHaveBeenCalledTimes(2);
-    expect(second).toEqual({ status: "waiting", madeGarminCall: false });
-    expect(third?.madeGarminCall).toBe(true);
   });
 
   it("finds the day's strength activity, syncs its sets, and returns the completion", async () => {
@@ -397,7 +379,7 @@ describe("checkWatchSession", () => {
       ]),
     });
 
-    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" }, NOW);
+    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" });
 
     expect(result?.status).toBe("found");
     if (result?.status !== "found") return;
@@ -422,8 +404,8 @@ describe("checkWatchSession", () => {
       getActivityExerciseSets: vi.fn().mockResolvedValue([]),
     });
 
-    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" }, NOW);
+    const result = await checkWatchSession("u1", api, { planId: "p1", dayKey: "2026-07-20" });
 
-    expect(result).toEqual({ status: "waiting", madeGarminCall: true });
+    expect(result).toEqual({ status: "waiting" });
   });
 });

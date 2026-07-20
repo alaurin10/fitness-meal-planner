@@ -22,8 +22,8 @@ const router = Router();
 const connectLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5, name: "Garmin connect" });
 const mfaLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, name: "Garmin MFA" });
 const syncLimiter = rateLimit({ windowMs: 60 * 1000, max: 6, name: "Garmin sync" });
-// Watch-session polling backstop; the real throttle is the per-user 60s floor
-// between Garmin calls inside checkWatchSession.
+// Guards the Finish check against rapid re-taps — each call does one Garmin
+// lookup, so a few per minute is plenty.
 const watchLimiter = rateLimit({ windowMs: 60 * 1000, max: 3, name: "watch session" });
 
 // Kick the initial 30-day backfill in the background. Running it inline would hold
@@ -220,9 +220,9 @@ router.post("/push-week", requireAuth, syncLimiter, async (req, res, next) => {
   }
 });
 
-// One poll of the "doing this on my watch" live session: looks for today's
-// saved strength activity on Garmin and, once it appears, maps its sets onto
-// the plan and returns the merged completion. The client polls this (~75s).
+// The "doing this on my watch" Finish check: looks for today's saved strength
+// activity on Garmin and, once it appears, maps its sets onto the plan and
+// returns the merged completion. Called once per deliberate Finish tap.
 const watchSessionSchema = z.object({
   planId: z.string().min(1),
   dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -247,9 +247,8 @@ router.post("/watch-session/check", requireAuth, watchLimiter, async (req, res, 
       res.status(404).json({ error: "Plan not found" });
       return;
     }
-    if (result.madeGarminCall) await session.persistTokens();
-    const { madeGarminCall: _ignored, ...body } = result;
-    res.json(result.status === "waiting" ? { ...body, nextPollSeconds: 75 } : body);
+    await session.persistTokens();
+    res.json(result);
   } catch (err) {
     if (!respondGarminError(res, err)) next(err);
   }
