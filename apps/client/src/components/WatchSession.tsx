@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { LoadEditor } from "./LoadEditor";
 import { useWakeLock } from "../hooks/useWakeLock";
-import { useWatchSession } from "../hooks/useWatchSession";
+import { useWatchSession, type WatchSessionStatus } from "../hooks/useWatchSession";
 import { useWorkoutCompletions } from "../hooks/useWorkoutCompletions";
 import { fireCelebration } from "../lib/confetti";
+import { formatLoad, weightUnitLabel, type UnitSystem } from "../lib/units";
 import type { Exercise } from "../hooks/useWorkoutPlan";
 
-// Full-screen "doing this on my watch" session. The user runs the workout
-// from their Garmin watch; this screen waits for the saved activity to reach
-// Garmin Connect, at which point the server has already mapped its sets onto
-// today's plan and the summary lights up — no phone taps during the workout.
+// Full-screen "doing this on my watch" session. The phone is a live reference
+// — instructions, tips, and editable weights for today's session — while the
+// user runs the workout from their Garmin watch. When they're done they tap
+// Finish, which does a single check: Garmin only exposes the activity once
+// it's saved and synced, so there's nothing to poll for in the meantime.
 
 interface Props {
   planId: string;
@@ -18,7 +21,10 @@ interface Props {
   dayLabel: string;
   focus: string;
   exercises: Exercise[];
+  unitSystem: UnitSystem;
   onExit: () => void;
+  /** Edit an exercise's prescribed weight (persists to the plan + baseline). */
+  onUpdateLoad: (exerciseIdx: number, loadLbs: number) => void;
   /** Fall back to the guided phone walkthrough (resumes at the first gap). */
   onSwitchToPhone: () => void;
 }
@@ -29,10 +35,12 @@ export function WatchSession({
   dayLabel,
   focus,
   exercises,
+  unitSystem,
   onExit,
+  onUpdateLoad,
   onSwitchToPhone,
 }: Props) {
-  const session = useWatchSession(planId, dayKey, true);
+  const session = useWatchSession(planId, dayKey);
   const completion = useWorkoutCompletions(planId, dayKey);
   useWakeLock(!session.found);
 
@@ -85,16 +93,16 @@ export function WatchSession({
           onExit={onExit}
           onSwitchToPhone={onSwitchToPhone}
         />
-      ) : session.reconnectRequired ? (
+      ) : session.status === "reconnect" ? (
         <ReconnectScreen onExit={onExit} onSwitchToPhone={onSwitchToPhone} />
       ) : (
-        <WaitingScreen
+        <ReferenceScreen
           focus={focus}
           exercises={exercises}
-          startedAt={session.startedAt}
-          lastCheckedAt={session.lastCheckedAt}
-          isChecking={session.isChecking}
-          hadPollError={session.pollError != null}
+          unitSystem={unitSystem}
+          status={session.status}
+          onUpdateLoad={onUpdateLoad}
+          onFinish={session.check}
           onSwitchToPhone={onSwitchToPhone}
         />
       )}
@@ -102,150 +110,240 @@ export function WatchSession({
   );
 }
 
-/** Re-render every second so the elapsed / "checked Ns ago" labels tick. */
-function useNowTick(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return now;
-}
-
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function WaitingScreen({
+function ReferenceScreen({
   focus,
   exercises,
-  startedAt,
-  lastCheckedAt,
-  isChecking,
-  hadPollError,
+  unitSystem,
+  status,
+  onUpdateLoad,
+  onFinish,
   onSwitchToPhone,
 }: {
   focus: string;
   exercises: Exercise[];
-  startedAt: number;
-  lastCheckedAt: number | null;
-  isChecking: boolean;
-  hadPollError: boolean;
+  unitSystem: UnitSystem;
+  // found/reconnect are handled by the parent; only idle/checking/notFound reach here.
+  status: WatchSessionStatus;
+  onUpdateLoad: (exerciseIdx: number, loadLbs: number) => void;
+  onFinish: () => void;
   onSwitchToPhone: () => void;
 }) {
-  const now = useNowTick();
-  const checkedAgoSeconds =
-    lastCheckedAt != null ? Math.max(0, Math.round((now - lastCheckedAt) / 1000)) : null;
+  const checking = status === "checking";
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "12px 28px 28px",
-        textAlign: "center",
-        gap: 16,
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ position: "relative", width: 120, height: 120, flexShrink: 0, marginTop: 12 }}>
-        {/* Pulsing halo around a watch-face stand-in */}
-        <span
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            background: "color-mix(in srgb, var(--accent) 18%, transparent)",
-            animation: "watchPulse 2.4s ease-out infinite",
-          }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            inset: 18,
-            borderRadius: "50%",
-            background: "var(--clay)",
-            border: "2px solid var(--accent)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--accent)",
-          }}
-        >
-          <Icon name="timer" size={40} />
-        </span>
-        <style>{`@keyframes watchPulse { 0% { transform: scale(0.7); opacity: 0.8; } 100% { transform: scale(1.25); opacity: 0; } }`}</style>
-      </div>
-
-      <div>
-        <div className="title-lg">{focus}</div>
-        <div className="text-caption" style={{ marginTop: 6 }}>
-          Elapsed {formatElapsed(now - startedAt)}
-        </div>
-      </div>
-
-      <p className="text-body" style={{ maxWidth: 340 }}>
-        Run today's workout from your watch — it's on your Garmin calendar.
-        When you save it, keep your phone near your watch and we'll catch up
-        here automatically.
-      </p>
-
-      <div style={{ fontSize: 12, color: "var(--muted)" }}>
-        {isChecking
-          ? "Checking Garmin…"
-          : checkedAgoSeconds != null
-            ? `Checked ${checkedAgoSeconds}s ago — checks again about every minute`
-            : "Waiting for the first check…"}
-      </div>
-
-      {hadPollError && (
-        <div
-          style={{
-            fontSize: 12.5,
-            color: "var(--sumi)",
-            background: "var(--clay)",
-            borderRadius: 10,
-            padding: "8px 14px",
-          }}
-        >
-          Garmin didn't answer the last check — still watching.
-        </div>
-      )}
-
-      <div style={{ width: "100%", maxWidth: 360, textAlign: "left" }}>
-        <div className="section-title" style={{ margin: "8px 0" }}>
-          Today's session
-        </div>
-        {exercises.map((ex, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-              padding: "7px 2px",
-              borderBottom: i < exercises.length - 1 ? "1px solid var(--hair)" : "none",
-              fontSize: 13,
-            }}
-          >
-            <span style={{ color: "var(--ink)" }}>{ex.name}</span>
-            <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
-              {ex.type === "cardio" ? `${ex.durationMinutes ?? "—"} min` : `${ex.sets} × ${ex.reps}`}
-            </span>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 12px" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <div className="title-lg">{focus}</div>
+          <div className="text-caption" style={{ marginTop: 6 }}>
+            Do this on your watch — the details and weights are here for
+            reference. Tap Finish when you're done and we'll pull your sets
+            from the watch.
           </div>
+        </div>
+
+        {exercises.map((ex, i) => (
+          <ExerciseReference
+            key={i}
+            index={i}
+            exercise={ex}
+            unitSystem={unitSystem}
+            onUpdateLoad={onUpdateLoad}
+          />
         ))}
       </div>
 
-      <div style={{ marginTop: "auto", width: "100%", maxWidth: 360 }}>
+      <div style={{ padding: "12px 20px 24px", display: "grid", gap: 8 }}>
+        {status === "notFound" && (
+          <div
+            style={{
+              fontSize: 12.5,
+              color: "var(--sumi)",
+              background: "var(--clay)",
+              borderRadius: 10,
+              padding: "10px 14px",
+              lineHeight: 1.5,
+            }}
+          >
+            We couldn't find today's workout on Garmin yet. Save it on your
+            watch and let the Garmin Connect app sync, then tap Finish again.
+          </div>
+        )}
+        <Button variant="accent" size="lg" className="w-full" disabled={checking} onClick={onFinish}>
+          <Icon name="check" size={16} />
+          {checking ? "Checking Garmin…" : status === "notFound" ? "Try again" : "Finish & sync from watch"}
+        </Button>
         <Button variant="ghost" className="w-full" onClick={onSwitchToPhone}>
           <Icon name="dumbbell" size={15} />
           Use phone walkthrough instead
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function ExerciseReference({
+  index,
+  exercise,
+  unitSystem,
+  onUpdateLoad,
+}: {
+  index: number;
+  exercise: Exercise;
+  unitSystem: UnitSystem;
+  onUpdateLoad: (exerciseIdx: number, loadLbs: number) => void;
+}) {
+  const [editingLoad, setEditingLoad] = useState(false);
+  const unitLabel = weightUnitLabel(unitSystem);
+
+  return (
+    <div
+      style={{
+        padding: "14px 0",
+        borderBottom: "1px solid var(--hair)",
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 9,
+          background: "var(--clay)",
+          color: "var(--sumi)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--font-display)",
+          fontSize: 13,
+          flexShrink: 0,
+        }}
+      >
+        {index + 1}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontWeight: 500, fontSize: 14.5, color: "var(--ink)" }}>
+            {exercise.name}
+            {exercise.muscleGroup && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "var(--accent-2)",
+                  background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                  padding: "2px 7px",
+                  borderRadius: 999,
+                  verticalAlign: "middle",
+                  letterSpacing: "0.03em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {exercise.muscleGroup}
+              </span>
+            )}
+          </div>
+          {exercise.type === "cardio" ? null : editingLoad ? (
+            <LoadEditor
+              initialLoadLbs={exercise.loadLbs}
+              unitSystem={unitSystem}
+              saving={false}
+              onCancel={() => setEditingLoad(false)}
+              onSave={(newLoadLbs) => {
+                onUpdateLoad(index, newLoadLbs);
+                setEditingLoad(false);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditingLoad(true)}
+              title="Set a new baseline weight"
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                whiteSpace: "nowrap",
+                background: "transparent",
+                border: "1px dashed transparent",
+                padding: "3px 6px",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontFamily: "var(--font-body)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--hair)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent";
+              }}
+            >
+              {exercise.loadLbs !== null
+                ? `${formatLoad(exercise.loadLbs, unitSystem)} ${unitLabel}`
+                : "Bodywt"}
+              <Icon name="note" size={11} />
+            </button>
+          )}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--muted)",
+            marginTop: 4,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          {exercise.type === "cardio" ? (
+            <span>
+              <b style={{ color: "var(--sumi)", fontWeight: 500 }}>
+                {exercise.durationMinutes ?? "—"}
+              </b>{" "}
+              min
+            </span>
+          ) : (
+            <>
+              <span>
+                <b style={{ color: "var(--sumi)", fontWeight: 500 }}>{exercise.sets}</b> ×{" "}
+                {exercise.reps}
+              </span>
+              <span>·</span>
+              <span>{exercise.restSeconds}s rest</span>
+            </>
+          )}
+        </div>
+        {exercise.description && (
+          <div style={{ fontSize: 11.5, color: "var(--sumi)", marginTop: 6, lineHeight: 1.45 }}>
+            {exercise.description}
+          </div>
+        )}
+        {exercise.notes && (
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--muted)",
+              marginTop: 6,
+              fontStyle: "italic",
+              paddingLeft: 8,
+              borderLeft: "2px solid var(--hair)",
+            }}
+          >
+            {exercise.notes}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -424,7 +522,7 @@ function ReconnectScreen({
     >
       <div className="title-lg">Garmin needs a reconnect</div>
       <p className="text-body" style={{ maxWidth: 320 }}>
-        Your Garmin session expired, so we can't watch for the workout. Reconnect
+        Your Garmin session expired, so we can't pull the workout. Reconnect
         from Profile → Garmin, or finish on the phone — a later sync will still
         pick up the watch activity.
       </p>

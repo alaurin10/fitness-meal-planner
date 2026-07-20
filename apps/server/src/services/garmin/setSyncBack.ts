@@ -17,8 +17,6 @@ import type { GarminActivitySummary, GarminApi, GarminExerciseSet } from "./type
 // store the phone walkthrough writes — so the app reflects what was done on
 // the watch without any phone interaction during the workout.
 
-/** Minimum spacing between real Garmin calls per user in watch-session polling. */
-export const WATCH_CHECK_MIN_INTERVAL_MS = 60_000;
 const WATCH_CHECK_ACTIVITY_PAGE = 5;
 
 export interface MatchExercise {
@@ -291,10 +289,9 @@ export async function syncActivitySets(
 }
 
 export type WatchSessionCheck =
-  | { status: "waiting"; madeGarminCall: boolean }
+  | { status: "waiting" }
   | {
       status: "found";
-      madeGarminCall: boolean;
       activity: {
         activityId: string;
         activityName: string;
@@ -307,76 +304,53 @@ export type WatchSessionCheck =
       completion: { setsJson: unknown; completedAt: Date | null };
     };
 
-// Per-user floor between real Garmin calls, so aggressive client polling can
-// never hammer Garmin. In-memory is fine — the same single-instance assumption
-// the rateLimit middleware makes.
-const lastWatchChecks = new Map<string, { at: number; result: WatchSessionCheck }>();
-
-/** Test hook: clear the per-user watch-check throttle. */
-export function resetWatchCheckThrottle(): void {
-  lastWatchChecks.clear();
-}
-
 /**
- * One poll of the "doing this on my watch" live session: look for a saved
- * strength activity on the given day and, when it appears, run set sync-back
- * and return the merged completion. Returns null when the plan isn't the
- * caller's. Throttled to one real Garmin call per user per minute.
+ * The "doing this on my watch" Finish check: look for a saved strength
+ * activity on the given day and, when it appears, run set sync-back and
+ * return the merged completion. Returns null when the plan isn't the
+ * caller's. Called once per deliberate Finish tap (rate-limited at the route),
+ * so each call does one honest Garmin lookup.
  */
 export async function checkWatchSession(
   userId: string,
   api: GarminApi,
   input: { planId: string; dayKey: string },
-  now = new Date(),
 ): Promise<WatchSessionCheck | null> {
   const plan = await prisma.weeklyPlan.findFirst({ where: { id: input.planId, userId } });
   if (!plan) return null;
-
-  const recent = lastWatchChecks.get(userId);
-  if (recent && now.getTime() - recent.at < WATCH_CHECK_MIN_INTERVAL_MS) {
-    return { ...recent.result, madeGarminCall: false };
-  }
 
   const activities = await api.getActivities(0, WATCH_CHECK_ACTIVITY_PAGE);
   const match = activities.find(
     (a) => a.typeKey === "strength_training" && a.startTimeLocal.slice(0, 10) === input.dayKey,
   );
+  if (!match) return { status: "waiting" };
 
-  let result: WatchSessionCheck;
-  if (!match) {
-    result = { status: "waiting", madeGarminCall: true };
-  } else {
-    // Record the activity immediately (the routine sync may not have run yet),
-    // then consume its sets. Re-running past a setsSyncedAt stamp is safe —
-    // the merge is a union — and catches set data finalized after the summary.
-    await upsertActivityLog(userId, match);
-    const synced = await syncActivitySets(userId, api, match);
-    if (synced.status === "synced") {
-      result = {
-        status: "found",
-        madeGarminCall: true,
-        activity: {
-          activityId: String(match.activityId),
-          activityName: match.activityName,
-          durationMinutes:
-            match.durationSeconds != null && match.durationSeconds > 0
-              ? Math.max(1, Math.round(match.durationSeconds / 60))
-              : null,
-          calories: match.calories != null ? Math.round(match.calories) : null,
-        },
-        matchedSets: synced.matchedSets,
-        totalPlannedSets: synced.totalPlannedSets,
-        unmatchedSets: synced.unmatchedSets,
-        completion: synced.completion,
-      };
-    } else {
-      // Activity exists but sets aren't consumable yet — keep waiting.
-      result = { status: "waiting", madeGarminCall: true };
-    }
+  // Record the activity immediately (the routine sync may not have run yet),
+  // then consume its sets. Re-running past a setsSyncedAt stamp is safe —
+  // the merge is a union — and catches set data finalized after the summary.
+  await upsertActivityLog(userId, match);
+  const synced = await syncActivitySets(userId, api, match);
+  if (synced.status !== "synced") {
+    // Activity exists but sets aren't consumable yet — keep waiting.
+    return { status: "waiting" };
   }
 
-  lastWatchChecks.set(userId, { at: now.getTime(), result });
-  return result;
+  return {
+    status: "found",
+    activity: {
+      activityId: String(match.activityId),
+      activityName: match.activityName,
+      durationMinutes:
+        match.durationSeconds != null && match.durationSeconds > 0
+          ? Math.max(1, Math.round(match.durationSeconds / 60))
+          : null,
+      calories: match.calories != null ? Math.round(match.calories) : null,
+    },
+    matchedSets: synced.matchedSets,
+    totalPlannedSets: synced.totalPlannedSets,
+    unmatchedSets: synced.unmatchedSets,
+    completion: synced.completion,
+  };
 }
 
 async function upsertActivityLog(userId: string, activity: GarminActivitySummary): Promise<void> {
