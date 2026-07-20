@@ -41,6 +41,12 @@ const EXERCISE_TAXONOMY: Record<string, { category: string; name: string | null 
   "incline bench press": { category: "BENCH_PRESS", name: "INCLINE_BARBELL_BENCH_PRESS" },
   "incline press": { category: "BENCH_PRESS", name: null },
   "chest press": { category: "BENCH_PRESS", name: null },
+  // Chest fly / cable crossover / pec deck → FLYE (leave name null; the
+  // category is what the watch labels and records).
+  "fly": { category: "FLYE", name: null },
+  "flye": { category: "FLYE", name: null },
+  "crossover": { category: "FLYE", name: null },
+  "pec deck": { category: "FLYE", name: null },
   "squat": { category: "SQUAT", name: "BARBELL_BACK_SQUAT" },
   "back squat": { category: "SQUAT", name: "BARBELL_BACK_SQUAT" },
   "front squat": { category: "SQUAT", name: "BARBELL_FRONT_SQUAT" },
@@ -55,6 +61,7 @@ const EXERCISE_TAXONOMY: Record<string, { category: string; name: string | null 
   "bent over row": { category: "ROW", name: null },
   "seated row": { category: "ROW", name: "SEATED_CABLE_ROW" },
   "lat pulldown": { category: "PULL_UP", name: "LAT_PULLDOWN" },
+  "pulldown": { category: "PULL_UP", name: null },
   "pull up": { category: "PULL_UP", name: "PULL_UP" },
   "pullup": { category: "PULL_UP", name: "PULL_UP" },
   "chin up": { category: "PULL_UP", name: "CHIN_UP" },
@@ -72,6 +79,12 @@ const EXERCISE_TAXONOMY: Record<string, { category: string; name: string | null 
   "triceps extension": { category: "TRICEPS_EXTENSION", name: null },
   "skullcrusher": { category: "TRICEPS_EXTENSION", name: null },
   "dip": { category: "TRICEPS_EXTENSION", name: null },
+  // Triceps pushdown/pressdown/kickback all fall under TRICEPS_EXTENSION.
+  "pushdown": { category: "TRICEPS_EXTENSION", name: null },
+  "pressdown": { category: "TRICEPS_EXTENSION", name: null },
+  "press down": { category: "TRICEPS_EXTENSION", name: null },
+  "rope pushdown": { category: "TRICEPS_EXTENSION", name: null },
+  "kickback": { category: "TRICEPS_EXTENSION", name: null },
   "lunge": { category: "LUNGE", name: "LUNGE" },
   "walking lunge": { category: "LUNGE", name: "WALKING_LUNGE" },
   "leg press": { category: "LEG_PRESS", name: null },
@@ -84,6 +97,9 @@ const EXERCISE_TAXONOMY: Record<string, { category: string; name: string | null 
   "crunch": { category: "CRUNCH", name: "CRUNCH" },
   "sit up": { category: "SIT_UP", name: null },
   "russian twist": { category: "CORE", name: null },
+  "woodchop": { category: "CORE", name: null },
+  "chopper": { category: "CORE", name: null },
+  "pallof": { category: "CORE", name: null },
   "face pull": { category: "ROW", name: null },
   "shrug": { category: "SHRUG", name: null },
 };

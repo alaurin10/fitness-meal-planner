@@ -39,6 +39,15 @@ describe("mapExerciseToGarmin", () => {
   it("returns nulls for unknown exercises", () => {
     expect(mapExerciseToGarmin("Underwater Basket Press")).toEqual({ category: null, name: null });
   });
+  it("maps the cable movements that used to fall through to null", () => {
+    // Regression: these normalized to keys absent from the taxonomy, so they
+    // pushed with no category and the watch relabeled them — breaking sync-back.
+    expect(mapExerciseToGarmin("Cable Chest Flyes").category).toBe("FLYE");
+    expect(mapExerciseToGarmin("Cable Crossover").category).toBe("FLYE");
+    expect(mapExerciseToGarmin("Cable Triceps Pushdown").category).toBe("TRICEPS_EXTENSION");
+    expect(mapExerciseToGarmin("Cable Woodchoppers").category).toBe("CORE");
+    expect(mapExerciseToGarmin("Straight Arm Pulldown").category).toBe("PULL_UP");
+  });
 });
 
 describe("convertPlanDay", () => {

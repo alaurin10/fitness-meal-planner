@@ -117,8 +117,11 @@ function matchByStepIndex(exercises: MatchExercise[], active: GarminExerciseSet[
 
 /**
  * Map a strength activity's recorded sets onto the day's plan exercises.
- * Never invents completions beyond the plan's shape: extra sets are absorbed
- * and capped, unknown movements count as unmatched.
+ * Primary path is the exact wkStepIndex mapping (Pass 1); otherwise an
+ * order-first alignment (Pass 2) that follows plan order — robust to Garmin
+ * relabeling names/categories, which the push taxonomy can never fully cover.
+ * Never invents completions beyond the plan's shape: each exercise is capped
+ * at its planned set count; sets with nowhere to go count as unmatched.
  */
 export function matchGarminSetsToPlan(
   exercises: MatchExercise[],
@@ -134,59 +137,91 @@ export function matchGarminSetsToPlan(
   const byStepIndex = matchByStepIndex(exercises, active);
   if (byStepIndex) return byStepIndex;
 
-  // Pass 2: greedy taxonomy matching for freeform sessions (or an unusable
-  // step-index hint). Category buckets are order-independent; a plan-order
-  // cursor is only a tiebreak, so supersets and reordered exercises still land.
-  const expected = exercises.map((ex) =>
-    isCardio(ex) ? null : mapExerciseToGarmin(ex.name),
-  );
-  const counts = new Map<number, number>();
+  // Pass 2: order-first alignment. A pushed workout is executed in plan order
+  // on the watch, and the Garmin activity preserves that order as contiguous
+  // blocks — the reliable signal. So walk sets in time order behind a cursor
+  // over the plan, letting each exercise absorb its run of sets. Category is
+  // only a soft correction: it decides when a set clearly belongs to a
+  // *later* exercise (skip-ahead), never a hard gate. This is what makes an
+  // unmapped plan exercise (expected null) or a Garmin-relabeled set still
+  // land where it belongs — the case the taxonomy can never fully cover.
+  const expected = exercises.map((ex) => (isCardio(ex) ? null : mapExerciseToGarmin(ex.name)));
+  const planned = exercises.map((ex) => Math.max(1, ex.sets));
+  const counts = exercises.map(() => 0);
+  const open = (i: number) => !isCardio(exercises[i]!) && counts[i]! < planned[i]!;
+  const full = (i: number) => !isCardio(exercises[i]!) && counts[i]! >= planned[i]!;
+  // A strength set fits exercise i when categories line up, or either side is a
+  // wildcard — an unmapped plan exercise (expected null) or an unidentified
+  // "Unknown" rep (set.category null) is assumed to be the current movement.
+  const fits = (set: GarminExerciseSet, i: number): boolean => {
+    if (isCardio(exercises[i]!)) return false;
+    if (expected[i] == null || set.category == null) return true;
+    return expected[i]!.category === set.category;
+  };
+  // A confident, specific category match (both sides mapped and equal) — the
+  // signal for a clean exercise transition or an out-of-order finish.
+  const strictCat = (set: GarminExerciseSet, i: number): boolean =>
+    !isCardio(exercises[i]!) &&
+    set.category != null &&
+    expected[i]?.category != null &&
+    expected[i]!.category === set.category;
+
+  const bump = (i: number) => {
+    counts[i] = (counts[i] ?? 0) + 1;
+  };
   let cursor = 0;
   let unmatchedSets = 0;
 
   for (const set of active) {
-    let candidates: number[];
+    // Cardio blocks match a cardio plan exercise regardless of cursor position.
     if (isCardioLikeSet(set)) {
-      candidates = exercises.flatMap((ex, i) => (isCardio(ex) ? [i] : []));
-    } else if (set.category != null) {
-      candidates = exercises.flatMap((ex, i) =>
-        !isCardio(ex) && expected[i]?.category === set.category ? [i] : [],
-      );
-    } else {
-      // Garmin couldn't identify the movement — only pair it with plan
-      // exercises we couldn't map to the taxonomy either.
-      candidates = exercises.flatMap((ex, i) =>
-        !isCardio(ex) && expected[i] != null && expected[i]!.category == null ? [i] : [],
-      );
-    }
-    if (candidates.length === 0) {
-      unmatchedSets += 1;
+      const j = exercises.findIndex((ex, i) => isCardio(ex) && counts[i]! < planned[i]!);
+      if (j === -1) unmatchedSets += 1;
+      else bump(j);
       continue;
     }
 
-    const available = candidates.filter((i) => (counts.get(i) ?? 0) < Math.max(1, exercises[i]!.sets));
-    const nameMatches = (i: number) =>
-      set.name != null && expected[i] != null && expected[i]!.name === set.name;
-    const pickFrom = (pool: number[]): number | null => {
-      if (pool.length === 0) return null;
-      const ahead = pool.filter((i) => i >= cursor);
-      const ordered = ahead.length > 0 ? ahead : pool;
-      return ordered.find(nameMatches) ?? ordered[0]!;
-    };
-    // All candidates full: an extra set beyond the plan — absorb it on the
-    // last matching exercise; the cap below keeps delta within plan shape.
-    const pick = pickFrom(available) ?? candidates[candidates.length - 1]!;
-    counts.set(pick, (counts.get(pick) ?? 0) + 1);
-    cursor = Math.max(cursor, pick);
+    // Advance to the next open strength exercise.
+    while (cursor < exercises.length && !open(cursor)) cursor += 1;
+
+    if (cursor >= exercises.length) {
+      // Everything ahead is full/cardio. A set that strictly matches some
+      // not-full exercise (an out-of-order finish) still lands; else extra.
+      const j = exercises.findIndex((_ex, i) => open(i) && strictCat(set, i));
+      if (j === -1) unmatchedSets += 1;
+      else bump(j);
+      continue;
+    }
+
+    if (fits(set, cursor)) {
+      bump(cursor);
+      continue;
+    }
+
+    // The set's category differs from the current exercise. Prefer a later
+    // exercise it strictly matches (a clean transition past skipped work).
+    const later = exercises.findIndex((_ex, i) => i > cursor && open(i) && strictCat(set, i));
+    if (later !== -1) {
+      cursor = later;
+      bump(cursor);
+      continue;
+    }
+
+    // No forward home. If it strictly matches an already-completed exercise
+    // it's a genuine extra rep of a finished movement (report it, don't spill
+    // into the next exercise); otherwise it's a Garmin-relabeled set of the
+    // current movement — absorb it in order, which is the reliable signal.
+    if (exercises.some((_ex, i) => full(i) && strictCat(set, i))) unmatchedSets += 1;
+    else bump(cursor);
   }
 
   const delta: SetsJson = {};
   let matchedSets = 0;
-  for (const [idx, count] of counts) {
-    const capped = Math.min(count, Math.max(1, exercises[idx]!.sets));
-    delta[String(idx)] = Array.from({ length: capped }, (_, n) => n + 1);
-    matchedSets += capped;
-  }
+  counts.forEach((count, idx) => {
+    if (count <= 0) return;
+    delta[String(idx)] = Array.from({ length: count }, (_, n) => n + 1);
+    matchedSets += count;
+  });
   return { delta, matchedSets, unmatchedSets };
 }
 
