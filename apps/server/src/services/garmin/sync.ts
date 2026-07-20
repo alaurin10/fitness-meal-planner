@@ -1,6 +1,7 @@
 import { prisma } from "@platform/db";
 import { mapWithConcurrency } from "../concurrency.js";
 import { applyWeightToProfile } from "../weightSync.js";
+import { syncActivitySets } from "./setSyncBack.js";
 import type { GarminActivitySummary, GarminApi } from "./types.js";
 
 // Pull-based sync: wellness (steps/calories/HR/sleep), activities, weigh-ins.
@@ -14,6 +15,9 @@ const ACTIVITY_PAGE_SIZE = 50;
 // clear a 90-day backfill quickly, small enough to stay polite to Garmin and
 // within Prisma's default connection pool.
 const SYNC_CONCURRENCY = 4;
+// Cap on per-sync exerciseSets fetches (one extra Garmin call each) so a big
+// backfill can't fan out; older strength activities catch up on later syncs.
+const SET_SYNC_MAX_PER_RUN = 5;
 const GRAMS_PER_POUND = 453.59237;
 const METERS_PER_MILE = 1609.344;
 
@@ -22,6 +26,7 @@ export interface SyncResult {
   wellnessDays: number;
   activitiesImported: number;
   weightsImported: number;
+  setsSyncedActivities: number;
   errors: string[];
 }
 
@@ -102,6 +107,7 @@ export async function syncUser(
     wellnessDays: 0,
     activitiesImported: 0,
     weightsImported: 0,
+    setsSyncedActivities: 0,
     errors: [],
   };
 
@@ -173,6 +179,7 @@ export async function syncUser(
   }
 
   // ── Activities ──
+  const strengthActivities: GarminActivitySummary[] = [];
   try {
     let start = 0;
     while (true) {
@@ -183,6 +190,9 @@ export async function syncUser(
       const mapped = page.map(mapGarminActivity);
       const cutoff = mapped.findIndex((m) => m.performedAt < windowStart);
       const inWindow = cutoff === -1 ? mapped : mapped.slice(0, cutoff);
+      for (const a of cutoff === -1 ? page : page.slice(0, cutoff)) {
+        if (a.typeKey === "strength_training") strengthActivities.push(a);
+      }
       await mapWithConcurrency(inWindow, SYNC_CONCURRENCY, async (m) => {
         await prisma.activityLog.upsert({
           where: {
@@ -208,6 +218,26 @@ export async function syncUser(
     }
   } catch (err) {
     result.errors.push(`activities: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ── Set sync-back ──
+  // Map recorded strength sets onto plan completions (watch-led workouts).
+  try {
+    const candidates = strengthActivities
+      .sort((a, b) => (a.startTimeGMT < b.startTimeGMT ? 1 : -1))
+      .slice(0, SET_SYNC_MAX_PER_RUN);
+    for (const a of candidates) {
+      const row = await prisma.activityLog.findUnique({
+        where: {
+          userId_source_externalId: { userId, source: "garmin", externalId: String(a.activityId) },
+        },
+      });
+      if (row?.setsSyncedAt != null) continue;
+      const synced = await syncActivitySets(userId, api, a);
+      if (synced.status === "synced") result.setsSyncedActivities += 1;
+    }
+  } catch (err) {
+    result.errors.push(`setSync: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // ── Weigh-ins ──

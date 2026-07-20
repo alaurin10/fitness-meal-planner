@@ -30,6 +30,22 @@ export interface GarminActivitySummary {
   calories: number | null;
 }
 
+// One set recorded within a strength activity, per Garmin's activity-service
+// exerciseSets endpoint. Every field is nullable-defensive: the payload shape
+// is unofficial and varies with device/firmware.
+export interface GarminExerciseSet {
+  setType: string; // "ACTIVE" | "REST" (raw pass-through)
+  category: string | null; // highest-probability FIT taxonomy category
+  name: string | null; // FIT taxonomy name within the category, often null
+  reps: number | null;
+  weightGrams: number | null; // Garmin stores weight in grams
+  durationSeconds: number | null;
+  startTimeGMT: string | null; // stable chronological ordering
+  // Index of the scheduled-workout step this set came from, when the user
+  // launched a pushed workout on the watch (absent for freeform sessions).
+  wkStepIndex: number | null;
+}
+
 export interface GarminWeighIn {
   samplePk: number;
   dayKey: string; // calendarDate
@@ -61,6 +77,8 @@ export interface GarminApi {
   getSleepSeconds(dayKey: string): Promise<number | null>;
   /** Most-recent-first page of activities. */
   getActivities(start: number, limit: number): Promise<GarminActivitySummary[]>;
+  /** Per-set data for a strength activity; empty when Garmin has none. */
+  getActivityExerciseSets(activityId: string): Promise<GarminExerciseSet[]>;
   getWeighIns(fromDayKey: string, toDayKey: string): Promise<GarminWeighIn[]>;
   pushWeight(lbs: number): Promise<void>;
   createStrengthWorkout(payload: GarminWorkoutPayload): Promise<{ workoutId: string }>;

@@ -15,6 +15,7 @@ export interface GarminSyncResult {
   wellnessDays: number;
   activitiesImported: number;
   weightsImported: number;
+  setsSyncedActivities: number;
   errors: string[];
 }
 
@@ -31,7 +32,7 @@ const AUTO_SYNC_STALE_HOURS = 6;
 // Queries whose data can change after a Garmin sync lands.
 const SYNC_AFFECTED_KEYS = ["dailySummary", "history", "activities", "progress", "garmin"];
 
-function invalidateSyncTargets(qc: ReturnType<typeof useQueryClient>) {
+export function invalidateSyncTargets(qc: ReturnType<typeof useQueryClient>) {
   for (const key of SYNC_AFFECTED_KEYS) {
     qc.invalidateQueries({ queryKey: [key] });
   }
