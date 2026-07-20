@@ -94,11 +94,14 @@ describe("matchGarminSetsToPlan", () => {
     expect(result.matchedSets).toBe(1);
   });
 
-  it("caps extra sets at the planned count", () => {
+  it("caps extra sets at the planned count and reports the overflow", () => {
     const sets = Array.from({ length: 5 }, () => gSet({ category: "BENCH_PRESS" }));
     const result = matchGarminSetsToPlan(exercises, sets);
+    // The 4th/5th bench sets strictly match the already-full bench, so they're
+    // genuine extras — not spilled into Row/Curl.
     expect(result.delta).toEqual({ "0": [1, 2, 3] });
     expect(result.matchedSets).toBe(3);
+    expect(result.unmatchedSets).toBe(2);
   });
 
   it("returns a partial delta when fewer sets were done", () => {
@@ -115,25 +118,40 @@ describe("matchGarminSetsToPlan", () => {
     expect(matchGarminSetsToPlan(exercises, sets).delta).toEqual({ "0": [1], "2": [1, 2] });
   });
 
-  it("pairs unidentified sets only with taxonomy-unmapped plan exercises", () => {
+  it("absorbs unidentified sets in plan order, including onto unmapped exercises", () => {
     const withUnmapped: MatchExercise[] = [
-      { name: "Bench Press", sets: 3 },
+      { name: "Bench Press", sets: 1 },
       { name: "Farmer Carry", sets: 2 }, // not in EXERCISE_TAXONOMY
     ];
-    const result = matchGarminSetsToPlan(withUnmapped, [gSet({ category: null })]);
-    expect(result.delta).toEqual({ "1": [1] });
+    // One identified bench set fills bench; the two "Unknown" sets that follow
+    // land on the unmapped Farmer Carry next in order.
+    const result = matchGarminSetsToPlan(withUnmapped, [
+      gSet({ category: "BENCH_PRESS" }),
+      gSet({ category: null }),
+      gSet({ category: null }),
+    ]);
+    expect(result.delta).toEqual({ "0": [1], "1": [1, 2] });
     expect(result.unmatchedSets).toBe(0);
   });
 
-  it("counts unidentified sets as unmatched when every plan exercise is mapped", () => {
+  it("assumes a lone unidentified set is the current (first) movement", () => {
     const result = matchGarminSetsToPlan(exercises, [gSet({ category: null })]);
-    expect(result.delta).toEqual({});
-    expect(result.unmatchedSets).toBe(1);
+    expect(result.delta).toEqual({ "0": [1] });
+    expect(result.unmatchedSets).toBe(0);
   });
 
-  it("counts sets with a category no plan exercise has as unmatched", () => {
-    const result = matchGarminSetsToPlan(exercises, [gSet({ category: "OLYMPIC_LIFT" })]);
-    expect(result.delta).toEqual({});
+  it("reports a repeat of a completed exercise as an extra set", () => {
+    // 4 bench sets, plan is bench(3) then row(3): the 4th strictly matches the
+    // finished bench, so it's an extra rather than mis-filed as a row set.
+    const twoEx: MatchExercise[] = [
+      { name: "Bench Press", sets: 3 },
+      { name: "Row", sets: 3 },
+    ];
+    const result = matchGarminSetsToPlan(
+      twoEx,
+      Array.from({ length: 4 }, () => gSet({ category: "BENCH_PRESS" })),
+    );
+    expect(result.delta).toEqual({ "0": [1, 2, 3] });
     expect(result.unmatchedSets).toBe(1);
   });
 
@@ -149,15 +167,18 @@ describe("matchGarminSetsToPlan", () => {
     });
   });
 
-  it("prefers an exact taxonomy-name match over plan order", () => {
+  it("fills same-category siblings in plan order regardless of Garmin's name", () => {
     const siblings: MatchExercise[] = [
       { name: "Bench Press", sets: 1 }, // BARBELL_BENCH_PRESS
       { name: "Incline Bench Press", sets: 1 }, // INCLINE_BARBELL_BENCH_PRESS
     ];
+    // Both are BENCH_PRESS; the first set fills the first exercise even though
+    // Garmin tagged it with the incline name — order is the reliable signal.
     const result = matchGarminSetsToPlan(siblings, [
       gSet({ category: "BENCH_PRESS", name: "INCLINE_BARBELL_BENCH_PRESS" }),
+      gSet({ category: "BENCH_PRESS", name: "BARBELL_BENCH_PRESS" }),
     ]);
-    expect(result.delta).toEqual({ "1": [1] });
+    expect(result.delta).toEqual({ "0": [1], "1": [1] });
   });
 
   it("matches a cardio block by a time-only set", () => {
@@ -169,6 +190,46 @@ describe("matchGarminSetsToPlan", () => {
       gSet({ category: null, reps: null, durationSeconds: 900 }),
     ]);
     expect(result.delta).toEqual({ "1": [1] });
+  });
+
+  it("maps a real watch session whose names/categories Garmin relabeled", () => {
+    // Reproduces the reported bug (see the two screenshots): the watch pushes
+    // recorded sets in plan order but with its own labels — barbell for a
+    // dumbbell incline, "Cable Crossover"/no-category for flyes, an "Unknown"
+    // missed-detection rep, "Upright Row" for a triceps pushdown. Order-first
+    // matching lands every set on the right plan exercise.
+    const plan: MatchExercise[] = [
+      { name: "Barbell Bench Press", sets: 4 },
+      { name: "Incline Dumbbell Bench Press", sets: 3 },
+      { name: "Cable Chest Flyes", sets: 3 },
+      { name: "Dumbbell Overhead Triceps Extension", sets: 3 },
+      { name: "Cable Triceps Pushdown", sets: 1 },
+      { name: "Cable Woodchoppers", sets: 1 },
+      { name: "Treadmill Incline Interval", sets: 1, type: "cardio", durationMinutes: 10 },
+    ];
+    const garminSets = [
+      ...Array.from({ length: 4 }, () => gSet({ category: "BENCH_PRESS" })),
+      ...Array.from({ length: 3 }, () => gSet({ category: "BENCH_PRESS" })), // incline, relabeled
+      gSet({ category: null }), // "Cable Crossover" — no category surfaced
+      gSet({ category: null }),
+      gSet({ category: null, reps: 0, durationSeconds: 130 }), // "Unknown" missed rep
+      ...Array.from({ length: 3 }, () => gSet({ category: "TRICEPS_EXTENSION" })),
+      gSet({ category: "ROW" }), // "Upright Row" — mislabeled pushdown
+      gSet({ category: "CORE" }), // woodchopper
+    ];
+
+    const result = matchGarminSetsToPlan(plan, garminSets);
+
+    expect(result.delta).toEqual({
+      "0": [1, 2, 3, 4],
+      "1": [1, 2, 3],
+      "2": [1, 2, 3],
+      "3": [1, 2, 3],
+      "4": [1],
+      "5": [1],
+    });
+    expect(result.matchedSets).toBe(15);
+    expect(result.unmatchedSets).toBe(0); // no more phantom "extra sets"
   });
 
   describe("wkStepIndex pass", () => {
