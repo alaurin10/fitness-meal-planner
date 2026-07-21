@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useApi } from "../lib/api";
 
 export interface GarminStatus {
@@ -27,7 +27,13 @@ export interface GarminPushDayResult {
   error?: string;
 }
 
-const AUTO_SYNC_STALE_HOURS = 6;
+// How stale the last sync must be before an automatic sync attempt fires. Kept
+// in step with the server's SYNC_COOLDOWN_MINUTES (15m): the server is the real
+// guard and skips anything sooner, so mirroring it here avoids pointless calls.
+const AUTO_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000;
+// Hard floor between two client-initiated attempts, whatever the trigger, so a
+// burst of focus/visibility events can't fan out into repeated requests.
+const AUTO_SYNC_ATTEMPT_THROTTLE_MS = 60 * 1000;
 
 // Queries whose data can change after a Garmin sync lands.
 const SYNC_AFFECTED_KEYS = ["dailySummary", "history", "activities", "progress", "garmin"];
@@ -143,25 +149,66 @@ export function usePushWeekToGarmin() {
 }
 
 /**
- * Kick off a background sync once per app load when the connection's data is
- * stale. The server's cooldown makes redundant calls harmless.
+ * Keep Garmin data fresh without the user pressing "Sync now". While the app is
+ * open this attempts a background sync on three triggers:
+ *   1. initial mount (and whenever the connection first becomes stale),
+ *   2. a periodic timer, and
+ *   3. the app becoming active again — returning to the tab or foregrounding
+ *      the app (visibilitychange / window focus).
+ * Each attempt is skipped unless the last sync is stale, and a short throttle
+ * collapses bursts of focus events. The server's cooldown is the real guard, so
+ * any redundant call it receives is cheaply skipped. Silent by design — results
+ * and errors surface through the Garmin status card.
  */
 export function useGarminAutoSync() {
   const status = useGarminStatus();
   const sync = useSyncGarmin();
-  const fired = useRef(false);
+  const lastAttemptRef = useRef(0);
 
   const connected = status.data?.connected ?? false;
   const lastSyncAt = status.data?.lastSyncAt;
 
-  useEffect(() => {
-    if (fired.current || !connected) return;
-    const stale =
-      !lastSyncAt ||
-      Date.now() - new Date(lastSyncAt).getTime() > AUTO_SYNC_STALE_HOURS * 60 * 60 * 1000;
-    if (!stale) return;
-    fired.current = true;
-    sync.mutate(undefined, { onError: () => {} }); // silent: surfaced via status card
+  // Mirror the latest state into a ref so the stable event handlers below can
+  // read it without re-subscribing on every status refresh.
+  const stateRef = useRef({ connected, lastSyncAt, pending: sync.isPending });
+  stateRef.current = { connected, lastSyncAt, pending: sync.isPending };
+
+  const maybeSync = useCallback(() => {
+    const { connected, lastSyncAt, pending } = stateRef.current;
+    if (!connected || pending) return;
+    const now = Date.now();
+    if (now - lastAttemptRef.current < AUTO_SYNC_ATTEMPT_THROTTLE_MS) return;
+    const fresh =
+      lastSyncAt != null && now - new Date(lastSyncAt).getTime() < AUTO_SYNC_MIN_INTERVAL_MS;
+    if (fresh) return;
+    lastAttemptRef.current = now;
+    sync.mutate(undefined, { onError: () => {} });
+    // sync.mutate is referentially stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, lastSyncAt]);
+  }, []);
+
+  // Fire on mount and whenever a status change (connected / last sync) makes a
+  // sync newly due.
+  useEffect(() => {
+    maybeSync();
+  }, [connected, lastSyncAt, maybeSync]);
+
+  // Periodic re-sync while the app stays open.
+  useEffect(() => {
+    const id = window.setInterval(maybeSync, AUTO_SYNC_MIN_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [maybeSync]);
+
+  // Re-sync when the app becomes active again after being backgrounded.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") maybeSync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", maybeSync);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", maybeSync);
+    };
+  }, [maybeSync]);
 }

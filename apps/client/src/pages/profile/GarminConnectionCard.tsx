@@ -300,8 +300,8 @@ export function GarminConnectionCard() {
         <>
           <div style={{ fontSize: 13, color: "var(--sumi)", marginTop: 6, lineHeight: 1.5 }}>
             Connected{status.data?.garminUserId ? ` as ${status.data.garminUserId}` : ""}. Health
-            data syncs automatically when you open the app; use Sync now after a fresh watch
-            upload.
+            data syncs automatically while the app is open — on launch, every 15 minutes, and each
+            time you return to it. Use Sync now to pull the very latest right after a watch upload.
           </div>
           <div
             style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 12.5 }}
